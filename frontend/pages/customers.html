@@ -1,0 +1,121 @@
+<div class="flex flex-col h-full fade-in space-y-4">
+
+    <div
+        class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white p-3 md:p-4 rounded-xl shadow-sm border border-slate-200">
+
+        <div class="relative w-full md:max-w-md">
+            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="searchInput" oninput="handleSearch(this.value)"
+                placeholder="Search Name or Mobile..."
+                class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <button onclick="openCustomerModal()"
+            class="w-full md:w-auto bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-brand-600/20 transition flex items-center justify-center gap-2">
+            <i class="ph ph-plus font-bold"></i>
+            <span>Add Customer</span>
+        </button>
+    </div>
+
+    <div class="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+        <div class="overflow-auto flex-1">
+            <table class="w-full text-left text-sm whitespace-nowrap">
+                <thead class="bg-slate-50 text-slate-500 sticky top-0 z-10 border-b border-slate-200">
+                    <tr>
+                        <th class="px-4 py-3 md:px-6">Customer</th>
+                        <th class="px-4 py-3 md:px-6">Mobile</th>
+
+                        <th class="hidden md:table-cell px-6 py-3">Address / Tax</th>
+
+                        <th class="px-4 py-3 md:px-6 text-right">Due</th>
+
+                        <th class="hidden sm:table-cell px-6 py-3 text-center">Status</th>
+
+                        <th class="px-4 py-3 md:px-6 text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="customerTableBody" class="divide-y divide-slate-100">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="customerModal"
+    class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col">
+        <div class="px-6 py-4 border-b flex justify-between items-center sticky top-0 bg-white z-10">
+            <h3 class="font-bold text-lg text-slate-800" id="modalTitle">New Customer</h3>
+            <button onclick="closeCustomerModal()"
+                class="text-slate-400 border px-2 py-1/2 rounded hover:text-red-500 text-2xl">&times;</button>
+        </div>
+
+        <form onsubmit="handleSaveCustomer(event)" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <input type="hidden" id="customerId">
+
+            <div class="space-y-4">
+                <h4 class="font-bold text-brand-600 text-sm uppercase border-b pb-1">Basic Info</h4>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name</label>
+                    <input type="text" id="inputName" required
+                        class="w-full border border-slate-300 rounded p-2 text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Mobile</label>
+                        <input type="text" id="inputMobile" required
+                            class="w-full border border-slate-300 rounded p-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tax ID</label>
+                        <input type="text" id="inputTaxId" class="w-full border border-slate-300 rounded p-2 text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Address</label>
+                    <textarea id="inputAddress" rows="2"
+                        class="w-full border border-slate-300 rounded p-2 text-sm"></textarea>
+                </div>
+                <div class="pt-2">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="inputStatus" class="w-4 h-4 text-brand-600 rounded">
+                        <span class="text-sm font-medium">Active</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <h4 class="font-bold text-brand-600 text-sm uppercase border-b pb-1">Measurements</h4>
+                <div class="grid grid-cols-3 gap-2">
+                    <div><label class="text-[10px] uppercase font-bold text-slate-400">Length</label><input
+                            id="measureLength" class="w-full border rounded p-1 text-sm"></div>
+                    <div><label class="text-[10px] uppercase font-bold text-slate-400">Shoulder</label><input
+                            id="measureShoulder" class="w-full border rounded p-1 text-sm"></div>
+                    <div><label class="text-[10px] uppercase font-bold text-slate-400">Bust</label><input
+                            id="measureBust" class="w-full border rounded p-1 text-sm"></div>
+                    <div><label class="text-[10px] uppercase font-bold text-slate-400">Waist</label><input
+                            id="measureWaist" class="w-full border rounded p-1 text-sm"></div>
+                    <div><label class="text-[10px] uppercase font-bold text-slate-400">Hip</label><input id="measureHip"
+                            class="w-full border rounded p-1 text-sm"></div>
+                    <div><label class="text-[10px] uppercase font-bold text-slate-400">Arm Hole</label><input
+                            id="measureArmHole" class="w-full border rounded p-1 text-sm"></div>
+                    <div><label class="text-[10px] uppercase font-bold text-slate-400">Slv Len</label><input
+                            id="measureSleeveL" class="w-full border rounded p-1 text-sm"></div>
+                    <div><label class="text-[10px] uppercase font-bold text-slate-400">Slv Wid</label><input
+                            id="measureSleeveW" class="w-full border rounded p-1 text-sm"></div>
+                    <div><label class="text-[10px] uppercase font-bold text-slate-400">Rnd Wid</label><input
+                            id="measureRoundW" class="w-full border rounded p-1 text-sm"></div>
+                </div>
+            </div>
+
+            <div class="md:col-span-2 flex justify-end gap-3 pt-4 border-t">
+                <button type="button" onclick="closeCustomerModal()"
+                    class="px-4 py-2 border text-slate-600 hover:bg-slate-100 rounded-lg font-bold text-sm">Cancel</button>
+                <button type="submit" id="customerSubmitBtn"
+                    class="bg-brand-600 text-white px-6 py-2 rounded-lg font-bold text-sm shadow">
+                    <i class="fa-solid fa-floppy-disk mr-2"></i>Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

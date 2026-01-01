@@ -1,0 +1,104 @@
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full fade-in">
+    
+    <div class="lg:col-span-2 flex flex-col gap-4 h-full">
+        
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+            <h3 class="font-bold text-slate-700 mb-3 text-sm uppercase">Add Items</h3>
+            <form onsubmit="handleAddToCart(event)" class="flex flex-col md:flex-row gap-3">
+                <select id="productSelect" class="flex-1 border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                    <option value="" disabled selected>Loading Products...</option>
+                </select>
+                <input type="number" id="qtyInput" placeholder="Qty" min="1" class="w-24 border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                <input type="number" id="priceInput" placeholder="Price" step="0.01" class="w-32 border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                <button type="submit" class="bg-slate-900 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-slate-800">Add</button>
+            </form>
+        </div>
+
+        <div class="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+            <div class="p-4 border-b bg-slate-50 flex justify-between items-center">
+                <h3 class="font-bold text-slate-700">Cart Items</h3>
+                <span id="totalItemsBadge" class="bg-brand-100 text-brand-700 text-xs px-2 py-1 rounded font-bold">0 Items</span>
+            </div>
+            <div class="flex-1 overflow-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 text-slate-500 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-3">Product Name</th>
+                            <th class="px-4 py-3 text-center">Qty</th>
+                            <th class="px-4 py-3 text-right">Price</th>
+                            <th class="px-4 py-3 text-right">Total</th>
+                            <th class="px-4 py-3 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cartTableBody" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <div class="p-4 bg-slate-50 border-t flex justify-between items-center">
+                <span class="text-slate-500">Subtotal:</span>
+                <span id="cartTotalDisplay" class="text-xl font-bold text-slate-800">$0.00</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="lg:col-span-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-y-auto">
+        <div class="p-5 border-b border-slate-100">
+            <h3 class="font-bold text-slate-800">Order Details</h3>
+            <p class="text-xs text-slate-500">Fill required fields for database</p>
+        </div>
+        
+        <form id="orderForm" class="p-5 space-y-5 flex-1">
+            
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Customer *</label>
+                <select id="customerSelect" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    <option value="" disabled selected>Select Customer</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Salesperson *</label>
+                <select id="employeeSelect" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    <option value="" disabled selected>Select Salesperson</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Delivery Date</label>
+                <input type="datetime-local" id="deliveryDate" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none">
+            </div>
+
+            <hr class="border-slate-100">
+
+            <div class="bg-brand-50 p-4 rounded-lg space-y-3 border border-brand-100">
+                <div>
+                    <label class="block text-xs font-bold text-brand-800 uppercase mb-1">Payment Account</label>
+                    <select id="accountSelect" class="w-full border border-brand-200 rounded p-2 text-sm outline-none">
+                        <option value="" disabled selected>Select Account (Cash/Bank)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-brand-800 uppercase mb-1">Advance Payment</label>
+                    <input type="number" id="advanceInput" value="0" min="0" class="w-full border border-brand-200 rounded p-2 text-sm outline-none">
+                </div>
+
+                <div class="flex justify-between items-center pt-2">
+                    <span class="text-sm font-bold text-brand-900">Due Amount:</span>
+                    <span id="dueAmountDisplay" class="text-lg font-bold text-red-600">$0.00</span>
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Notes / Delivery Info</label>
+                <textarea id="orderNotes" rows="2" class="w-full border border-slate-300 rounded-lg p-2 text-sm outline-none"></textarea>
+            </div>
+
+        </form>
+
+        <div class="p-5 border-t border-slate-100">
+            <button onclick="submitOrderToDB()" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-green-600/20 transition-all">
+                Confirm Order
+            </button>
+        </div>
+    </div>
+</div>
