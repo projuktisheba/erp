@@ -46,3 +46,19 @@ th, td {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* SMOOTH MENU ANIMATION */
+.submenu-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s ease-out;
+}
+
+.submenu-wrapper.open {
+    grid-template-rows: 1fr;
+}
+
+.submenu-inner {
+    overflow: hidden; 
+    min-height: 0;
+}

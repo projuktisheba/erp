@@ -13,6 +13,7 @@ import (
 
 	"os"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/projuktisheba/erp-mini-api/internal/dbrepo"
 	"github.com/projuktisheba/erp-mini-api/internal/models"
@@ -160,19 +161,22 @@ func (e *EmployeeHandler) GetEmployeesNameAndID(w http.ResponseWriter, r *http.R
 
 // UpdateEmployee updates general employee details
 func (e *EmployeeHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
+	//read employee id
+	employeeID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if employeeID == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid employee id"))
+		return
+	}
 	var employeeDetails models.Employee
-	err := utils.ReadJSON(w, r, &employeeDetails)
+	err = utils.ReadJSON(w, r, &employeeDetails)
 	if err != nil {
 		e.errorLog.Println("ERROR_01_UpdateEmployee", err)
 		utils.BadRequest(w, err)
 		return
 	}
-	if employeeDetails.ID == 0 {
-		e.errorLog.Println("ERROR_02_UpdateEmployee: Missing employee ID")
-		utils.BadRequest(w, errors.New("missing employee ID"))
-		return
-	}
-
+	
+	employeeDetails.ID = employeeID
+	fmt.Println(employeeDetails.Role)
 	err = e.DB.UpdateEmployee(r.Context(), &employeeDetails)
 	if err != nil {
 		e.errorLog.Println("ERROR_03_UpdateEmployee: ", err)
@@ -261,7 +265,7 @@ func (e *EmployeeHandler) SubmitSalary(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, errors.New("missing branch ID"))
 		return
 	}
-	e.infoLog.Println("salary: ",salary, branchID)
+	e.infoLog.Println("salary: ", salary, branchID)
 	err = e.DB.SubmitSalary(r.Context(), salary.SalaryDate, salary.EmployeeID, branchID, salary.Amount)
 	if err != nil {
 		e.errorLog.Println("ERROR_04_SubmitSalary: ", err)
@@ -520,8 +524,7 @@ func (e *EmployeeHandler) UploadEmployeeProfilePicture(w http.ResponseWriter, r 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-
-func (e *EmployeeHandler) RecordWorkerDailyProgress(w http.ResponseWriter, r *http.Request){
+func (e *EmployeeHandler) RecordWorkerDailyProgress(w http.ResponseWriter, r *http.Request) {
 
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {
@@ -551,7 +554,7 @@ func (e *EmployeeHandler) RecordWorkerDailyProgress(w http.ResponseWriter, r *ht
 	utils.WriteJSON(w, http.StatusOK, response)
 }
 
-func (e *EmployeeHandler) UpdateWorkerDailyProgress(w http.ResponseWriter, r *http.Request){
+func (e *EmployeeHandler) UpdateWorkerDailyProgress(w http.ResponseWriter, r *http.Request) {
 
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {

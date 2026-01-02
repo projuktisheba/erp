@@ -1,5 +1,5 @@
 
--- postgresql://erp_mini_new_user:QmaDNHGpVtdD8sCv40MIvZFono48XZrW@localhost:5432/erp_mini_new_dev_db
+-- psql postgresql://erp_mini_new_user:QmaDNHGpVtdD8sCv40MIvZFono48XZrW@localhost:5432/erp_mini_new_dev_db
 
 -- ==========================================
 -- PostgreSQL Database & User Creation Script

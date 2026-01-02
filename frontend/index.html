@@ -24,7 +24,6 @@
                 opacity: 0;
                 transform: translateY(5px);
             }
-
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -48,6 +47,21 @@
 
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
+        }
+
+        /* --- COLLAPSIBLE MENU ANIMATION (REQUIRED) --- */
+        .submenu-wrapper {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.3s ease-out;
+        }
+
+        .submenu-wrapper.open {
+            grid-template-rows: 1fr;
+        }
+
+        .submenu-inner {
+            overflow: hidden; /* This hides the content when closed */
         }
     </style>
 
@@ -74,39 +88,26 @@
         class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col transition-transform duration-300 transform -translate-x-full md:relative md:translate-x-0 shadow-2xl md:shadow-none">
 
         <div class="h-16 flex items-center px-6 border-b border-slate-800 bg-slate-950">
-            <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center mr-3">
-                <i class="ph ph-hexagon text-xl text-white"></i>
-            </div>
-            <span class="text-lg font-bold tracking-wide">Nexus<span class="text-brand-500">ERP</span></span>
+    <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center mr-3 shrink-0">
+        <i class="ph ph-code text-xl text-white"></i>
+    </div>
 
-            <button onclick="toggleSidebar()" class="ml-auto md:hidden text-slate-400 hover:text-white">
-                <i class="ph ph-x text-xl"></i>
-            </button>
-        </div>
+    <div class="flex flex-col justify-center overflow-hidden">
+        <span class="text-lg font-bold tracking-wide leading-tight whitespace-nowrap">
+            Projukti<span class="text-brand-500">Sheba</span>
+        </span>
+        <span class="text-[9px] text-slate-400 uppercase tracking-widest leading-none">
+            Software Ltd.
+        </span>
+    </div>
 
-        <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
-            <p class="px-3 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Main Menu</p>
+    <button onclick="toggleSidebar()" class="ml-auto md:hidden text-slate-400 hover:text-white">
+        <i class="ph ph-x text-xl"></i>
+    </button>
+</div>
 
-            <button id="btn-order" onclick="loadPage('order'); toggleSidebarOnMobile()"
-                class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
-                <i class="ph ph-shopping-cart text-lg"></i> New Order
-            </button>
-
-            <button id="btn-history" onclick="loadPage('history'); toggleSidebarOnMobile()"
-                class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
-                <i class="ph ph-clock-counter-clockwise text-lg"></i> History
-            </button>
-
-            <button id="btn-customers" onclick="loadPage('customers'); toggleSidebarOnMobile()"
-                class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
-                <i class="ph ph-users text-lg"></i> Customers
-            </button>
-
-            <button id="btn-workers" onclick="loadPage('workers'); toggleSidebarOnMobile()"
-                class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
-                <i class="ph ph-identification-badge text-lg"></i> Staff
-            </button>
-        </nav>
+        <nav id="sidebar-nav" class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+    </nav>
 
         <div class="p-4 border-t border-slate-800 bg-slate-950">
             <div class="flex items-center gap-3">
@@ -116,7 +117,7 @@
                     <p class="text-sm font-medium truncate">Logged In</p>
                     <p id="displayRoleSide" class="text-xs text-slate-400 truncate">Select Role</p>
                 </div>
-                <button onclick="document.getElementById('loginModal').classList.remove('hidden')"
+                <button onclick="signout()"
                     class="text-slate-400 hover:text-white">
                     <i class="ph ph-sign-out text-xl"></i>
                 </button>
@@ -202,12 +203,15 @@
         </div>
     </div>
 
-    <!-- Notification container -->
     <div id="notification-container" 
      class="fixed z-[100] top-4 right-4 flex flex-col gap-3 w-full max-w-xs px-4 pointer-events-none sm:px-0 sm:right-6 sm:top-6">
     </div>
 
-    <script src="script.js"></script>
-</body>
+    <script>
+        
+    </script>
 
+    <script src="script.js"></script>
+    <script src="js/sidebar.js"></script>
+</body>
 </html>

@@ -39,10 +39,10 @@ func (r *EmployeeRepo) CreateEmployee(ctx context.Context, e *models.Employee) e
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
 			switch pgErr.ConstraintName {
-			case "employees_mobile_key":
-				return errors.New("this mobile is already associated with another account")
+			case "employees_mobile_branch_id_key":
+				return errors.New("Duplicate Mobile Number")
 			case "employees_email_key":
-				return errors.New("this email is already associated with another account")
+				return errors.New("Duplicate Email Address")
 			}
 		}
 		if err == pgx.ErrNoRows {
@@ -119,6 +119,8 @@ func (r *EmployeeRepo) UpdateEmployee(ctx context.Context, e *models.Employee) e
 			address = $8,
 			base_salary = $9,
 			overtime_rate = $10,
+			status=$11,
+			role=$12,
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1
 		RETURNING updated_at
@@ -126,7 +128,7 @@ func (r *EmployeeRepo) UpdateEmployee(ctx context.Context, e *models.Employee) e
 
 	row := r.db.QueryRow(ctx, query,
 		e.ID, e.Name, e.Mobile, e.Email, e.Password, e.PassportNo,
-		e.JoiningDate, e.Address, e.BaseSalary, e.OvertimeRate,
+		e.JoiningDate, e.Address, e.BaseSalary, e.OvertimeRate, e.Status, e.Role,
 	)
 
 	err := row.Scan(&e.UpdatedAt)

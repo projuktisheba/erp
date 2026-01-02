@@ -50,18 +50,18 @@ func (app *application) routes() http.Handler {
 	protected.Use(app.AuthUser)
 
 	// -------------------- HR(Employee) Routes --------------------
-	// protected.Route("/api/v1/hr", func(r chi.Router) {
-	// 	// Get single employee by id, email, or mobile (query param)
-	// 	// Example: GET /api/v1/hr/employee?id=5
-	// 	r.Get("/employee", app.Handlers.Employee.GetEmployeeByID)
+	protected.Route("/api/v1/hr", func(r chi.Router) {
+		// Get single employee by id, email, or mobile (query param)
+		// Example: GET /api/v1/hr/employee?id=5
+		r.Get("/employee", app.Handlers.Employee.GetEmployeeByID)
 
-	// 	// Add a new employee
-	// 	// Example: POST /api/v1/hr/employee
-	// 	r.Post("/employee", app.Handlers.Employee.AddEmployee)
+		// Add a new employee
+		// Example: POST /api/v1/hr/employee/new
+		r.Post("/employee/new", app.Handlers.Employee.AddEmployee)
 
-	// 	// Get paginated list of employees with optional filters
-	// 	// Example: GET /api/v1/hr/employees?page=1&limit=20&role=salesperson&status=active
-	// 	r.Get("/employees", app.Handlers.Employee.PaginatedEmployeeList)
+		// Get paginated list of employees with optional filters
+		// Example: GET /api/v1/hr/employees?page=1&limit=20&role=salesperson&status=active
+		r.Get("/employees", app.Handlers.Employee.PaginatedEmployeeList)
 
 	// 	// Get all active employee names and IDs
 	// 	// Example: GET /api/v1/hr/employees/names
@@ -71,9 +71,9 @@ func (app *application) routes() http.Handler {
 	// 	// Example: POST /api/v1/hr/profile-picture
 	// 	r.Post("/employee/profile-picture", app.Handlers.Employee.UploadEmployeeProfilePicture)
 
-	// 	// Update general employee details
-	// 	// Example: PUT /api/v1/hr/employee
-	// 	r.Put("/employee", app.Handlers.Employee.UpdateEmployee)
+		// Update general employee details
+		// Example: PUT /api/v1/hr/employee/update/{id}
+		r.Put("/employee/update/{id}", app.Handlers.Employee.UpdateEmployee)
 
 	// 	// Update employee salary and overtime rate
 	// 	// Example: PUT /api/v1/hr/employee/salary
@@ -90,31 +90,9 @@ func (app *application) routes() http.Handler {
 	// 	// Update employee progress record
 	// 	r.Post("/worker/progress", app.Handlers.Employee.RecordWorkerDailyProgress)
 	// 	r.Patch("/worker/progress", app.Handlers.Employee.UpdateWorkerDailyProgress)
-	// })
+	})
 
-	// -------------------- Attendance Routes --------------------
-	// protected.Route("/api/v1/hr/attendance", func(r chi.Router) {
-	// 	// Mark or update today's attendance for a single employee
-	// 	// Example: POST /api/v1/hr/attendance/5
-	// 	r.Post("/present/single", app.Handlers.Attendance.MarkEmployeePresent)
-
-	// 	// Batch update today's attendance for multiple employees
-	// 	// Example: POST /api/v1/hr/attendance/batch
-	// 	r.Post("/present/batch", app.Handlers.Attendance.MarkEmployeesPresentBatch)
-
-	// 	// Get calendar-style attendance for one employee
-	// 	// Example: GET /api/v1/hr/attendance/calendar?employee_id=1&month=2025-09
-	// 	r.Get("/calendar", app.Handlers.Attendance.GetEmployeeCalendar)
-
-	// 	// Get monthly attendance summary
-	// 	// Example: GET /api/v1/hr/attendance/summary?employee_id=1&month=2025-09
-	// 	r.Get("/summary", app.Handlers.Attendance.GetEmployeeSummary)
-
-	// 	// Get batch attendance summary for multiple employees
-	// 	// Example: GET /api/v1/hr/attendance/batch/summary?start=2025-09-01&end=2025-09-30
-	// 	r.Get("/batch/summary", app.Handlers.Attendance.GetBatchSummary)
-	// })
-
+	
 	// -------------------- Customer Routes --------------------
 	protected.Route("/api/v1", func(r chi.Router) {
 		r.Get("/customer", app.Handlers.Customer.GetCustomerByID)
@@ -159,7 +137,7 @@ func (app *application) routes() http.Handler {
 
 	// -------------------- Order Routes --------------------
 	protected.Route("/api/v1/orders", func(r chi.Router) {
-		r.Post("/", app.Handlers.Order.AddOrder)
+		r.Post("/new", app.Handlers.Order.AddOrder)
 		r.Patch("/", app.Handlers.Order.UpdateOrder)
 		r.Delete("/", app.Handlers.Order.CancelOrder)
 		r.Patch("/checkout", app.Handlers.Order.CheckoutOrder)

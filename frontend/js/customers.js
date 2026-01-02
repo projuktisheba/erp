@@ -40,13 +40,19 @@ async function fetchCustomers() {
 
 /* --- 2. RENDER TABLE --- */
 function renderTable() {
+  const customerTable = document.getElementById("customerTable");
   const tbody = document.getElementById("customerTableBody");
+  const emptyState = document.getElementById("emptyState");
   tbody.innerHTML = "";
 
   if (customerState.filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-slate-400">No customers found</td></tr>`;
+    customerTable.classList.add("hidden");
+    emptyState.classList.remove("hidden");
     return;
   }
+
+  customerTable.classList.remove("hidden");
+    emptyState.classList.add("hidden");
 
   customerState.filtered.forEach((customer) => {
     const statusBadge = customer.status
@@ -89,7 +95,7 @@ function renderTable() {
                     <button onclick="editCustomer(${
                       customer.id
                     })" class="text-blue-600 hover:bg-blue-50 border px-1 py-1/2 md:rounded">
-                        <i class="ph ph-pen-nib text-lg"></i>
+                        <i class="ph ph-note-pencil text-lg"></i>
                     </button>                    
                 </div>
             </td>
@@ -144,7 +150,9 @@ window.handleSaveCustomer = async function (e) {
   e.preventDefault();
 
   //show submit spinner
-  document.getElementById("customerSubmitBtn").innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Processing...`;
+  document.getElementById(
+    "customerSubmitBtn"
+  ).innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Processing...`;
   const id = document.getElementById("customerId").value;
   const isEdit = !!id;
 
@@ -199,7 +207,7 @@ window.handleSaveCustomer = async function (e) {
   } catch (error) {
     console.error(error);
     showNotification("error", "Server Error");
-  } finally{
+  } finally {
     closeCustomerModal();
   }
 };

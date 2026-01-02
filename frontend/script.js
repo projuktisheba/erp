@@ -133,13 +133,19 @@ function handleLoginSuccess(data) {
   loadPage("order");
 }
 
-/* --- 3. LOGOUT HANDLING --- */
-window.logout = function () {
-  if (confirm("Are you sure you want to logout?")) {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("authUser");
-    window.location.reload();
-  }
+/* --- 3. SIGNOUT HANDLING --- */
+window.signout = function () {
+  showModalConfirm(
+    "warning",
+    "Logout",
+    "Are you sure to logout",
+    "Yes",
+    () => {
+      localStorage.clear();
+      window.location.reload();
+    },
+    cancelText = "Cancel"
+  );
 };
 
 /* --- 4. UI & RESPONSIVE LOGIC --- */
@@ -155,6 +161,8 @@ function updateUI() {
 
   // Header Branch Control
   updateHeaderBranchControl();
+  //update sidebar
+  renderSidebar(user.role || 'manager');
 }
 
 /* --- UPDATE HEADER BRANCH CONTROL --- */
@@ -219,28 +227,9 @@ window.handleBranchSwitch = function (newBranchId) {
     loadPage(pageName);
   }
 };
-/* --- Sidebar Toggle Functions --- */
-window.toggleSidebar = function () {
-  const sidebar = document.getElementById("sidebar");
-  const overlay = document.getElementById("mobileOverlay");
-
-  sidebar.classList.toggle("-translate-x-full");
-
-  if (sidebar.classList.contains("-translate-x-full")) {
-    overlay.classList.add("hidden");
-  } else {
-    overlay.classList.remove("hidden");
-  }
-};
-
-window.toggleSidebarOnMobile = function () {
-  if (window.innerWidth < 768) {
-    toggleSidebar();
-  }
-};
 
 /* --- 5. DYNAMIC PAGE ROUTER --- */
-async function loadPage(pageName) {
+async function loadPage(pageName, pageTitle) {
   window.globalState.currentPage = pageName;
   const container = document.getElementById("dynamic-content");
 
@@ -273,14 +262,7 @@ async function loadPage(pageName) {
     container.innerHTML = html;
 
     // Update Header Title
-    const titles = {
-      order: "New Order Entry",
-      history: "Transaction History",
-      customers: "Customer Database",
-      workers: "Staff Management",
-    };
-    document.getElementById("pageTitle").textContent =
-      titles[pageName] || "Dashboard";
+    document.getElementById("pageTitle").textContent = pageTitle || "Dashboard";
 
     // 3. Load the specific JS file for this page
     loadPageScript(pageName);
@@ -409,7 +391,7 @@ window.showNotification = function (type, message) {
 
   toast.innerHTML = `
         <i class="ph ${style.icon} ${style.iconColor} text-2xl shrink-0"></i>
-        <div class="flex-1 min-w-0 z-10"> <p class="font-semibold text-sm ${style.text} truncate">${message}</p>
+        <div class="flex-1 min-w-0 z-10"> <p class="font-semibold text-[10px] ${style.text} truncate">${message}</p>
         </div>
         
         <button onclick="dismissToast(this)" class="text-slate-400 hover:text-slate-600 transition p-1 z-10">
@@ -447,4 +429,142 @@ window.dismissToast = function (btn) {
   setTimeout(() => {
     if (toast.parentElement) toast.remove();
   }, 1000);
+};
+
+/* --- FULL SCREEN MODAL SYSTEM --- */
+
+/**
+ * Display a full-screen confirmation/alert modal
+ * @param {string} type - 'success', 'error', 'warning', 'info'
+ * @param {string} title - Bold header text
+ * @param {string} message - Description text
+ * @param {string} confirmText - Text for the action button
+ * @param {function} onConfirm - Function to run when confirmed
+ * @param {string} cancelText - (Optional) Text for cancel button (defaults to "Cancel")
+ */
+window.showModalConfirm = function (
+  type,
+  title,
+  message,
+  confirmText,
+  onConfirm,
+  cancelText = "Cancel"
+) {
+  // 1. Define Styles based on Type
+  const config = {
+    success: {
+      icon: "ph-check-circle",
+      iconColor: "text-emerald-600",
+      iconBg: "bg-emerald-100",
+      btnBg: "bg-emerald-600 hover:bg-emerald-700",
+      ring: "focus:ring-emerald-500",
+    },
+    error: {
+      // Good for "Delete" or "Critical" actions
+      icon: "ph-bug", // or ph-warning-octagon
+      iconColor: "text-red-600",
+      iconBg: "bg-red-100",
+      btnBg: "bg-red-600 hover:bg-red-700",
+      ring: "focus:ring-red-500",
+    },
+    warning: {
+      icon: "ph-warning",
+      iconColor: "text-amber-600",
+      iconBg: "bg-amber-100",
+      btnBg: "bg-amber-600 hover:bg-amber-700",
+      ring: "focus:ring-amber-500",
+    },
+    info: {
+      icon: "ph-info",
+      iconColor: "text-brand-600",
+      iconBg: "bg-brand-100",
+      btnBg: "bg-brand-600 hover:bg-brand-700",
+      ring: "focus:ring-brand-500",
+    },
+    question: {
+      icon: "ph-question",
+      iconColor: "text-yellow-600",
+      iconBg: "bg-yellow-100",
+      btnBg: "bg-yellow-600 hover:bg-yellow-700",
+      ring: "focus:ring-yellow-500",
+    },
+  };
+
+  const style = config[type] || config.info;
+
+  // 2. Create the Modal Container
+  const modalId = "modal-" + Date.now();
+  const overlay = document.createElement("div");
+
+  // Z-Index 9999 ensures it sits above everything, including toasts
+  overlay.id = modalId;
+  overlay.className =
+    "fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm opacity-0 transition-opacity duration-200";
+
+  // 3. The Modal HTML content
+  overlay.innerHTML = `
+        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 transform scale-95 transition-all duration-200 border border-slate-100" id="${modalId}-card">
+            
+            <div class="flex flex-col items-center text-center">
+                <div class="w-16 h-16 rounded-full ${style.iconBg} flex items-center justify-center mb-4 shadow-inner">
+                    <i class="ph ${style.icon} ${style.iconColor} text-3xl"></i>
+                </div>
+
+                <h3 class="text-lg font-bold text-slate-800 mb-2">${title}</h3>
+                <p class="text-[12px] text-slate-800 mb-6 leading-relaxed">
+                    ${message}
+                </p>
+
+                <div class="flex gap-3 w-full">
+                    <button id="${modalId}-cancel" class="flex-1 px-2 py-2.5 bg-slate-100 border hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300">
+                        ${cancelText}
+                    </button>
+                    
+                    <button id="${modalId}-confirm" class="flex-1 px-2 py-2.5 text-white text-sm font-bold rounded-xl shadow-lg shadow-brand-500/20 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 ${style.btnBg} ${style.ring}">
+                        ${confirmText}
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+  document.body.appendChild(overlay);
+
+  // 4. Animate In (Next Frame)
+  requestAnimationFrame(() => {
+    overlay.classList.remove("opacity-0");
+    const card = document.getElementById(`${modalId}-card`);
+    card.classList.remove("scale-95");
+    card.classList.add("scale-100");
+  });
+
+  // 5. Cleanup Helper
+  const closeModal = () => {
+    const card = document.getElementById(`${modalId}-card`);
+    overlay.classList.add("opacity-0"); // Fade out bg
+    card.classList.remove("scale-100"); // Scale down card
+    card.classList.add("scale-95");
+
+    // Remove from DOM after transition
+    setTimeout(() => {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }, 200);
+  };
+
+  // 6. Bind Events
+  // Cancel Button
+  document.getElementById(`${modalId}-cancel`).onclick = closeModal;
+
+  // Confirm Button
+  document.getElementById(`${modalId}-confirm`).onclick = () => {
+    if (typeof onConfirm === "function") {
+      onConfirm(); // Run the specific function passed
+    }
+    closeModal();
+  };
+
+  // Close on Background Click (Optional - remove if you want to force button choice)
+  overlay.onclick = (e) => {
+    if (e.target === overlay) closeModal();
+  };
 };

@@ -59,7 +59,7 @@ type Employee struct {
 	Status       string    `json:"status"` // active, inactive
 	Mobile       string    `json:"mobile"`
 	Email        string    `json:"email,omitempty"`
-	Password     string    `json:"-"` // hashed password
+	Password     string    `json:"password"` // hashed password
 	PassportNo   string    `json:"passport_no,omitempty"`
 	JoiningDate  time.Time `json:"joining_date"`
 	Address      string    `json:"address,omitempty"`
