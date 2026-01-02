@@ -230,49 +230,38 @@ window.handleBranchSwitch = function (newBranchId) {
 
 /* --- 5. DYNAMIC PAGE ROUTER --- */
 async function loadPage(pageName, pageTitle) {
-  window.globalState.currentPage = pageName;
-  const container = document.getElementById("dynamic-content");
+    window.globalState.currentPage = pageName;
+    const container = document.getElementById("dynamic-content");
 
-  // 1. Update Sidebar UI
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.classList.remove("bg-brand-600", "text-white", "shadow-lg");
-    btn.classList.add(
-      "text-slate-400",
-      "hover:text-white",
-      "hover:bg-slate-800"
-    );
-  });
+    // --- 1. UPDATE SIDEBAR UI (New Logic) ---
+    // This handles finding the button, highlighting it, and opening accordions
+    setActiveSidebarItem(pageName);
 
-  const activeBtn = document.getElementById(`btn-${pageName}`);
-  if (activeBtn) {
-    activeBtn.classList.remove(
-      "text-slate-400",
-      "hover:text-white",
-      "hover:bg-slate-800"
-    );
-    activeBtn.classList.add("bg-brand-600", "text-white", "shadow-lg");
-  }
+    // --- 2. LOAD HTML CONTENT ---
+    try {
+        const response = await fetch(`pages/${pageName}.html`);
+        if (!response.ok) throw new Error("Page file not found");
 
-  // 2. Load HTML Content
-  try {
-    const response = await fetch(`pages/${pageName}.html`);
-    if (!response.ok) throw new Error("Page file not found");
+        const html = await response.text();
+        container.innerHTML = html;
 
-    const html = await response.text();
-    container.innerHTML = html;
+        // Update Header Title (Auto-format if pageTitle is missing)
+        // e.g., "add-employee" becomes "Add Employee"
+        if (!pageTitle) {
+            pageTitle = pageName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+        document.getElementById("pageTitle").textContent = pageTitle;
 
-    // Update Header Title
-    document.getElementById("pageTitle").textContent = pageTitle || "Dashboard";
+        // --- 3. LOAD SPECIFIC JS ---
+        loadPageScript(pageName);
 
-    // 3. Load the specific JS file for this page
-    loadPageScript(pageName);
-  } catch (error) {
-    console.error(error);
-    container.innerHTML = `<div class="p-8 text-center text-red-500 font-bold bg-white rounded-xl shadow-sm">
+    } catch (error) {
+        console.error(error);
+        container.innerHTML = `<div class="p-8 text-center text-red-500 font-bold bg-white rounded-xl shadow-sm">
             Error: Could not load ${pageName}. <br> 
             <span class="text-xs text-slate-400 font-normal">Check console for details. Ensure Live Server is running.</span>
         </div>`;
-  }
+    }
 }
 
 /* --- 6. DYNAMIC SCRIPT LOADER --- */
