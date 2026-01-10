@@ -13,7 +13,7 @@
 -- disconnect
     SELECT pg_terminate_backend(pid)
     FROM pg_stat_activity
-    WHERE datname = 'erp_mini_new_new_dev_db'
+    WHERE datname = 'erp_mini_new_dev_db'
     AND pid <> pg_backend_pid();
 
 -- Drop database if exist

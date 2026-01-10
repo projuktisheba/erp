@@ -1,3 +1,4 @@
 {
-    "livePreview.defaultPreviewPath": "/frontend/index.html"
+    "livePreview.defaultPreviewPath": "/frontend/index.html",
+    "postman.settings.dotenv-detection-notification-visibility": false
 }

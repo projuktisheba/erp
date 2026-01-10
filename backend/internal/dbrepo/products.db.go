@@ -226,8 +226,8 @@ func (s *ProductRepo) SaleProducts(ctx context.Context, branchID int64, sale *mo
 		}
 	}
 	// Step 7: Record top sheet for daily branch record
-	topSheet := &models.TopSheet{
-		Date:      sale.SaleDate,
+	topSheet := &models.TopSheetDB{
+		SheetDate:      sale.SaleDate,
 		BranchID:  branchID,
 		ReadyMade: totalItems,
 	}
@@ -489,8 +489,8 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 		return fmt.Errorf("lookup prev account type: %w", err)
 	}
 
-	prevTopSheet := &models.TopSheet{
-		Date:      prevSale.SaleDate,
+	prevTopSheet := &models.TopSheetDB{
+		SheetDate:      prevSale.SaleDate,
 		BranchID:  branchID,
 		ReadyMade: -oldTotalItems, // Negative to reverse count
 	}
@@ -597,8 +597,8 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 		return fmt.Errorf("lookup new account type: %w", err)
 	}
 
-	newTopSheet := &models.TopSheet{
-		Date:      sale.SaleDate,
+	newTopSheet := &models.TopSheetDB{
+		SheetDate:      sale.SaleDate,
 		BranchID:  branchID,
 		ReadyMade: newTotalItems,
 	}

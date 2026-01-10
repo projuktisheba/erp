@@ -8,6 +8,28 @@ const (
 	APPName    = "ERP Mini"
 	APPVersion = "1.0"
 )
+const (
+	ADVANCE_PAYMENT = "Advance Payment"
+	PAYMENT         = "Payment"
+	REFUND          = "Refund"
+	ADJUSTMENT      = "Adjustment"
+	SALARY          = "Salary"
+)
+const (
+	SALE_MEMO_PREFIX   = "SALE"
+	ORDER_MEMO_PREFIX  = "ORDER"
+	SALARY_MEMO_PREFIX = "SALARY"
+)
+const (
+	ACCOUNT_BANK = "bank"
+	ACCOUNT_CASH = "cash"
+)
+const (
+	ENTITY_CUSTOMER = "customer"
+	ENTITY_EMPLOYEE = "employee"
+	ENTITY_SALESPERSON = "salesperson"
+	ENTITY_WORKER = "worker"
+)
 
 // Response is the type for response
 type Response struct {
@@ -132,36 +154,6 @@ type CustomerNameID struct {
 	Mobile string `json:"mobile"`
 }
 
-type Attendance struct {
-	ID              int64     `json:"id"`
-	EmployeeID      int64     `json:"employee_id"`
-	WorkDateStr     string    `json:"work_date"`
-	WorkDate        time.Time `json:"-"`
-	Status          string    `json:"status"`
-	OvertimeHours   int64     `json:"overtime_hours"`
-	AdvancePayment  int64     `json:"advance_payment"`
-	ProductionUnits int64     `json:"production_units"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
-
-type AttendanceSummary struct {
-	EmployeeID         int64  `json:"employee_id"`
-	EmployeeName       string `json:"employee_name"`
-	TotalWorkingDays   int64  `json:"total_working_days"`
-	PresentDays        int64  `json:"present_days"`
-	AbsentDays         int64  `json:"absent_days"`
-	LeaveDays          int64  `json:"leave_days"`
-	TotalOvertimeHours int64  `json:"total_overtime_hours"`
-}
-
-type EmployeeCalendar struct {
-	EmployeeID   int64         `json:"employee_id"`
-	EmployeeName string        `json:"employee_name"`
-	Month        string        `json:"month"`
-	Attendance   []*Attendance `json:"attendance"`
-}
-
 type Product struct {
 	ID                int64     `json:"id"`
 	ProductName       string    `json:"product_name"`
@@ -170,22 +162,6 @@ type Product struct {
 	CurrentStockLevel int64     `json:"current_stock_level"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
-}
-type Sale struct {
-	SaleDate           time.Time  `json:"sale_date"`
-	MemoNo             string     `json:"memo_no"`
-	BranchID           string     `json:"branch_id"`
-	SalespersonID      int64      `json:"salesperson_id"`
-	SalespersonName    string     `json:"salesperson_name"`
-	CustomerID         int64      `json:"customer_id"`
-	CustomerName       string     `json:"customer_name"`
-	TotalPayableAmount float64    `json:"total_payable_amount"`
-	PaidAmount         float64    `json:"paid_amount"`
-	DueAmount          float64    `json:"due_amount"`
-	PaymentAccountID   int64      `json:"payment_account_id"`
-	PaymentAccountName string     `json:"payment_account_name"`
-	Notes              string     `json:"notes"`
-	Items              []*Product `json:"items"`
 }
 
 // ProductStockRegistry represents a record from product_stock_registry
@@ -200,40 +176,6 @@ type ProductStockRegistry struct {
 	Quantity    int64     `json:"quantity"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
-}
-type Order struct {
-	ID                   int64        `json:"id"`
-	BranchID             int64        `json:"branch_id"`
-	MemoNo               string       `json:"memo_no"`
-	OrderDate            time.Time    `json:"order_date"`
-	SalespersonID        int64        `json:"salesperson_id"`
-	SalespersonName      string       `json:"salesperson_name,omitempty"`
-	SalespersonMobile    string       `json:"salesperson_mobile,omitempty"`
-	CustomerID           int64        `json:"customer_id"`
-	CustomerName         string       `json:"customer_name,omitempty"`
-	CustomerMobile       string       `json:"customer_mobile,omitempty"`
-	TotalPayableAmount   float64      `json:"total_payable_amount"`
-	AdvancePaymentAmount float64      `json:"advance_payment_amount"`
-	PaymentAccountID     *int64       `json:"payment_account_id,omitempty"`
-	Status               string       `json:"status"` // pending, checkout, delivery, cancelled
-	DeliveryDate         *time.Time   `json:"delivery_date,omitempty"`
-	TotalItems           int64        `json:"total_items"`
-	ItemsDelivered       int64        `json:"items_delivered"`
-	ExitDate             *time.Time   `json:"exit_date,omitempty"`
-	Notes                *string      `json:"notes,omitempty"`
-	CreatedAt            time.Time    `json:"created_at"`
-	UpdatedAt            time.Time    `json:"updated_at"`
-	Items                []*OrderItem `json:"items,omitempty"`
-	DeliveryInfo         string       `json:"delivery_info"`
-}
-
-type OrderItem struct {
-	ID          int64   `json:"id"`
-	MemoNo      string  `json:"memo_no"` // foreign key to orders.memo_no
-	ProductID   int64   `json:"product_id"`
-	ProductName string  `json:"product_name,omitempty"`
-	Quantity    int64   `json:"quantity"`
-	TotalPrice  float64 `json:"total_price"`
 }
 
 type Account struct {

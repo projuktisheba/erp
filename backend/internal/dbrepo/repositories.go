@@ -7,7 +7,6 @@ import (
 // DBRepository contains all individual repositories
 type DBRepository struct {
 	EmployeeRepo    *EmployeeRepo
-	AttendanceRepo  *AttendanceRepo
 	CustomerRepo    *CustomerRepo
 	OrderRepo       *OrderRepo
 	TransactionRepo *TransactionRepo
@@ -22,7 +21,6 @@ type DBRepository struct {
 func NewDBRepository(db *pgxpool.Pool) *DBRepository {
 	return &DBRepository{
 		EmployeeRepo:    NewEmployeeRepo(db),
-		AttendanceRepo:  NewAttendanceRepo(db),
 		CustomerRepo:    NewCustomerRepo(db),
 		OrderRepo:       NewOrderRepo(db),
 		TransactionRepo: NewTransactionRepo(db),

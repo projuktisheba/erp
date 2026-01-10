@@ -69,8 +69,8 @@ func (r *PurchaseRepo) CreatePurchase(ctx context.Context, p *models.Purchase) e
 	}
 
 	// --- Update TopSheet: increase expense ---
-	topSheet := &models.TopSheet{
-		Date:     p.PurchaseDate,
+	topSheet := &models.TopSheetDB{
+		SheetDate:     p.PurchaseDate,
 		BranchID: p.BranchID,
 		Expense:  p.TotalAmount,
 	}
@@ -281,8 +281,8 @@ func (r *PurchaseRepo) UpdatePurchase(ctx context.Context, p *models.Purchase) e
 	}
 
 	// Update TopSheet expense
-	topSheet := &models.TopSheet{
-		Date:     p.PurchaseDate,
+	topSheet := &models.TopSheetDB{
+		SheetDate:     p.PurchaseDate,
 		BranchID: p.BranchID,
 		Expense:  diff,
 	}

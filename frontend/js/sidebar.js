@@ -5,20 +5,26 @@ const menuConfig = [
     label: "Main Menu",
   },
   {
-    type: "link",
-    label: "New Order",
+    type: "parent", // This is a dropdown
+    label: "Product Management",
     icon: "ph-shopping-cart",
-    pageId: "order",
-    action: "loadPage('order','New Order Entry')",
-    roles: ["chairman", "manager"], // Everyone can see
-  },
-  {
-    type: "link",
-    label: "History",
-    icon: "ph-clock-counter-clockwise",
-    pageId: "history",
-    action: "loadPage('history','Transaction History')",
-    roles: ["chairman", "manager"], // Cashier cannot see
+    pageId: "order-menu",
+    id: "order-menu", // Unique ID for toggle
+    roles: ["chairman", "manager"], // Parent permission
+    children: [
+      {
+        label: "Order & Sale",
+        pageId: "order_sale",
+        action: "loadPage('order_sale','New Order Entry')",
+        roles: ["chairman", "manager"], // Everyone can see
+      },
+      {
+        label: "Order History",
+        pageId: "order_history",
+        action: "loadPage('order_history','Order History')",
+        roles: ["chairman", "manager"],
+      },
+    ],
   },
   {
     type: "parent", // This is a dropdown
@@ -47,8 +53,67 @@ const menuConfig = [
     type: "link",
     label: "Customers",
     icon: "ph-users",
+    pageId: "customers",
     action: "loadPage('customers','Customer Database')",
     roles: ["chairman", "manager"],
+  },
+  {
+    type: "parent", // This is a dropdown
+    label: "Report",
+    icon: "ph-chart-line-up",
+    pageId: "report-menu",
+    id: "report-menu", // Unique ID for toggle
+    roles: ["chairman", "manager"], // Parent permission
+    children: [
+      {
+        label: "Branch Report",
+        action: "loadPage('branch_report','Branch Analytics')",
+        pageId: "branch_report",
+        roles: ["chairman", "manager"],
+      },
+      {
+        label: "Purchase Report",
+        action: "loadPage('purchase_report','Purchase Report')",
+        pageId: "purchase_report",
+        roles: ["chairman", "manager"],
+      },
+      {
+        label: "Sales Report",
+        action: "loadPage('sales_report','Sales Report')",
+        pageId: "sales_report",
+        roles: ["chairman", "manager"],
+      },
+      {
+        label: "Stock Report",
+        action: "loadPage('stock_report','Stock Report')",
+        pageId: "stock_report",
+        roles: ["chairman", "manager"],
+      },
+      {
+        label: "Salesperson Progress",
+        action: "loadPage('salesperson_report','Salesperson Progress Report')",
+        pageId: "salesperson_progress",
+        roles: ["chairman", "manager"],
+      },
+      {
+        label: "Worker Progress",
+        action: "loadPage('worker_report','Worker Progress Report')",
+        pageId: "worker_report",
+        roles: ["chairman", "manager"],
+      },
+      {
+        label: "Salary Report",
+        action: "loadPage('salary_report','Salary Report')",
+        pageId: "salary_report",
+        roles: ["chairman", "manager"],
+      },
+      {
+        label: "Transaction Report",
+        action: "loadPage('transaction_report','Transaction Report')",
+        pageId: "transaction_report",
+        roles: ["chairman", "manager"],
+      },
+    ],
   },
 ];
 // --- SIDEBAR SUBMENU TOGGLE ---
@@ -117,7 +182,7 @@ function renderSidebar(currentUserRole = "manager") {
 function setActiveSidebarItem(pageId) {
   // 1. RESET ALL: Remove active classes from Top-level and Child links
   document.querySelectorAll(".nav-item").forEach((btn) => {
-    btn.classList.remove("bg-brand-600", "text-white", "shadow-md");
+    btn.classList.remove("text-white", "border-brand-500", "bg-slate-800/50");
     btn.classList.add("text-slate-400"); // Reset to default grey
     const icon = btn.querySelector("i");
     if (icon) icon.classList.remove("text-white");
@@ -145,7 +210,11 @@ function setActiveSidebarItem(pageId) {
   if (activeBtn.classList.contains("nav-item")) {
     // --- TOP LEVEL LINK ---
     activeBtn.classList.remove("text-slate-400");
-    activeBtn.classList.add("bg-brand-600", "text-white", "shadow-md");
+    activeBtn.classList.add(
+      "text-white",
+      "border-brand-500",
+      "bg-slate-800/50"
+    );
   } else if (activeBtn.classList.contains("child-item")) {
     // --- CHILD LINK ---
     activeBtn.classList.remove("text-slate-500", "border-transparent");

@@ -204,8 +204,8 @@ func (user *EmployeeRepo) SubmitSalary(ctx context.Context, salaryDate time.Time
 	}
 	//increment expense
 	// Update top_sheet inside the same tx
-	topSheet := &models.TopSheet{
-		Date:     salaryDate,
+	topSheet := &models.TopSheetDB{
+		SheetDate:     salaryDate,
 		BranchID: branchID,
 		Expense:  amount,
 	}
@@ -420,8 +420,8 @@ func (e *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, workerProgress 
 	}
 	//update top_sheet if AdvancePayment > 0
 	if workerProgress.AdvancePayment > 0 {
-		err := SaveTopSheetTx(tx, ctx, &models.TopSheet{
-			Date:     workerProgress.Date,
+		err := SaveTopSheetTx(tx, ctx, &models.TopSheetDB{
+			SheetDate:     workerProgress.Date,
 			BranchID: workerProgress.BranchID,
 			Expense:  workerProgress.AdvancePayment,
 		})

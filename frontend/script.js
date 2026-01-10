@@ -1,6 +1,11 @@
 /* --- GLOBAL CONFIGURATION --- */
+window.GetBaseAPI = function (){
+  const host = window.location.hostname;
+  const isLocal = host === "localhost" || host === "127.0.0.1";
+  return isLocal ? "http://localhost:8080/api/v1" : "https://erp-qatar-api.pssoft.xyz/api/v1";
+}
 window.globalState = {
-  apiBase: "http://localhost:8080/api/v1", // Backend URL
+  apiBase: GetBaseAPI(), // Backend URL
   token: null,
   user: {
     id: null,
@@ -18,7 +23,9 @@ const BRANCH_NAMES = {
   2: "DIVA ABAYAT",
   3: "EID AL ABAYAT",
 };
-
+window.GetBranchName = function (){
+  return BRANCH_NAMES[(window.globalState.user.branch_id) || 0]
+}
 /* --- 1. INITIALIZATION (Check Session) --- */
 document.addEventListener("DOMContentLoaded", () => {
   checkSession();
@@ -37,7 +44,7 @@ function checkSession() {
 
     document.getElementById("loginModal").classList.add("hidden");
     updateUI();
-    loadPage("order");
+    loadPage("order_sale", "New Order Entry");
   } else {
     document.getElementById("loginModal").classList.remove("hidden");
   }
@@ -130,7 +137,7 @@ function handleLoginSuccess(data) {
   btn.disabled = false;
   btn.innerHTML = `<span>Sign In</span> <i class="ph ph-arrow-right font-bold"></i>`;
 
-  loadPage("order");
+  loadPage("order_sale", "New Order Entry");
 }
 
 /* --- 3. SIGNOUT HANDLING --- */
@@ -280,8 +287,12 @@ function loadPageScript(pageName) {
   // C. When loaded, initialize the page logic
   script.onload = () => {
     console.log(`${pageName}.js loaded successfully.`);
-    const initFunctionName =
-      "init" + pageName.charAt(0).toUpperCase() + pageName.slice(1) + "Page";
+    const initFunctionName = "init" +
+    pageName
+      .split("_")                       // split by underscore
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // capitalize first letter of each word
+      .join("")                         // join all words
+    + "Page";
 
     if (typeof window[initFunctionName] === "function") {
       window[initFunctionName]();

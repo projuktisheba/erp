@@ -126,8 +126,8 @@ func (s *CustomerRepo) DeductCustomerDueAmount(ctx context.Context, customerID, 
 		return fmt.Errorf("customer with id %d not found", customerID)
 	}
 
-	err = SaveTopSheetTx(tx, ctx, &models.TopSheet{
-		Date:     time.Now(),
+	err = SaveTopSheetTx(tx, ctx, &models.TopSheetDB{
+		SheetDate:     time.Now(),
 		BranchID: branchID,
 		Cash:     deductedAmount,
 	})

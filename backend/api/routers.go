@@ -47,7 +47,7 @@ func (app *application) routes() http.Handler {
 
 	// --- Protected Routes ---
 	protected := chi.NewRouter()
-	protected.Use(app.AuthUser)
+	// protected.Use(app.AuthUser)
 
 	// -------------------- HR(Employee) Routes --------------------
 	protected.Route("/api/v1/hr", func(r chi.Router) {
@@ -63,36 +63,35 @@ func (app *application) routes() http.Handler {
 		// Example: GET /api/v1/hr/employees?page=1&limit=20&role=salesperson&status=active
 		r.Get("/employees", app.Handlers.Employee.PaginatedEmployeeList)
 
-	// 	// Get all active employee names and IDs
-	// 	// Example: GET /api/v1/hr/employees/names
-	// 	r.Get("/employees/names", app.Handlers.Employee.GetEmployeesNameAndID)
+		// 	// Get all active employee names and IDs
+		// 	// Example: GET /api/v1/hr/employees/names
+		// 	r.Get("/employees/names", app.Handlers.Employee.GetEmployeesNameAndID)
 
-	// 	// Upload employee profile picture
-	// 	// Example: POST /api/v1/hr/profile-picture
-	// 	r.Post("/employee/profile-picture", app.Handlers.Employee.UploadEmployeeProfilePicture)
+		// 	// Upload employee profile picture
+		// 	// Example: POST /api/v1/hr/profile-picture
+		// 	r.Post("/employee/profile-picture", app.Handlers.Employee.UploadEmployeeProfilePicture)
 
 		// Update general employee details
 		// Example: PUT /api/v1/hr/employee/update/{id}
 		r.Put("/employee/update/{id}", app.Handlers.Employee.UpdateEmployee)
 
-	// 	// Update employee salary and overtime rate
-	// 	// Example: PUT /api/v1/hr/employee/salary
-	// 	r.Put("/employee/salary", app.Handlers.Employee.UpdateEmployeeSalary)
+		// 	// Update employee salary and overtime rate
+		// 	// Example: PUT /api/v1/hr/employee/salary
+		// 	r.Put("/employee/salary", app.Handlers.Employee.UpdateEmployeeSalary)
 
-	// 	// Generate and give employee salary
-	// 	// Example: POST /api/v1/hr/employee/salary/submit
-	// 	r.Post("/employee/salary/submit", app.Handlers.Employee.SubmitSalary)
+		// 	// Generate and give employee salary
+		// 	// Example: POST /api/v1/hr/employee/salary/submit
+		// 	r.Post("/employee/salary/submit", app.Handlers.Employee.SubmitSalary)
 
-	// 	// Update employee role and status
-	// 	// Example: PUT /api/v1/hr/employee/role
-	// 	r.Put("/employee/role", app.Handlers.Employee.UpdateEmployeeRole)
+		// 	// Update employee role and status
+		// 	// Example: PUT /api/v1/hr/employee/role
+		// 	r.Put("/employee/role", app.Handlers.Employee.UpdateEmployeeRole)
 
-	// 	// Update employee progress record
-	// 	r.Post("/worker/progress", app.Handlers.Employee.RecordWorkerDailyProgress)
-	// 	r.Patch("/worker/progress", app.Handlers.Employee.UpdateWorkerDailyProgress)
+		// 	// Update employee progress record
+		// 	r.Post("/worker/progress", app.Handlers.Employee.RecordWorkerDailyProgress)
+		// 	r.Patch("/worker/progress", app.Handlers.Employee.UpdateWorkerDailyProgress)
 	})
 
-	
 	// -------------------- Customer Routes --------------------
 	protected.Route("/api/v1", func(r chi.Router) {
 		r.Get("/customer", app.Handlers.Customer.GetCustomerByID)
@@ -101,7 +100,7 @@ func (app *application) routes() http.Handler {
 		r.Post("/customer/new", app.Handlers.Customer.AddCustomer)
 		//update customer
 		r.Put("/customer/update/{id}", app.Handlers.Customer.UpdateCustomerInfo)
-		
+
 		// r.Put("/customer/due/deduct", app.Handlers.Customer.DeductCustomerDueAmount)
 		// r.Put("/customer/status", app.Handlers.Customer.UpdateCustomerStatus)
 
@@ -120,12 +119,30 @@ func (app *application) routes() http.Handler {
 	// -------------------- Product Routes --------------------
 	protected.Route("/api/v1/products", func(r chi.Router) {
 		r.Get("/", app.Handlers.Product.GetProductsHandler)
-		r.Post("/restock", app.Handlers.Product.RestockProducts)
-		r.Get("/stocks", app.Handlers.Product.GetProductStockReportHandler)
-		r.Post("/sale", app.Handlers.Product.SaleProducts)
-		r.Patch("/sale", app.Handlers.Product.UpdateSoldProducts)
-		r.Get("/sales/details", app.Handlers.Product.GetSaleDetails)
-		r.Get("/sales/history", app.Handlers.Product.GetSaleReport)
+		// r.Post("/restock", app.Handlers.Product.RestockProducts)
+		// r.Get("/stocks", app.Handlers.Product.GetProductStockReportHandler)
+		r.Post("/sales/new", app.Handlers.Product.SaleProducts)
+		// r.Patch("/sale", app.Handlers.Product.UpdateSoldProducts)
+		// r.Get("/sales/details", app.Handlers.Product.GetSaleDetails)
+		// r.Get("/sales/history", app.Handlers.Product.GetSaleReport)
+
+		// -------------------- Order Routes --------------------
+		r.Post("/orders/new", app.Handlers.Order.AddOrder)
+
+		// r.Get("/orders/search", app.Handlers.Order.SearchOrders)
+		r.Get("/orders", app.Handlers.Order.GetOrdersHandler)
+		r.Get("/orders/{id}", app.Handlers.Order.GetOrderDetailsByID)
+		// r.Patch("/", app.Handlers.Order.UpdateOrder)
+		// r.Delete("/", app.Handlers.Order.CancelOrder)
+		// r.Patch("/checkout", app.Handlers.Order.CheckoutOrder)
+		// r.Patch("/delivery", app.Handlers.Order.OrderDelivery)
+		// r.Get("/", app.Handlers.Order.GetOrderDetailsByID)
+		// r.Get("/items", app.Handlers.Order.GetOrderItemsByMemoNo)
+		// r.Get("/list", app.Handlers.Order.ListOrders)
+		// r.Get("/list/paginated", app.Handlers.Order.ListOrdersPaginatedHandler)
+		// r.Get("/list/status", app.Handlers.Order.ListOrdersByStatusHandler)
+		// r.Get("/summary", app.Handlers.Order.GetOrderSummaryHandler)
+
 	})
 
 	// -------------------- Inventory Routes --------------------
@@ -133,21 +150,6 @@ func (app *application) routes() http.Handler {
 		r.Post("/", app.Handlers.Purchase.AddPurchase)
 		r.Patch("/", app.Handlers.Purchase.UpdatePurchase)
 		r.Get("/list", app.Handlers.Purchase.ListPurchases)
-	})
-
-	// -------------------- Order Routes --------------------
-	protected.Route("/api/v1/orders", func(r chi.Router) {
-		r.Post("/new", app.Handlers.Order.AddOrder)
-		r.Patch("/", app.Handlers.Order.UpdateOrder)
-		r.Delete("/", app.Handlers.Order.CancelOrder)
-		r.Patch("/checkout", app.Handlers.Order.CheckoutOrder)
-		r.Patch("/delivery", app.Handlers.Order.OrderDelivery)
-		r.Get("/", app.Handlers.Order.GetOrderDetailsByID)
-		r.Get("/items", app.Handlers.Order.GetOrderItemsByMemoNo)
-		r.Get("/list", app.Handlers.Order.ListOrders)
-		r.Get("/list/paginated", app.Handlers.Order.ListOrdersPaginatedHandler)
-		r.Get("/list/status", app.Handlers.Order.ListOrdersByStatusHandler)
-		r.Get("/summary", app.Handlers.Order.GetOrderSummaryHandler)
 	})
 
 	// -------------------- Account & Transaction Routes --------------------

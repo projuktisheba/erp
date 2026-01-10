@@ -4,11 +4,11 @@
 # Configuration
 # -----------------------------
 VPS_HOST="203.161.48.179"
-REMOTE_PATH="/home/samiul/apps/bin/main-erp-mini-backend"
+REMOTE_PATH="/home/samiul/apps/bin/erp-qatar-backend"
 # Note: Ensure the target filename in the path includes the binary name
 TARGET_FILE="$REMOTE_PATH/app" 
-SERVICE_NAME="erpminiapi.service"
-PING_URL="https://api.erp.pssoft.xyz/ping"
+SERVICE_NAME="erpqatarapi.service"
+PING_URL="https://erp-qatar-api.pssoft.xyz/api/v1/ping"
 
 # -----------------------------
 # Step 1: Remove old binary locally
@@ -53,8 +53,8 @@ fi
 # -----------------------------
 # Step 5: Permission & Restart
 # -----------------------------
-echo "Setting permissions and restarting..."
-# FIXED: Added chmod +x to ensure the file is executable on Linux
+# echo "Setting permissions and restarting..."
+# # FIXED: Added chmod +x to ensure the file is executable on Linux
 ssh samiul@"$VPS_HOST" "chmod +x $TARGET_FILE && sudo systemctl restart $SERVICE_NAME && sudo systemctl status $SERVICE_NAME --no-pager"
 
 if [[ $? -ne 0 ]]; then

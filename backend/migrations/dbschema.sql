@@ -174,124 +174,7 @@ VALUES
   ('Abayat Shela (S)',3),
   ('Abayat Raj',3),
   ('Khamar',3);
--- =========================
--- Table: orders
--- =========================
-CREATE TABLE orders (
-    id BIGSERIAL PRIMARY KEY,
-    branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-    memo_no VARCHAR(100) NOT NULL,
-    order_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    
-    salesperson_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE RESTRICT,
-    customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
-    
-    total_payable_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
-    advance_payment_amount NUMERIC(12,2) DEFAULT 0,
 
-    payment_account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL,
-    
-    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'checkout', 'delivery', 'cancelled')),
-    
-    delivery_date DATE,
-    total_items BIGINT NOT NULL DEFAULT 0,
-    items_delivered BIGINT NOT NULL DEFAULT 0,
-    exit_date DATE,
-    delivery_info TEXT DEFAULT '',
-    
-    notes TEXT DEFAULT '',
-    
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(memo_no, branch_id)
-);
-
--- =========================
--- Optimized Indexes for orders table
--- =========================
-
--- Single-column indexes
-CREATE INDEX IF NOT EXISTS idx_orders_salesperson_id
-ON orders(salesperson_id);
-
-CREATE INDEX IF NOT EXISTS idx_orders_customer_id
-ON orders(customer_id);
-
-CREATE INDEX IF NOT EXISTS idx_orders_payment_account_id
-ON orders(payment_account_id);
-
-CREATE INDEX IF NOT EXISTS idx_orders_status
-ON orders(status);
-
-CREATE INDEX IF NOT EXISTS idx_orders_branch_id
-ON orders(branch_id);
-
--- Composite indexes for common multi-column filters
--- a) Salesperson + Customer + Status + order_date DESC (for dashboard queries)
-CREATE INDEX IF NOT EXISTS idx_orders_salesperson_customer_status
-ON orders(salesperson_id, customer_id, status, order_date DESC);
-
--- b) Salesperson + Status + order_date DESC
-CREATE INDEX IF NOT EXISTS idx_orders_salesperson_status
-ON orders(salesperson_id, status, order_date DESC);
-
--- c) Customer + Status + order_date DESC
-CREATE INDEX IF NOT EXISTS idx_orders_customer_status
-ON orders(customer_id, status, order_date DESC);
-
--- Partial indexes for frequently queried statuses
-CREATE INDEX IF NOT EXISTS idx_orders_pending
-ON orders(order_date DESC)
-WHERE status = 'pending';
-
-CREATE INDEX IF NOT EXISTS idx_orders_checkout
-ON orders(order_date DESC)
-WHERE status = 'checkout';
-
-CREATE INDEX IF NOT EXISTS idx_orders_delivery
-ON orders(order_date DESC)
-WHERE status = 'delivery';
-
-CREATE INDEX IF NOT EXISTS idx_orders_cancelled
-ON orders(order_date DESC)
-WHERE status = 'cancelled';
-
-
--- Order items for handling multiple products per order
-CREATE TABLE order_items (
-    id BIGSERIAL PRIMARY KEY,
-    memo_no VARCHAR(100) NOT NULL DEFAULT '',
-    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
-    quantity INT NOT NULL CHECK (quantity > 0),
-    subtotal NUMERIC(12,2) NOT NULL
-);
-CREATE TABLE transactions (
-    transaction_id BIGSERIAL PRIMARY KEY,
-    memo_no VARCHAR(50) DEFAULT '',
-    branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-    from_entity_id BIGINT NOT NULL,
-    from_entity_type VARCHAR(50),  -- optional, can be 'accounts', 'customers', 'employee's, etc.
-    from_entity_name VARCHAR(100) NOT NULL DEFAULT '',
-
-    to_entity_id BIGINT NOT NULL,
-    to_entity_type VARCHAR(50),    -- optional, can be 'accounts', 'customers', 'employee's, etc.
-    to_entity_name VARCHAR(100) NOT NULL DEFAULT '',
-    
-    amount NUMERIC(12,2) NOT NULL,
-    transaction_type VARCHAR(20) NOT NULL 
-        CHECK (transaction_type IN ('payment', 'refund', 'adjustment', 'salary')),
-    
-    notes TEXT,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
--- Indexes for quick search by purchase_date, memo_no, supplier_id
-CREATE INDEX idx_transactions_created_date ON transactions(created_at);
-CREATE INDEX idx_transactions_type ON transactions(transaction_type);
-CREATE INDEX idx_transactions_from_entity_id ON transactions(from_entity_id);
-CREATE INDEX idx_transactions_from_entity_type ON transactions(from_entity_type);
-CREATE INDEX idx_transactions_to_entity_id ON transactions(to_entity_id);
-CREATE INDEX idx_transactions_to_entity_type ON transactions(to_entity_type);
 -- =========================
 -- Table: suppliers
 -- =========================
@@ -340,9 +223,7 @@ CREATE TABLE top_sheet (
     cash NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     bank NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     order_count BIGINT NOT NULL DEFAULT 0,
-    pending BIGINT NOT NULL DEFAULT 0,
     delivery BIGINT NOT NULL DEFAULT 0,
-    checkout BIGINT NOT NULL DEFAULT 0,
     cancelled BIGINT NOT NULL DEFAULT 0,
     ready_made BIGINT NOT NULL DEFAULT 0,
     UNIQUE(sheet_date, branch_id)
@@ -364,41 +245,6 @@ CREATE TABLE product_stock_registry (
 CREATE INDEX idx_product_stock_registry_memo_no ON product_stock_registry (memo_no);
 CREATE INDEX idx_product_stock_registry_product_id ON product_stock_registry (product_id);
 CREATE INDEX idx_product_stock_registry_stock_date_branch_id ON product_stock_registry (stock_date, branch_id);
-
-CREATE TABLE sales_history (
-    id BIGSERIAL PRIMARY KEY,
-    memo_no VARCHAR(100) NOT NULL,
-    sale_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,    
-    customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-    salesperson_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    payment_account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    total_payable_amount NUMERIC(12,2) NOT NULL  DEFAULT 0.00,
-    paid_amount NUMERIC(12,2) NOT NULL  DEFAULT 0.00,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(memo_no, branch_id)
-);
-
--- index creation
-CREATE INDEX idx_sales_history_memo_no ON sales_history (memo_no);
-CREATE INDEX idx_sales_history_customer_id ON sales_history (customer_id);
-CREATE INDEX idx_sales_history_salesperson_id ON sales_history (salesperson_id);
-CREATE INDEX idx_sales_history_stock_date_branch_id ON sales_history (sale_date, branch_id);
-
-CREATE TABLE sold_items_history (
-    id BIGSERIAL PRIMARY KEY,
-    branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-    memo_no VARCHAR(100) NOT NULL,
-    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    quantity BIGINT NOT NULL DEFAULT 0,
-    total_prices NUMERIC(12,2) NOT NULL  DEFAULT 0.00,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_sold_items_history_product_id ON sold_items_history (product_id);
-CREATE INDEX idx_sold_items_history_branch_id ON sold_items_history (branch_id);
-CREATE INDEX idx_sold_items_history_memo_no ON sold_items_history (memo_no);
 
 
 CREATE TABLE employees_progress (
@@ -422,3 +268,23 @@ CREATE TABLE employees_progress (
     UNIQUE(sheet_date, employee_id)
 );
 CREATE INDEX idx_employees_progress_branch_id ON employees_progress(branch_id);
+
+CREATE TABLE transactions (
+    transaction_id BIGSERIAL PRIMARY KEY,
+    transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    memo_no VARCHAR(50) DEFAULT '', --prefix: SALE, ORDER, SALARY, EXPENSE
+    branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    from_entity_id BIGINT NOT NULL,
+    from_entity_type VARCHAR(50),  -- optional, can be 'accounts', 'customers', 'employee's, etc.
+    
+    to_entity_id BIGINT NOT NULL,
+    to_entity_type VARCHAR(50),    -- optional, can be 'accounts', 'customers', 'employee's, etc.
+   
+    amount NUMERIC(12,2) NOT NULL,
+    transaction_type VARCHAR(20) NOT NULL 
+        CHECK (transaction_type IN ('Advance Payment','Payment', 'Refund', 'Adjustment','Salary')),
+    
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

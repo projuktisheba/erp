@@ -164,7 +164,7 @@ func (h *ProductHandler) SaleProducts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.infoLog.Println(requestBody)
+	h.infoLog.Printf("Received order data: %+v\n", requestBody)
 
 	memoNo, err := h.DB.SaleProducts(r.Context(), branchID, &requestBody)
 	if err != nil {
