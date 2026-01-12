@@ -83,7 +83,7 @@ function renderTable() {
             <td class="px-4 py-3 md:px-6 md:py-4 text-right font-bold ${
               customer.due_amount > 0 ? "text-red-500" : "text-slate-900"
             }">
-                $${parseFloat(customer.due_amount).toFixed(2)}
+                ${parseFloat(customer.due_amount).toFixed(2)}
             </td>
             
             <td class="hidden sm:table-cell px-6 py-4 text-center">

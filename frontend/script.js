@@ -197,12 +197,12 @@ function updateHeaderBranchControl() {
             </div>`;
   } else {
     headerBranch.innerHTML = `
-            <div class="flex flex-col items-end">
-                <span class="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:block">Branch</span>
-                <span class="text-xs md:text-sm font-bold text-brand-700 truncate max-w-[100px] md:max-w-none text-right">
-                    ${branchName}
-                </span>
-            </div>`;
+      <div class="flex flex-col items-end">
+          <span class="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:block">Branch</span>
+          <span class="text-xs md:text-sm font-bold text-brand-700 truncate max-w-[100px] md:max-w-none text-right">
+              ${branchName}
+          </span>
+      </div>`;
   }
 }
 

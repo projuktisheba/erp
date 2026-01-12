@@ -316,6 +316,8 @@ function updatePaginationInfo() {
 window.editOrder = function(id) {
     console.log("Edit Order:", id);
     // Trigger your Edit Logic here
+    localStorage.setItem("orderID", id);
+    loadPage("order_sale", "New Order Entry");
 };
 
 window.deliverOrder = function(id) {

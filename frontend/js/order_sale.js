@@ -1,18 +1,29 @@
 // js/order.js
 
 // STATE
-let orderState = {
+window.orderState = window.orderState || {
   cart: [],
   products: [],
   editingIndex: null, // Track which item is being edited (null = adding new)
-  isOrderState: true, // NEW: true = Order (default), false = Sale
-  orderId: null, // NEW: Tracks the ID of the order/sale being edited. null = New Entry
+  isOrderState: true, // true = Order (default), false = Sale
+  orderId: null,      // Tracks the ID of the order/sale being edited. null = New Entry
+  saleId: null        // Track sale ID separately if needed
 };
 
-// --- INITIALIZATION (UPDATED) ---
+window.resetOrderState = ()=>{
+  window.orderState.cart = [];
+  window.orderState.products = [];
+  window.orderState.editingIndex = null;
+  window.orderState.isOrderState = true;
+  window.orderState.orderId = null;
+  window.orderState.saleId = null;
+}
+
+// --- INITIALIZATION ---
 window.initOrderSalePage = async function () {
   console.log("Order Page Initializing...");
-
+  //Reset order state
+  resetOrderState();
   try {
     // Load ALL necessary static data (products, customers, employees, accounts)
     const [productsRes, customersRes, employeesRes, accountsRes] =
@@ -35,8 +46,6 @@ window.initOrderSalePage = async function () {
     orderState.products = productsData.products || [];
 
     // Populate Dropdowns
-    renderProductOptions();
-
     populateSelect(
       "customerSelect",
       "Customer",
@@ -76,11 +85,14 @@ window.initOrderSalePage = async function () {
     // ----------------------------------------------------
     // --- NEW EDITING/CREATION LOGIC ---
     // 1. Check for an order ID in the URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const existingOrderId = urlParams.get("orderId");
+    // const urlParams = new URLSearchParams(window.location.search);
+    // const existingOrderId = urlParams.get("orderId");
+    const existingOrderId = localStorage.getItem("orderID");
+    localStorage.removeItem("orderID");
 
     if (existingOrderId) {
       orderState.orderId = existingOrderId;
+
       await loadOrderForEdit(existingOrderId); // Load data if ID exists
       // Update the page title (assuming you have one)
       const pageTitle = document.getElementById("pageTitle");
@@ -101,101 +113,86 @@ window.initOrderSalePage = async function () {
       // Disable toggle if editing
       if (orderState.orderId) stateToggle.disabled = true;
     }
+    
+    renderProductOptions();
   } catch (error) {
     console.error("Error loading order data:", error);
     showNotification("error", "Error loading initial data.");
   }
 };
 
-// --- NEW: Load Existing Order/Sale Data ---
+
+// --- LOAD EXISTING DATA (UPDATED MAPPING) ---
 window.loadOrderForEdit = async function (orderId) {
   try {
-    const res = await fetch(
-      `${window.globalState.apiBase}/products/orders/${orderId}`,
-      {
+    const res = await fetch(`${window.globalState.apiBase}/products/orders/${orderId}`, {
         headers: window.getAuthHeaders(),
-      }
-    );
+    });
 
-    if (!res.ok) {
-      if (res.status === 401) return signout();
-      throw new Error("Failed to fetch order details");
-    }
+    if (!res.ok) throw new Error("Failed to fetch order details");
 
-    const orderData = await res.json();
+    const data = await res.json();
+    const order = data.order; // Access the 'order' object from response
 
-    // 1. Map API data to orderState.cart
-    orderState.cart = (orderData.items || []).map((item) => {
-      // Find product name using the previously loaded list
-      const product = orderState.products.find((p) => p.id == item.product_id);
-
+    // 1. Map Items to Cart
+    window.orderState.cart = (order.items || []).map((item) => {
+      // API returns item.product_name, so we can use that directly
+      // OR find it in our products list to be safe
+      const product = window.orderState.products.find((p) => p.id == item.product_id);
+      
       return {
         product_id: item.product_id,
-        name: product ? product.product_name : `ID: ${item.product_id}`,
+        name: item.product_name || (product ? product.product_name : `Item #${item.product_id}`),
         qty: item.quantity,
-        price: item.price,
-        total: item.quantity * item.price,
+        price: (item.subtotal / item.quantity), // Derived unit price
+        total: item.subtotal,
       };
     });
 
-    // 2. Determine Transaction Type (Sale or Order) and Update State
-    const isOrder = orderData.type === "ORDER";
-    orderState.isOrderState = isOrder;
+    // 2. Set State Type
+    // Assuming your API distinguishes types, or we infer it. 
+    // If this endpoint only returns "orders", we force order state.
+    const isOrder = true; // Since we fetched from /products/orders/
+    window.orderState.isOrderState = isOrder;
 
-    // Set the toggle switch state
     const stateToggle = document.getElementById("stateToggle");
     if (stateToggle) {
       stateToggle.checked = isOrder;
       stateToggle.disabled = true;
     }
 
-    // 3. Populate Main Form Fields
-    document.getElementById("customerSelect").value =
-      orderData.customer_id || "";
-    document.getElementById("employeeSelect").value =
-      orderData.salesperson_id || "";
-    document.getElementById("memoNo").value = orderData.memo_no || "";
-    document.getElementById("accountSelect").value =
-      orderData.payment_account_id || "";
-    document.getElementById("advanceInput").value =
-      orderData.advance_amount || 0;
-    document.getElementById("orderNotes").value = orderData.notes || "";
-
-    // 4. Populate Dates (ensure dates are in YYYY-MM-DD format, hence split)
-    if (isOrder) {
-      document.getElementById("orderDate").value = orderData.order_date
-        ? orderData.order_date.split("T")[0]
-        : "";
-      document.getElementById("deliveryDate").value = orderData.delivery_date
-        ? orderData.delivery_date.split("T")[0]
-        : "";
-    } else {
-      document.getElementById("saleDate").value = orderData.sale_date
-        ? orderData.sale_date.split("T")[0]
-        : "";
+    // 3. Populate Form Fields
+    // Use IDs from the response objects
+    if (document.getElementById("customerSelect")) {
+        document.getElementById("customerSelect").value = order.customer_id || (order.customer ? order.customer.id : "");
     }
+    if (document.getElementById("employeeSelect")) {
+        document.getElementById("employeeSelect").value = order.salesperson_id || (order.salesperson ? order.salesperson.id : "");
+    }
+    
+    document.getElementById("memoNo").value = order.memo_no || "";
+    document.getElementById("accountSelect").value = order.payment_account_id || "";
+    document.getElementById("advanceInput").value = order.received_amount || 0;
+    document.getElementById("orderNotes").value = order.notes || "";
 
+    // 4. Populate Dates
+    const formatDate = (dateStr) => dateStr ? dateStr.split("T")[0] : "";
+    
+    document.getElementById("orderDate").value = formatDate(order.order_date);
+    document.getElementById("deliveryDate").value = formatDate(order.delivery_date);
+    
     // 5. Update UI
     renderCart();
-    updateOrderState(); // Refresh UI labels and button text
-    showNotification(
-      "info",
-      `${orderData.type} #${orderId} loaded for editing.`
-    );
+    updateOrderState();
+    showNotification("info", `Order #${order.memo_no} loaded.`);
+
   } catch (error) {
-    console.error("Error loading order for edit:", error);
-    showNotification(
-      "error",
-      "Could not load transaction data. Starting new entry mode."
-    );
-    orderState.orderId = null; // Revert to create mode if load fails
-    const stateToggle = document.getElementById("stateToggle");
-    if (stateToggle) stateToggle.disabled = false;
-    setTodayDates();
+    console.error("Error loading order:", error);
+    showNotification("error", "Could not load data.");
   }
 };
 
-// --- Toggle Logic (UPDATED Button Text Logic) ---
+// --- TOGGLE UI STATE ---
 window.updateOrderState = function () {
   const stateToggle = document.getElementById("stateToggle");
   const saleDateGroup = document.getElementById("saleDateGroup");
@@ -203,42 +200,42 @@ window.updateOrderState = function () {
   const paymentLabel = document.getElementById("paymentLabel");
   const stateSaleLabel = document.getElementById("stateSaleLabel");
   const stateOrderLabel = document.getElementById("stateOrderLabel");
-  const confirmButton = document.querySelector(".bg-emerald-600");
+  const confirmButton = document.querySelector("button[onclick='submitData()']");
 
-  // Toggle logic: checked=Order, unchecked=Sale
-  orderState.isOrderState = stateToggle.checked;
+  window.orderState.isOrderState = stateToggle.checked;
 
-  // Determine the base action text
-  const actionText = orderState.orderId ? "Update" : "Confirm";
+  const actionText = window.orderState.orderId ? "Update" : "Confirm";
 
-  if (orderState.isOrderState) {
-    // --- Order State (Toggle is CHECKED) ---
+  if (window.orderState.isOrderState) {
+    // ORDER MODE
     orderDateGroup.classList.remove("hidden");
     saleDateGroup.classList.add("hidden");
-    paymentLabel.innerHTML =
-      'Advance Payment <span class="text-red-500">*</span>';
-    stateSaleLabel.classList.remove("font-bold", "text-slate-900");
-    stateSaleLabel.classList.add("text-slate-500");
-    stateOrderLabel.classList.add("font-bold", "text-slate-900");
-    stateOrderLabel.classList.remove("text-slate-500");
-    confirmButton.querySelector("span").textContent = `${actionText} Order`;
-    document.getElementById("pageTitle").textContent = "New Order Entry";
+    paymentLabel.innerHTML = 'Advance Payment <span class="text-red-500">*</span>';
+    
+    stateSaleLabel.classList.replace("text-slate-900", "text-slate-500");
+    stateSaleLabel.classList.remove("font-bold");
+    
+    stateOrderLabel.classList.replace("text-slate-500", "text-slate-900");
+    stateOrderLabel.classList.add("font-bold");
+
+    if(confirmButton) confirmButton.querySelector("span").textContent = `${actionText} Order`;
+    
   } else {
-    // --- Sale State (Toggle is UNCHECKED) ---
+    // SALE MODE
     saleDateGroup.classList.remove("hidden");
     orderDateGroup.classList.add("hidden");
     paymentLabel.innerHTML = 'Paid Amount <span class="text-red-500">*</span>';
-    stateSaleLabel.classList.add("font-bold", "text-slate-900");
-    stateSaleLabel.classList.remove("text-slate-500");
-    stateOrderLabel.classList.remove("font-bold", "text-slate-900");
-    stateOrderLabel.classList.add("text-slate-500");
-    confirmButton.querySelector("span").textContent = `${actionText} Sale`;
-    // Don't call setTodayDates if editing, as loadOrderForEdit already set the date.
-    if (!orderState.orderId) setTodayDates();
-    document.getElementById("pageTitle").textContent = "Sale Products";
-  }
 
-  // Recalculate due amount whenever the state changes
+    stateSaleLabel.classList.replace("text-slate-500", "text-slate-900");
+    stateSaleLabel.classList.add("font-bold");
+    
+    stateOrderLabel.classList.replace("text-slate-900", "text-slate-500");
+    stateOrderLabel.classList.remove("font-bold");
+
+    if(confirmButton) confirmButton.querySelector("span").textContent = `${actionText} Sale`;
+    
+    if (!window.orderState.orderId) setTodayDates();
+  }
   calculateDue();
 };
 
