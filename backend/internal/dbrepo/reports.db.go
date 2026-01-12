@@ -68,7 +68,6 @@ func (r *ReportRepo) GetOrderOverView(ctx context.Context, branchID int64, summa
 	return &s, nil
 }
 
-
 // GetSalesPersonProgressReport gives sales progress summary for all salespersons in a branch
 // grouped by day, week, month, or year — based on data from employees_progress table.
 func (r *ReportRepo) GetSalesPersonProgressReport(
@@ -76,6 +75,7 @@ func (r *ReportRepo) GetSalesPersonProgressReport(
 	branchID int64,
 	startDate, endDate time.Time,
 	reportType string,
+	search string, // <--- 1. Added search parameter
 ) ([]*models.SalesPersonProgressReport, error) {
 
 	var report []*models.SalesPersonProgressReport
@@ -102,8 +102,24 @@ func (r *ReportRepo) GetSalesPersonProgressReport(
 	groupBy := fmt.Sprintf("e.id, %s", dateGroupExpr)
 	orderBy := fmt.Sprintf("%s, e.name", dateGroupExpr)
 
+	// 2. Prepare Base Arguments
+	args := []interface{}{branchID, startDate, endDate}
+
+	// 3. Build WHERE clause dynamically
+	whereClause := `
+        WHERE ep.branch_id = $1
+          AND ep.sheet_date BETWEEN $2 AND $3
+          AND e.role = 'salesperson'
+    `
+
+	// 4. Append Search Condition if provided
+	if search != "" {
+		// We use $4 here because we know we have exactly 3 args before it ($1, $2, $3)
+		whereClause += " AND (e.name ILIKE $4 OR e.mobile ILIKE $4)"
+		args = append(args, "%"+search+"%")
+	}
+
 	// MAIN TABLE: employees_progress
-	// LEFT JOIN employees to include missing employee info if progress exists without employee record
 	query := fmt.Sprintf(`
         SELECT
             e.id AS employee_id,
@@ -114,19 +130,17 @@ func (r *ReportRepo) GetSalesPersonProgressReport(
             %s,
             COALESCE(SUM(ep.sale_amount), 0)        AS total_sale_amount,
             COALESCE(SUM(ep.sale_return_amount), 0) AS total_sale_return_amount,
-            COALESCE(SUM(ep.order_count), 0)        AS total_order_count,
-            COALESCE(SUM(ep.item_count), 0)         AS total_item_count
+            COALESCE(SUM(ep.order_count), 0)        AS total_order_count
         FROM employees_progress ep
         LEFT JOIN employees e 
             ON e.id = ep.employee_id
-        WHERE ep.branch_id = $1
-          AND ep.sheet_date BETWEEN $2 AND $3
-          AND e.role = 'salesperson'
+        %s -- Injected WHERE clause
         GROUP BY %s, e.id, e.name, e.mobile, e.email, e.base_salary
         ORDER BY %s;
-    `, dateSelect, groupBy, orderBy)
+    `, dateSelect, whereClause, groupBy, orderBy)
 
-	rows, err := r.db.Query(ctx, query, branchID, startDate, endDate)
+	// 5. Pass 'args...' to Query
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query execution failed: %w", err)
 	}
@@ -144,7 +158,6 @@ func (r *ReportRepo) GetSalesPersonProgressReport(
 			&rp.Sale,
 			&rp.SaleReturn,
 			&rp.OrderCount,
-			&rp.ItemCount,
 		); err != nil {
 			return nil, fmt.Errorf("row scan failed: %w", err)
 		}
@@ -246,6 +259,7 @@ func (r *ReportRepo) GetAllWorkersProgressReport(
 }
 
 // GetBranchReport gives the report of a particular employee for a given year
+// v2
 func (r *ReportRepo) GetBranchReport(ctx context.Context, branchID int64, startDate, endDate time.Time, reportType string) ([]*models.TopSheet, error) {
 	var sheets []*models.TopSheet
 
@@ -259,13 +273,13 @@ func (r *ReportRepo) GetBranchReport(ctx context.Context, branchID int64, startD
             bank,
             order_count,
             delivery,
-            checkout,
-			cancelled
+            cancelled,
+            ready_made
         FROM top_sheet
         WHERE branch_id = $1
           AND sheet_date >= $2
           AND sheet_date <= $3
-        ORDER BY sheet_date;
+        ORDER BY sheet_date ASC;
     `
 
 	rows, err := r.db.Query(ctx, query, branchID, startDate, endDate)
@@ -276,6 +290,9 @@ func (r *ReportRepo) GetBranchReport(ctx context.Context, branchID int64, startD
 
 	for rows.Next() {
 		ts := &models.TopSheet{}
+
+		// Ensure your models.TopSheet struct has a 'ReadyMade' field
+		// or repurpose an existing field like 'Checkout' if you haven't updated the struct yet.
 		err := rows.Scan(
 			&ts.ID,
 			&ts.Date,
@@ -285,14 +302,17 @@ func (r *ReportRepo) GetBranchReport(ctx context.Context, branchID int64, startD
 			&ts.Bank,
 			&ts.OrderCount,
 			&ts.Delivery,
-			&ts.Checkout,
 			&ts.Cancelled,
+			&ts.ReadyMade, // Changed from Checkout to ReadyMade to match Table DDL
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// Calculate Totals based on the pre-aggregated data
 		ts.TotalAmount = ts.Cash + ts.Bank
-		ts.Balance = ts.Cash - ts.Expense
+		ts.Balance = ts.TotalAmount - ts.Expense
+
 		sheets = append(sheets, ts)
 	}
 
@@ -316,7 +336,7 @@ func (r *ReportRepo) GetSalaryList(ctx context.Context, branchID, employeeID int
 	argPos := 2 // next placeholder index
 
 	if employeeID != 0 {
-		query += fmt.Sprintf(" AND ep.employee_id = $%d" , argPos)
+		query += fmt.Sprintf(" AND ep.employee_id = $%d", argPos)
 		args = append(args, employeeID)
 		argPos++
 	}
@@ -352,4 +372,3 @@ func (r *ReportRepo) GetSalaryList(ctx context.Context, branchID, employeeID int
 	}
 	return salaries, nil
 }
-

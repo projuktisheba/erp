@@ -273,7 +273,7 @@ window.printOrderInvoice = async function(id, order) {
             </html>
         `;
 
-        // Remove existing iframe if any
+    // Remove existing iframe if any
     const oldFrame = document.getElementById('print-iframe');
     if (oldFrame) oldFrame.remove();
 
@@ -313,318 +313,191 @@ window.printOrderInvoice = async function(id, order) {
     }
 };
 
-// window.printOrderInvoice = async function (order) {
-//   const id = window.currentViewingOrderId;
-//   if (!id) {
-//     alert("No order loaded to print.");
-//     return;
-//   }
+window.printReportGeneric = function ({ header, columns, rows, totals = null }) {
+    const todayStr = new Date().toLocaleDateString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric'
+    });
 
-//   try {
-//     // Formatting Helpers
-//     const formatDate = (d) =>
-//       d ? new Date(d).toLocaleDateString("en-GB") : "";
-//     const formatMoney = (m) => parseFloat(m || 0).toFixed(2);
+    const printContent = `
+    <html>
+    <head>
+        <title>${header.reportTitle || 'Report'}</title>
+        <style>
+            body {
+                font-family: Arial, Helvetica, sans-serif;
+                color: #111;
+                padding: 28px;
+            }
 
-//     // Dynamic Watermark Text (Branch Name or Default)
-//     const branchName =
-//       order.branch?.name || window.globalState?.branchName || "EID AL ABAYAT";
+            .header {
+                text-align: center;
+                border-bottom: 2px solid #333;
+                padding-bottom: 12px;
+                margin-bottom: 22px;
+            }
 
-//     // Generate Items Rows
-//     const itemsRows = order.items
-//       .map((item, index) => {
-//         const unitPrice = item.quantity > 0 ? item.subtotal / item.quantity : 0;
-//         return `
-//             <tr>
-//                 <td>${index + 1}</td>
-//                 <td style="text-align: left; padding-left: 8px;">${
-//                   item.product_name
-//                 }</td>
-//                 <td>${item.quantity}</td>
-//                 <td>${formatMoney(unitPrice)}</td>
-//                 <td class="amount">${formatMoney(item.subtotal)}</td>
-//             </tr>`;
-//       })
-//       .join("");
+            .company {
+                font-size: 22px;
+                font-weight: bold;
+            }
 
-//     // Fill Empty Rows to maintain invoice height
-//     const totalRowsNeeded = 8;
-//     let emptyRows = "";
-//     const currentCount = order.items.length;
-//     if (currentCount < totalRowsNeeded) {
-//       for (let i = currentCount; i < totalRowsNeeded; i++) {
-//         emptyRows += `<tr><td>${
-//           i + 1
-//         }</td><td></td><td></td><td></td><td></td></tr>`;
-//       }
-//     }
+            .title {
+                font-size: 14px;
+                margin-top: 4px;
+                color: #444;
+            }
 
-//     const totalAmount = parseFloat(order.total_amount || 0);
-//     const receivedAmount = parseFloat(order.received_amount || 0);
-//     const dueAmount = totalAmount - receivedAmount;
+            .meta {
+                display: flex;
+                justify-content: space-between;
+                font-size: 12px;
+                margin-bottom: 16px;
+            }
 
-//     const printContent = `
-//             <!DOCTYPE html>
-//             <html lang="en">
-//             <head>
-//                 <meta charset="UTF-8">
-//                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-//                 <title>Invoice #${order.memo_no}</title>
-//                 <style>
-//                     body {
-//                         font-family: Arial, sans-serif;
-//                         background-color: #f4f4f4;
-//                         display: flex;
-//                         justify-content: center;
-//                         padding: 20px;
-//                     }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
 
-//                     .invoice-container {
-//                         width: 750px;
-//                         background: white;
-//                         padding: 25px;
-//                         border: 2px solid #b8860b; /* Golden brown */
-//                         position: relative;
-//                         overflow: hidden;
-//                     }
+            th, td {
+                border: 1px solid #444;
+                padding: 6px;
+            }
 
-//                     /* Watermark - Dynamic Content */
-//                     .invoice-container::before {
-//                         content: "${branchName}"; /* DYNAMIC BRANCH NAME */
-//                         position: absolute;
-//                         top: 50%;
-//                         left: 50%;
-//                         transform: translate(-50%, -50%) rotate(-45deg); /* Rotated for better watermark effect */
-//                         font-size: 80px;
-//                         color: #b8860b;
-//                         opacity: 0.07;
-//                         font-weight: bold;
-//                         pointer-events: none;
-//                         white-space: nowrap;
-//                         z-index: 0;
-//                     }
+            th {
+                background: #f2f2f2;
+                text-transform: uppercase;
+                font-size: 11px;
+            }
 
-//                     /* Header */
-//                     .invoice-header {
-//                         position: relative; z-index: 1;
-//                         display: flex;
-//                         justify-content: space-between;
-//                         align-items: flex-start;
-//                         border-bottom: 2px solid #333;
-//                         padding-bottom: 10px;
-//                         margin-bottom: 10px;
-//                         font-size: 12px;
-//                     }
+            td {
+                text-align: right;
+            }
 
-//                     .contact-info p { margin: 0; line-height: 1.4; color: #333; }
+            tfoot td {
+                font-weight: bold;
+                background: #f9f9f9;
+            }
 
-//                     .logo-name-section { text-align: center; }
-//                     .logo-name-section h1 { font-size: 26px; color: maroon; margin: 0; font-weight: 800; }
-//                     .logo-name-section h2 { font-size: 14px; margin: 0; }
-//                     .logo-name-section .arabic { font-size: 12px; margin-top: 3px; font-weight: bold; color: maroon; }
+            .footer {
+                margin-top: 30px;
+                text-align: center;
+                font-size: 11px;
+                color: #555;
+            }
 
-//                     /* Invoice Details */
-//                     .invoice-details {
-//                         position: relative; z-index: 1;
-//                         display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
-//                     }
-//                     .invoice-no {
-//                         font-size: 16px; color: red; border: 1px solid red; padding: 4px 12px; font-weight: bold; background: #fff;
-//                     }
-//                     .invoice-type {
-//                         border: 1px solid #333; padding: 4px 15px; font-size: 12px; font-weight: bold; text-align: center; background: #fff;
-//                     }
+            @media print {
+                body { padding: 0; }
+            }
+        </style>
+    </head>
 
-//                     /* Info Grid */
-//                     .info-grid {
-//                         position: relative; z-index: 1;
-//                         display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; font-size: 13px; margin-bottom: 15px;
-//                     }
-//                     .info-item { display: flex; align-items: center; justify-content: space-between; }
-//                     .info-item label { font-weight: bold; white-space: nowrap; }
-//                     .thin-line {
-//                         flex-grow: 1; border: none; border-bottom: 1px dotted #333; margin: 0 8px; 
-//                         background: transparent; text-align: center; font-family: inherit; font-weight: 600;
-//                     }
-//                     .arabic-label { direction: rtl; text-align: right; font-weight: bold; }
-//                     .info-item.full-width { grid-column: span 2; }
+    <body>
 
-//                     /* Table */
-//                     table {
-//                         position: relative; z-index: 1;
-//                         width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 15px;
-//                     }
-//                     table th, table td { border: 1px solid #333; padding: 6px; text-align: center; }
-//                     table th { background-color: #f8f8f8; font-weight: bold; color: #000; }
-                    
-//                     /* Totals */
-//                     .total-row td { font-weight: bold; text-align: right; padding: 6px 10px; }
-//                     .total-label { text-align: right; font-size: 13px; }
+        <!-- HEADER -->
+        <div class="header">
+            <div class="company">${header.companyName}</div>
+            <div class="title">${header.reportTitle}</div>
+        </div>
 
-//                     /* Footer */
-//                     .invoice-footer {
-//                         position: relative; z-index: 1;
-//                         display: flex; justify-content: space-between; margin-top: 40px; font-size: 13px;
-//                     }
-//                     .signature { width: 40%; text-align: center; }
-//                     .signature-line { border-top: 1px solid #000; margin-top: 25px; }
+        <!-- META -->
+        <div class="meta">
+            <div>
+                ${header.branchName ? `<strong>Branch:</strong> ${header.branchName}<br>` : ''}
+                ${header.startDate === "" || header.endDate === "" ? '': ` <strong>Period:</strong> ${header.startDate} - ${header.endDate}`}
+            </div>
+            <div>
+                <strong>Print Date:</strong> ${todayStr}
+            </div>
+        </div>
 
-//                     /* Print Styles */
-//                     @media print {
-//                         body { background: white; padding: 0; }
-//                         .invoice-container { box-shadow: none; margin: 0; border: 2px solid #b8860b; width: 100%; }
-//                         /* Ensure Backgrounds Print */
-//                         table th { background-color: #f8f8f8 !important; -webkit-print-color-adjust: exact; }
-//                         .invoice-container::before { -webkit-print-color-adjust: exact; }
-//                     }
-//                 </style>
-//             </head>
-//             <body>
-//                 <div class="invoice-container">
-                    
-//                     <div class="invoice-header">
-//                         <div class="contact-info">
-//                             <p><b>Mob:</b> 50294046</p>
-//                             <p><b>Mob:</b> 50298321</p>
-//                             <p>Al Shafee Street</p>
-//                             <p>Opp. Commercial Bank</p>
-//                             <p>New Rayyan</p>
-//                             <p>Doha - Qatar</p>
-//                         </div>
+        <!-- TABLE -->
+        <table>
+            <thead>
+                <tr>
+                    ${columns.map(col =>
+                        `<th style="text-align:${col.align || 'right'}">${col.label}</th>`
+                    ).join('')}
+                </tr>
+            </thead>
 
-//                         <div class="logo-name-section">
-//                             <h1>EID AL ABAYAT</h1>
-//                             <h2>Abayat - Shelat - Hijabat - Niqabat & Jalabia</h2>
-//                             <div class="arabic">عبايات - شيلات - حجابات - نقابات و جلابيات</div>
-//                             <div class="arabic" style="font-size: 14px; margin-top:2px;">(عيد العبايات)</div>
-//                         </div>
+            <tbody>
+                ${rows.map(row => `
+                    <tr>
+                        ${columns.map(col => `
+                            <td style="text-align:${col.align || 'right'}">
+                                ${row[col.key] ?? '-'}
+                            </td>
+                        `).join('')}
+                    </tr>
+                `).join('')}
+            </tbody>
 
-//                         <div class="contact-info" style="text-align:right;">
-//                             <p>٥٠٢٩٤٠٤٦ :جوال</p>
-//                             <p>٥٠٢٩٨٣٢١ :جوال</p>
-//                             <p>شارع الشافي</p>
-//                             <p>مقابل البنك التجاري</p>
-//                             <p>الريان الجديد</p>
-//                             <p>الدوحة - قطر</p>
-//                         </div>
-//                     </div>
+            ${totals ? `
+            <tfoot>
+                <tr>
+                    ${columns.map(col => `
+                        <td>${totals[col.key] ?? ''}</td>
+                    `).join('')}
+                </tr>
+            </tfoot>` : ''}
+        </table>
 
-//                     <div class="invoice-details">
-//                         <div class="invoice-no">No. ${order.memo_no}</div>
-//                         <div class="invoice-type">CASH / CREDIT INVOICE</div>
-//                     </div>
+        <div class="footer">
+            This is a system generated report. No signature required.
+        </div>
 
-//                     <div class="info-grid">
-//                         <div class="info-item">
-//                             <label>Delivery Date</label>
-//                             <input type="text" class="thin-line" value="${formatDate(
-//                               order.delivery_date
-//                             )}">
-//                             <span class="arabic-label">تاريخ التسليم</span>
-//                         </div>
-//                         <div class="info-item">
-//                             <label>Date</label>
-//                             <input type="text" class="thin-line" value="${formatDate(
-//                               order.order_date
-//                             )}">
-//                             <span class="arabic-label">التاريخ</span>
-//                         </div>
-//                         <div class="info-item full-width">
-//                             <label>Mr./Messrs</label>
-//                             <input type="text" class="thin-line" value="${
-//                               order.customer?.name || ""
-//                             }">
-//                             <span class="arabic-label">السيد / السادة</span>
-//                         </div>
-//                         <div class="info-item full-width">
-//                             <label>Tel/Mobile</label>
-//                             <input type="text" class="thin-line" value="${
-//                               order.customer?.mobile || ""
-//                             }">
-//                             <span class="arabic-label">تليفون / جوال</span>
-//                         </div>
-//                     </div>
+    </body>
+    </html>
+    `
+    // Remove existing iframe if any
+    const oldFrame = document.getElementById('print-report-iframe');
+    if (oldFrame) oldFrame.remove();
 
-//                     <table>
-//                         <thead>
-//                             <tr>
-//                                 <th style="width: 50px;">Sr.</th>
-//                                 <th>Description / التفاصيل</th>
-//                                 <th style="width: 80px;">QTY. الكمية</th>
-//                                 <th style="width: 100px;">Unit Price سعر الوحدة</th>
-//                                 <th style="width: 100px;">Amount المبلغ</th>
-//                             </tr>
-//                         </thead>
-//                         <tbody>
-//                             ${itemsRows}
-//                             ${emptyRows}
-                            
-//                             <tr class="total-row">
-//                                 <td colspan="4" class="total-label">TOTAL (المجموع)</td>
-//                                 <td>${formatMoney(totalAmount)}</td>
-//                             </tr>
-//                             <tr class="total-row">
-//                                 <td colspan="4" class="total-label">ADVANCE (مقدماً)</td>
-//                                 <td>${formatMoney(receivedAmount)}</td>
-//                             </tr>
-//                             <tr class="total-row">
-//                                 <td colspan="4" class="total-label">BALANCE (الباقي)</td>
-//                                 <td>${formatMoney(dueAmount)}</td>
-//                             </tr>
-//                         </tbody>
-//                     </table>
+    // Create iframe
+    const iframe = document.createElement('iframe');
+    iframe.id = 'print-report-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
 
-//                     <div class="invoice-footer">
-//                         <div class="signature">
-//                             <div class="signature-line"></div>
-//                             <p>Receiver's Sign / توقيع المستلم</p>
-//                         </div>
-//                         <div class="signature">
-//                             <div class="signature-line"></div>
-//                             <p>Salesman's Sign / توقيع البائع</p>
-//                         </div>
-//                     </div>
-//                 </div>
-//             </body>
-//             </html>
-//         `;
+    document.body.appendChild(iframe);
 
-//     // Remove existing iframe if any
-//     const oldFrame = document.getElementById("print-iframe");
-//     if (oldFrame) oldFrame.remove();
+    const iframeDoc = iframe.contentWindow || iframe.contentDocument;
+    const doc = iframeDoc.document || iframeDoc;
 
-//     // Create iframe
-//     const iframe = document.createElement("iframe");
-//     iframe.id = "print-iframe";
-//     iframe.style.position = "fixed";
-//     iframe.style.right = "0";
-//     iframe.style.bottom = "0";
-//     iframe.style.width = "0";
-//     iframe.style.height = "0";
-//     iframe.style.border = "0";
+    // Write content
+    doc.open();
+    doc.write(printContent);
+    doc.close();
 
-//     document.body.appendChild(iframe);
+    // Print after load
+    iframe.onload = () => {
+        setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
 
-//     const iframeDoc = iframe.contentWindow || iframe.contentDocument;
-//     const doc = iframeDoc.document || iframeDoc;
+            // Cleanup after printing
+            setTimeout(() => iframe.remove(), 1000);
+        }, 300);
+    };
+};
 
-//     // Write content
-//     doc.open();
-//     doc.write(printContent);
-//     doc.close();
 
-//     // Print after load
-//     iframe.onload = () => {
-//       setTimeout(() => {
-//         iframe.contentWindow.focus();
-//         iframe.contentWindow.print();
-
-//         // Cleanup after printing
-//         setTimeout(() => iframe.remove(), 1000);
-//       }, 300);
-//     };
-//   } catch (error) {
-//     console.error("Print Error:", error);
-//     alert("Failed to generate invoice.");
-//   }
-// };
+window.ConvertDateStr = (date)=>{
+    const dateObj = new Date(row.date);
+  
+  // Define short month names manually
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  
+  // Manually construct the date string (DD-MMM-YYYY)
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const month = monthNames[dateObj.getMonth()]; // getMonth() is 0-indexed
+  const year = dateObj.getFullYear();
+  
+  return `${day} ${month} ${year}`;
+}

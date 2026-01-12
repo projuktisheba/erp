@@ -52,7 +52,7 @@ function renderTable() {
   }
 
   customerTable.classList.remove("hidden");
-    emptyState.classList.add("hidden");
+  emptyState.classList.add("hidden");
 
   customerState.filtered.forEach((customer) => {
     const statusBadge = customer.status
@@ -266,3 +266,29 @@ window.editCustomer = function (id) {
 //    showNotification('error', 'Server Error');
 //   }
 // };
+
+/* --- PRINT --- */
+window.printCustomerReport = function () {
+  const branchName = GetBranchName();
+
+  const columns = [
+    { label: "ID", key: "id", align: "left" },
+    { label: "Name", key: "name", align: "left" },
+    { label: "Mobile", key: "mobile", align: "left" },
+    { label: "Address", key: "address", align: "left" },
+    { label: "Due", key: "due_amount", align: "right" },
+  ];
+
+  printReportGeneric({
+    header: {
+      companyName: branchName,
+      reportTitle: "Customer Report",
+      branchName: "",
+      startDate: "",
+      endDate: "",
+    },
+    columns: columns,
+    rows: customerState.filtered,
+    totals: null,
+  });
+};

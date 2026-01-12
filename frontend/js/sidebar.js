@@ -91,13 +91,13 @@ const menuConfig = [
       },
       {
         label: "Salesperson Progress",
-        action: "loadPage('salesperson_report','Salesperson Progress Report')",
+        action: "loadPage('salesperson_progress_report','Salesperson Progress Report')",
         pageId: "salesperson_progress",
         roles: ["chairman", "manager"],
       },
       {
         label: "Worker Progress",
-        action: "loadPage('worker_report','Worker Progress Report')",
+        action: "loadPage('salesperson_progress_report','Worker Progress Report')",
         pageId: "worker_report",
         roles: ["chairman", "manager"],
       },

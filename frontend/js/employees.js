@@ -1,6 +1,8 @@
 /* --- EMPLOYEES PAGE LOGIC --- */
-let allEmployees = [];
-
+let employeeState = {
+  list: [],
+  filtered: [],
+};
 // Initialize Page
 window.initEmployeesPage = async function () {
   console.log("Employees Page Initialized");
@@ -35,9 +37,10 @@ async function fetchEmployees() {
     if (!response.ok) throw new Error("Failed to fetch employees");
 
     const data = await response.json();
-    allEmployees = data.employees || data || [];
+    employeeState.list = data.employees || data || [];
+    employeeState.filtered = data.employees || data || [];
 
-    renderEmployees(allEmployees);
+    renderEmployees(employeeState.list);
   } catch (error) {
     console.error(error);
     container.innerHTML = `<div class="w-full text-center text-red-500 font-bold py-4">Failed to load employee data</div>`;
@@ -171,15 +174,21 @@ function createEmployeeTableRow(emp) {
 
 /* --- 3. SEARCH & FILTER --- */
 function filterEmployees() {
-  const query = document.getElementById("employeeSearch").value.toLowerCase();
+  const query = document.getElementById("employeeSearch").value.toLowerCase().trim();
   const role = document.getElementById("roleFilter").value;
 
-  const filtered = allEmployees.filter((emp) => {
+  // if (query.trim() === ""){
+  //   employeeState.filtered = employeeState.list || [];
+  //   return;
+  // }
+
+  const filtered = employeeState.list.filter((emp) => {
     const matchesName =
       emp.name.toLowerCase().includes(query) || emp.mobile.includes(query);
     const matchesRole = role === "all" || emp.role === role;
     return matchesName && matchesRole;
   });
+  employeeState.filtered = filtered;
 
   renderEmployees(filtered);
 }
@@ -316,3 +325,30 @@ async function saveEmployee() {
     showNotification("error", error.message);
   }
 }
+
+/* --- 5. PRINT --- */
+window.printEmployeeReport = function () {
+  const branchName = GetBranchName();
+  const columns = [
+    { label: "ID", key: "id", align: "left" },
+    { label: "Name", key: "name", align: "left" },
+    { label: "Role", key: "role", align: "left" },
+    { label: "Status", key: "status", align: "left" },
+    { label: "Mobile", key: "mobile", align: "left" },
+    { label: "Email", key: "email", align: "left" },
+    { label: "Base Salary", key: "base_salary", align: "right" },
+  ];
+
+  printReportGeneric({
+    header: {
+      companyName: branchName,
+      reportTitle: "Employee Report",
+      branchName: "",
+      startDate: "",
+      endDate: "",
+    },
+    columns: columns,
+    rows: employeeState.filtered,
+    totals: null,
+  });
+};

@@ -256,7 +256,6 @@ CREATE TABLE employees_progress (
     sale_amount NUMERIC(12,2) NOT NULL  DEFAULT 0.00,
     sale_return_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     order_count BIGINT NOT NULL DEFAULT 0,
-    item_count BIGINT NOT NULL DEFAULT 0,
 
     -- progress metrics for worker
     production_units BIGINT NOT NULL DEFAULT 0,
