@@ -76,6 +76,7 @@ type OrderTransactionDB struct {
 	TransactionDate  time.Time `json:"transaction_date"`
 	OrderID          *int64    `json:"order_id,omitempty"`
 	PaymentAccountID *int64    `json:"payment_account_id,omitempty"`
+	PaymentAccountName string    `json:"payment_account_name"`
 
 	MemoNo            string    `json:"memo_no"`
 	DeliveredBy       *string   `json:"delivered_by,omitempty"`

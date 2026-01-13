@@ -17,84 +17,56 @@ window.orderHistoryState = window.orderHistoryState || {
 window.initOrderHistoryPage = function () {
   console.log("Initializing Order History Page...");
 
-  // 1. Grab Elements (using the IDs from your HTML)
+  // 1. Grab Elements
   const searchInput = document.getElementById("searchOrderInput");
   const statusSelect = document.getElementById("statusFilter");
   const pageLengthSelect = document.getElementById("pageLengthSelector");
-  const prevBtn = document.getElementById("prevPageBtn");
-  const nextBtn = document.getElementById("nextPageBtn");
 
-  // 2. Set Initial Branch ID (Assuming you have a global user object)
-  // Adjust 'window.globalState.user.branch_id' to match your actual auth storage
+  // 2. Set Initial Branch ID
   if (window.globalState && window.globalState.user) {
     orderHistoryState.branchID = window.globalState.user.branch_id;
   }
 
-  // 3. Search Listener (Debounced)
+  // 3. Search Listener
   if (searchInput) {
-    searchInput.value = orderHistoryState.searchQuery; // Persist value if re-rendering
+    searchInput.value = orderHistoryState.searchQuery;
     searchInput.addEventListener("input", (e) => {
       clearTimeout(orderHistoryState.searchDebounce);
       orderHistoryState.searchDebounce = setTimeout(() => {
         const newVal = e.target.value.trim();
-        // Only fetch if value changed to prevent duplicate calls
         if (orderHistoryState.searchQuery !== newVal) {
             orderHistoryState.searchQuery = newVal;
-            orderHistoryState.currentPage = 1; // Reset to page 1 on search
+            orderHistoryState.currentPage = 1; 
             fetchOrders();
         }
-      }, 400); // 400ms delay
+      }, 400);
     });
   }
 
   // 4. Status Filter Listener
   if (statusSelect) {
-    statusSelect.value = orderHistoryState.statusFilter; // Persist value
+    statusSelect.value = orderHistoryState.statusFilter;
     statusSelect.addEventListener("change", (e) => {
       orderHistoryState.statusFilter = e.target.value;
-      orderHistoryState.currentPage = 1; // Reset to page 1 on filter change
+      orderHistoryState.currentPage = 1;
       fetchOrders();
     });
   }
 
   // 5. Page Length Listener
   if (pageLengthSelect) {
-    pageLengthSelect.value = orderHistoryState.pageLength.toString(); // Persist value
+    pageLengthSelect.value = orderHistoryState.pageLength.toString();
     pageLengthSelect.addEventListener("change", (e) => {
       orderHistoryState.pageLength = parseInt(e.target.value);
-      orderHistoryState.currentPage = 1; // Reset to page 1 on length change
+      orderHistoryState.currentPage = 1;
       fetchOrders();
     });
   }
 
-  // 6. Pagination Button Listeners
-  if (prevBtn) {
-    // Remove old listeners to prevent stacking if init is called multiple times
-    const newPrev = prevBtn.cloneNode(true);
-    prevBtn.parentNode.replaceChild(newPrev, prevBtn);
-    
-    newPrev.addEventListener("click", () => {
-      if (orderHistoryState.currentPage > 1) {
-        orderHistoryState.currentPage--;
-        fetchOrders();
-      }
-    });
-  }
+  // Note: Pagination listeners are now handled dynamically in updatePaginationInfo
+  // via the window.changePage function below.
 
-  if (nextBtn) {
-    const newNext = nextBtn.cloneNode(true);
-    nextBtn.parentNode.replaceChild(newNext, nextBtn);
-
-    newNext.addEventListener("click", () => {
-      const totalPages = Math.ceil(orderHistoryState.totalRecords / orderHistoryState.pageLength);
-      if (orderHistoryState.currentPage < totalPages) {
-        orderHistoryState.currentPage++;
-        fetchOrders();
-      }
-    });
-  }
-
-  // 7. Initial Fetch
+  // 6. Initial Fetch
   fetchOrders();
 };
 
@@ -142,7 +114,21 @@ async function fetchOrders() {
     orderHistoryState.totalRecords = parseInt(data.total_count || data.totalRecords || 0);
 
     renderOrders();
-    updatePaginationInfo();
+    // REUSABLE PAGINATION CALL
+        window.renderPagination(
+            "paginationContainer", // ID of button container
+            "paginationInfo",      // ID of text info
+            { 
+                currentPage: orderHistoryState.currentPage,
+                totalRecords: orderHistoryState.totalRecords,
+                pageLength: orderHistoryState.pageLength 
+            },
+            (newPage) => {
+                // The Callback: What happens when a user clicks a page?
+                orderHistoryState.currentPage = newPage;
+                fetchOrders();
+            }
+        );
     
   } catch (err) {
     console.error("Fetch Error:", err);
@@ -274,41 +260,41 @@ function renderOrders() {
 }
 
 // --- PAGINATION UI ---
-function updatePaginationInfo() {
-  const totalPages = Math.ceil(orderHistoryState.totalRecords / orderHistoryState.pageLength) || 1;
-  const currentPageEl = document.getElementById("currentPage");
-  const paginationInfo = document.getElementById("paginationInfo");
-  const prevBtn = document.getElementById("prevPageBtn");
-  const nextBtn = document.getElementById("nextPageBtn");
+// function updatePaginationInfo() {
+//   const totalPages = Math.ceil(orderHistoryState.totalRecords / orderHistoryState.pageLength) || 1;
+//   const currentPageEl = document.getElementById("currentPage");
+//   const paginationInfo = document.getElementById("paginationInfo");
+//   const prevBtn = document.getElementById("prevPageBtn");
+//   const nextBtn = document.getElementById("nextPageBtn");
 
-  // Calculate range strings
-  const start = (orderHistoryState.currentPage - 1) * orderHistoryState.pageLength + 1;
-  const end = Math.min(orderHistoryState.currentPage * orderHistoryState.pageLength, orderHistoryState.totalRecords);
+//   // Calculate range strings
+//   const start = (orderHistoryState.currentPage - 1) * orderHistoryState.pageLength + 1;
+//   const end = Math.min(orderHistoryState.currentPage * orderHistoryState.pageLength, orderHistoryState.totalRecords);
   
-  // Update Text
-  if (currentPageEl) currentPageEl.textContent = `Page ${orderHistoryState.currentPage} of ${totalPages}`;
+//   // Update Text
+//   if (currentPageEl) currentPageEl.textContent = `Page ${orderHistoryState.currentPage} of ${totalPages}`;
   
-  if (paginationInfo) {
-    if (orderHistoryState.totalRecords === 0) {
-        paginationInfo.textContent = "No results";
-    } else {
-        paginationInfo.textContent = `Showing ${start}-${end} of ${orderHistoryState.totalRecords} results`;
-    }
-  }
+//   if (paginationInfo) {
+//     if (orderHistoryState.totalRecords === 0) {
+//         paginationInfo.textContent = "No results";
+//     } else {
+//         paginationInfo.textContent = `Showing ${start}-${end} of ${orderHistoryState.totalRecords} results`;
+//     }
+//   }
 
-  // Update Button States
-  if (prevBtn) {
-      prevBtn.disabled = orderHistoryState.currentPage <= 1;
-      prevBtn.classList.toggle("opacity-50", prevBtn.disabled);
-      prevBtn.classList.toggle("cursor-not-allowed", prevBtn.disabled);
-  }
+//   // Update Button States
+//   if (prevBtn) {
+//       prevBtn.disabled = orderHistoryState.currentPage <= 1;
+//       prevBtn.classList.toggle("opacity-50", prevBtn.disabled);
+//       prevBtn.classList.toggle("cursor-not-allowed", prevBtn.disabled);
+//   }
   
-  if (nextBtn) {
-      nextBtn.disabled = orderHistoryState.currentPage >= totalPages;
-      nextBtn.classList.toggle("opacity-50", nextBtn.disabled);
-      nextBtn.classList.toggle("cursor-not-allowed", nextBtn.disabled);
-  }
-}
+//   if (nextBtn) {
+//       nextBtn.disabled = orderHistoryState.currentPage >= totalPages;
+//       nextBtn.classList.toggle("opacity-50", nextBtn.disabled);
+//       nextBtn.classList.toggle("cursor-not-allowed", nextBtn.disabled);
+//   }
+// }
 
 // --- GLOBAL ACTIONS ---
 // These need to be on the window object so the HTML 'onclick' attributes can find them
@@ -365,7 +351,7 @@ async function viewOrder(id) {
         // --- 1. POPULATE HEADER & INFO ---
         setText("viewMemoNo", `#${order.memo_no}`); // Added # hash for style
         setText("viewCustomerName", order.customer?.name || "Unknown Customer");
-        setText("viewCustomerMobile", order.customer?.mobile || "No Mobile");
+        setText("viewCustomerMobile", order.customer?.mobile || "");
         
         const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "-";
         const formatMoney = (m) => parseFloat(m || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -373,7 +359,8 @@ async function viewOrder(id) {
         setText("viewOrderDate", formatDate(order.order_date));
         setText("viewDeliveryDate", formatDate(order.delivery_date));
         // Optional: If you kept the salesperson field in HTML
-        setText("viewSalesperson", order.salesperson?.name || "Unknown"); 
+        setText("viewSalespersonName", order.salesperson?.name || "Unknown"); 
+        setText("viewSalespersonMobile", order.salesperson?.mobile || ""); 
 
         // --- 2. STATUS BADGE ---
         const statusEl = document.getElementById("viewStatus");
@@ -453,12 +440,15 @@ async function viewOrder(id) {
                     return `
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-4 py-3 text-sm text-slate-600">
-                            ${formatDate(t.created_at)}
+                            ${formatDate(t.transaction_date)}
                         </td>
                         <td class="px-4 py-3">
                             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${typeBadgeClass}">
                                 ${t.transaction_type}
                             </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-center text-slate-600">
+                            ${t.payment_account_name || ''}
                         </td>
                         <td class="px-4 py-3 text-sm text-right text-slate-600">
                             ${t.quantity_delivered > 0 ? t.quantity_delivered : '-'}

@@ -36,7 +36,7 @@ CREATE TABLE orders (
     received_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     
     -- Status & Metadata
-    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    status VARCHAR(20) NOT NULL DEFAULT 'Pending',
     notes TEXT,
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

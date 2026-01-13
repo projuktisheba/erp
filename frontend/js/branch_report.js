@@ -151,25 +151,25 @@ function renderReportTable() {
             <tr class="hover:bg-slate-50 border-b border-slate-50 transition text-slate-700">
                 <td class="px-4 py-3 border-r border-slate-100 font-medium">${dateStr}</td>
                 <td class="px-4 py-3 text-center border-r border-slate-100">${
-                  row.order_count || "-"
+                  row.order_count || "0"
                 }</td>
                 <td class="px-4 py-3 text-center border-r border-slate-100">${
-                  row.delivery || "-"
+                  row.delivery || "0"
                 }</td>
                 
-                <td class="px-4 py-3 text-right text-red-500 border-r border-slate-100 font-mono">
+                <td class="px-4 py-3 text-right text-red-500 border-r border-slate-100">
                     ${formatMoney(row.expense)}
                 </td>
                 
-                <td class="px-4 py-3 text-right text-emerald-600 border-r border-slate-100 font-mono">
+                <td class="px-4 py-3 text-right text-emerald-600 border-r border-slate-100">
                     ${formatMoney(row.cash)}
                 </td>
                 
-                <td class="px-4 py-3 text-right text-blue-600 border-r border-slate-100 font-mono">
+                <td class="px-4 py-3 text-right text-blue-600 border-r border-slate-100">
                     ${formatMoney(row.bank)}
                 </td>
                 
-                <td class="px-4 py-3 text-right font-bold text-slate-800 font-mono">
+                <td class="px-4 py-3 text-right font-bold text-slate-800">
                     ${formatMoney(row.balance)}
                 </td>
             </tr>

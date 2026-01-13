@@ -29,7 +29,7 @@ const menuConfig = [
   {
     type: "parent", // This is a dropdown
     label: "Employee",
-    icon: "ph-users-three",
+    icon: "ph-microsoft-teams-logo",
     pageId: "employee-menu",
     id: "employee-menu", // Unique ID for toggle
     roles: ["chairman", "manager"], // Parent permission
@@ -50,13 +50,28 @@ const menuConfig = [
     ],
   },
   {
-    type: "link",
-    label: "Customers",
-    icon: "ph-users",
-    pageId: "customers",
-    action: "loadPage('customers','Customer Database')",
-    roles: ["chairman", "manager"],
+    type: "parent", // This is a dropdown
+    label: "Customer & Supplier",
+    icon: "ph-users-three",
+    pageId: "customer-menu",
+    id: "customer-menu", // Unique ID for toggle
+    roles: ["chairman", "manager"], // Parent permission
+    children: [
+      {
+        label: "List Customers",
+        action: "loadPage('customers','Customer List')",
+        pageId: "customers",
+        roles: ["chairman", "manager"],
+      },
+      {
+        label: "List Suppliers",
+        action: "loadPage('suppliers','Supplier List')",
+        pageId: "suppliers",
+        roles: ["chairman", "manager"],
+      },
+    ],
   },
+
   {
     type: "parent", // This is a dropdown
     label: "Report",
@@ -91,14 +106,15 @@ const menuConfig = [
       },
       {
         label: "Salesperson Progress",
-        action: "loadPage('salesperson_progress_report','Salesperson Progress Report')",
-        pageId: "salesperson_progress",
+        action:
+          "loadPage('salesperson_progress_report','Salesperson Progress Report')",
+        pageId: "salesperson_progress_report",
         roles: ["chairman", "manager"],
       },
       {
         label: "Worker Progress",
-        action: "loadPage('salesperson_progress_report','Worker Progress Report')",
-        pageId: "worker_report",
+        action: "loadPage('worker_progress_report','Worker Progress Report')",
+        pageId: "worker_progress_report",
         roles: ["chairman", "manager"],
       },
       {

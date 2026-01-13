@@ -169,9 +169,11 @@ window.loadOrderForEdit = async function (orderId) {
     if (document.getElementById("employeeSelect")) {
         document.getElementById("employeeSelect").value = order.salesperson_id || (order.salesperson ? order.salesperson.id : "");
     }
+    if (document.getElementById("accountSelect")) {
+        document.getElementById("accountSelect").value =  String(order.order_transactions?.[0]?.payment_account_id || "");
+    }
     
     document.getElementById("memoNo").value = order.memo_no || "";
-    document.getElementById("accountSelect").value = order.payment_account_id || "";
     document.getElementById("advanceInput").value = order.received_amount || 0;
     document.getElementById("orderNotes").value = order.notes || "";
 
@@ -258,9 +260,9 @@ function setTodayDates() {
 function populateSelect(elementId, labelName, data, labelFn, valueKey) {
   const select = document.getElementById(elementId);
   if (!select) return;
-  select.innerHTML = `<option value="" disabled selected>Select ${labelName}</option>`;
+  select.innerHTML = `<option value="" disabled>Select ${labelName}</option>`;
   if (!data || data.length === 0) {
-    select.innerHTML = `<option value="" disabled selected>No ${labelName} Found</option>`;
+    select.innerHTML = `<option value="" disabled>No ${labelName} Found</option>`;
   } else {
     data.forEach((item) => {
       select.innerHTML += `<option value="${item[valueKey]}">${labelFn(
@@ -581,7 +583,7 @@ window.submitOrderToDB = async function () {
 
   // --- Prepare payload matching OrderDB & OrderItemDB ---
   const payload = {
-    ...(isEditing && { id: orderState.orderId }),
+    ...(isEditing && { id: parseInt(orderState.orderId) }),
     branch_id: window.globalState.user.branch_id,
     memo_no: memoNo,
     order_date: orderDate,
@@ -603,9 +605,9 @@ window.submitOrderToDB = async function () {
   };
 
   const url = isEditing
-    ? `${window.globalState.apiBase}/products/orders/${orderState.orderId}`
+    ? `${window.globalState.apiBase}/products/orders/update/${orderState.orderId}`
     : `${window.globalState.apiBase}/products/orders/new`;
-  const method = isEditing ? "PUT" : "POST";
+  const method = isEditing ? "PATCH" : "POST";
   const action = isEditing ? "Updated" : "Confirmed";
 
   console.log(`${method} ORDER Payload:`, payload);
@@ -623,13 +625,13 @@ window.submitOrderToDB = async function () {
     if (res.ok) {
       showModalConfirm(
         "success",
-        "Order Recorded",
+        `Order ${action}`,
         `Order ${action} successfully!`,
         "Print Invoice",
         async () => {
           // Use outer 'data' here safely
           const response = await fetch(
-            `${window.globalState.apiBase}/products/orders/${data.order_id}`
+            `${window.globalState.apiBase}/products/orders/${isEditing? orderState.orderId : data.order_id}`
           );
           
           // FIX: Rename this to 'orderData' to avoid conflict

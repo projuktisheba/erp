@@ -110,8 +110,8 @@ func (app *application) routes() http.Handler {
 		r.Get("/customers/names", app.Handlers.Customer.GetCustomersNameAndID)
 		r.Get("/customers/with-due", app.Handlers.Customer.GetCustomersWithDueHandler)
 
-		r.Post("/supplier", app.Handlers.Supplier.AddSupplier)
-		r.Put("/supplier", app.Handlers.Supplier.UpdateSupplier)
+		r.Post("/supplier/new", app.Handlers.Supplier.AddSupplier)
+		r.Put("/supplier/update/{id}", app.Handlers.Supplier.UpdateSupplier)
 		r.Get("/supplier", app.Handlers.Supplier.GetSupplierByID)
 		r.Get("/suppliers", app.Handlers.Supplier.ListSuppliers)
 	})
@@ -132,7 +132,7 @@ func (app *application) routes() http.Handler {
 		// r.Get("/orders/search", app.Handlers.Order.SearchOrders)
 		r.Get("/orders", app.Handlers.Order.GetOrdersHandler)
 		r.Get("/orders/{id}", app.Handlers.Order.GetOrderDetailsByID)
-		// r.Patch("/", app.Handlers.Order.UpdateOrder)
+		r.Patch("/orders/update/{id}", app.Handlers.Order.UpdateOrder)
 		// r.Delete("/", app.Handlers.Order.CancelOrder)
 		// r.Patch("/checkout", app.Handlers.Order.CheckoutOrder)
 		// r.Patch("/delivery", app.Handlers.Order.OrderDelivery)
@@ -160,7 +160,7 @@ func (app *application) routes() http.Handler {
 
 	protected.Route("/api/v1/transactions", func(r chi.Router) {
 		r.Get("/summary", app.Handlers.Transaction.GetTransactionSummaryHandler)
-		r.Get("/list", app.Handlers.Transaction.GetTransactionSummaryHandler)
+		r.Get("/list", app.Handlers.Transaction.ListTransactionsPaginatedHandler)
 	})
 
 	// -------------------- Report Routes --------------------

@@ -205,9 +205,9 @@ func (user *EmployeeRepo) SubmitSalary(ctx context.Context, salaryDate time.Time
 	//increment expense
 	// Update top_sheet inside the same tx
 	topSheet := &models.TopSheetDB{
-		SheetDate:     salaryDate,
-		BranchID: branchID,
-		Expense:  amount,
+		SheetDate: salaryDate,
+		BranchID:  branchID,
+		Expense:   amount,
 	}
 	err = SaveTopSheetTx(tx, ctx, topSheet)
 	if err != nil {
@@ -320,7 +320,7 @@ func (e *EmployeeRepo) PaginatedEmployeeList(ctx context.Context, page, limit in
 	query := `SELECT id, name, role, status, mobile, email, password, passport_no, joining_date, address,
 	                 base_salary, overtime_rate, branch_id, created_at, updated_at
 	          FROM employees
-	          WHERE 1=1`
+	          WHERE role <> 'chairman'`
 
 	countQuery := `SELECT COUNT(*) FROM employees WHERE 1=1`
 
@@ -421,9 +421,9 @@ func (e *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, workerProgress 
 	//update top_sheet if AdvancePayment > 0
 	if workerProgress.AdvancePayment > 0 {
 		err := SaveTopSheetTx(tx, ctx, &models.TopSheetDB{
-			SheetDate:     workerProgress.Date,
-			BranchID: workerProgress.BranchID,
-			Expense:  workerProgress.AdvancePayment,
+			SheetDate: workerProgress.Date,
+			BranchID:  workerProgress.BranchID,
+			Expense:   workerProgress.AdvancePayment,
 		})
 		if err != nil {
 			return err

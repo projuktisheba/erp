@@ -174,12 +174,12 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		`,
 			order.OrderDate,
-			order.MemoNo,
+			models.ORDER_MEMO_PREFIX+"-"+order.MemoNo,
 			order.BranchID,
 			order.CustomerID,
 			models.ENTITY_CUSTOMER,
 			order.PaymentAccountID,
-			acctType,
+			models.ENTITY_ACCOUNT,
 			order.ReceivedAmount,
 			models.ADVANCE_PAYMENT,
 			"Advance payment from customer",
@@ -248,8 +248,9 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 }
 
 // UpdateOrder updates an existing order and adjusts all dependent reports.
-
-func (r *OrderRepo) UpdateOrder(ctx context.Context, order *models.OrderDB) error {
+// It creates a "Revert Old" -> "Apply New" flow to handle changes in
+// Customer, Salesperson, Dates, or Accounts safely.
+func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.OrderDB) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -257,23 +258,11 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order *models.OrderDB) erro
 	defer tx.Rollback(ctx)
 
 	// --------------------
-	// Load existing order (for diff calculation)
+	// 1. Basic Validations
 	// --------------------
-	var oldTotalAmount, oldReceivedAmount float64
-	var oldTotalItems int64
-	err = tx.QueryRow(ctx, `
-		SELECT total_amount, received_amount, total_products
-		FROM orders
-		WHERE id = $1
-		FOR UPDATE
-	`, order.ID).Scan(&oldTotalAmount, &oldReceivedAmount, &oldTotalItems)
-	if err != nil {
-		return fmt.Errorf("load existing order failed: %w", err)
+	if oldOrder.Status != models.ORDER_PENDING {
+		return fmt.Errorf("only pending orders can be modified")
 	}
-
-	// --------------------
-	// Basic validations
-	// --------------------
 	if len(order.Items) == 0 {
 		return fmt.Errorf("order must contain at least one item")
 	}
@@ -284,173 +273,239 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order *models.OrderDB) erro
 		return fmt.Errorf("received amount cannot exceed total amount")
 	}
 
-	// --------------------
-	// Recalculate total items
-	// --------------------
+	// Recalculate total items for the new order state
 	order.TotalItems = 0
 	for _, item := range order.Items {
 		order.TotalItems += int64(item.Quantity)
 	}
 
 	// --------------------
-	// Step 1: Update order header
+	// 2. Update Order Header
 	// --------------------
 	_, err = tx.Exec(ctx, `
 		UPDATE orders SET
-			memo_no = $1,
-			order_date = $2,
-			delivery_date = $3,
-			salesperson_id = $4,
-			customer_id = $5,
-			total_products = $6,
-			delivered_products = $7,
-			total_amount = $8,
-			received_amount = $9,
-			status = $10,
-			notes = $11,
-			updated_at = $12
-		WHERE id = $13
+			memo_no = $1, order_date = $2, delivery_date = $3,
+			salesperson_id = $4, customer_id = $5,
+			total_products = $6, delivered_products = $7,
+			total_amount = $8, received_amount = $9,
+			notes = $10, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $11
 	`,
-		order.MemoNo,
-		order.OrderDate,
-		order.DeliveryDate,
-		order.SalespersonID,
-		order.CustomerID,
-		order.TotalItems,
-		order.DeliveredItems,
-		order.TotalAmount,
-		order.ReceivedAmount,
-		order.Status,
-		order.Notes,
-		order.UpdatedAt,
-		order.ID,
+		order.MemoNo, order.OrderDate, order.DeliveryDate,
+		order.SalespersonID, order.CustomerID,
+		order.TotalItems, order.DeliveredItems,
+		order.TotalAmount, order.ReceivedAmount,
+		order.Notes, order.ID,
 	)
 	if err != nil {
-		return fmt.Errorf("update order failed: %w", err)
+		return fmt.Errorf("update order header failed: %w", err)
 	}
 
 	// --------------------
-	// Step 2: Replace order items
+	// 3. Replace Order Items
 	// --------------------
 	_, err = tx.Exec(ctx, `DELETE FROM order_items WHERE order_id=$1`, order.ID)
 	if err != nil {
-		return fmt.Errorf("delete order items failed: %w", err)
+		return fmt.Errorf("delete old items failed: %w", err)
 	}
 
 	for _, item := range order.Items {
 		_, err := tx.Exec(ctx, `
 			INSERT INTO order_items(order_id, product_id, quantity, subtotal)
 			VALUES ($1,$2,$3,$4)
-		`,
-			order.ID,
-			item.ProductID,
-			item.Quantity,
-			item.Subtotal,
-		)
+		`, order.ID, item.ProductID, item.Quantity, item.Subtotal)
 		if err != nil {
-			return fmt.Errorf("insert order item failed: %w", err)
+			return fmt.Errorf("insert new item failed: %w", err)
 		}
 	}
 
-	// --------------------
-	// Step 3: Update top sheet (delta)
-	// --------------------
-	itemDelta := order.TotalItems - oldTotalItems
-	amountDelta := order.ReceivedAmount - oldReceivedAmount
+	// =========================================================================
+	// STRATEGY: "Undo" Old State -> "Apply" New State
+	// This works perfectly even if CustomerID or SalespersonID changes.
+	// =========================================================================
 
-	topSheet := &models.TopSheetDB{
+	// --------------------
+	// 4. Handle Top Sheet (Daily Summary)
+	// --------------------
+
+	// 4a. Revert Old (Subtract from OLD Date)
+	oldSheet := &models.TopSheetDB{
+		SheetDate:  oldOrder.OrderDate,
+		BranchID:   oldOrder.BranchID,
+		OrderCount: -oldOrder.TotalItems, // Negative to subtract
+	}
+	// Determine old account type for Top Sheet
+	if oldOrder.ReceivedAmount > 0 && len(oldOrder.OrderTransactions) > 0 {
+		var oldAcctType string
+		// Try to get account from old transaction, fallback to order struct
+		acctID := oldOrder.OrderTransactions[0].PaymentAccountID
+
+		err = tx.QueryRow(ctx, `SELECT type FROM accounts WHERE id=$1`, acctID).Scan(&oldAcctType)
+		if err == nil {
+			if oldAcctType == models.ACCOUNT_BANK {
+				oldSheet.Bank = -oldOrder.ReceivedAmount
+			} else {
+				oldSheet.Cash = -oldOrder.ReceivedAmount
+			}
+		}
+	}
+	if err := SaveTopSheetTx(tx, ctx, oldSheet); err != nil {
+		return fmt.Errorf("revert top sheet failed: %w", err)
+	}
+
+	// 4b. Apply New (Add to NEW Date)
+	newSheet := &models.TopSheetDB{
 		SheetDate:  order.OrderDate,
 		BranchID:   order.BranchID,
-		OrderCount: itemDelta,
+		OrderCount: order.TotalItems,
 	}
-
-	if amountDelta != 0 {
-		var acctType string
-		err = tx.QueryRow(ctx,
-			`SELECT type FROM accounts WHERE id=$1 AND branch_id=$2`,
-			order.PaymentAccountID,
-			order.BranchID,
-		).Scan(&acctType)
+	var newAcctType string // Needed later for transaction logs too
+	if order.ReceivedAmount > 0 {
+		err = tx.QueryRow(ctx, `SELECT type FROM accounts WHERE id=$1`, order.PaymentAccountID).Scan(&newAcctType)
 		if err != nil {
-			return fmt.Errorf("lookup account type failed: %w", err)
+			return fmt.Errorf("lookup new account type failed: %w", err)
 		}
-
-		if acctType == models.ACCOUNT_BANK {
-			topSheet.Bank = amountDelta
+		if newAcctType == models.ACCOUNT_BANK {
+			newSheet.Bank = order.ReceivedAmount
 		} else {
-			topSheet.Cash = amountDelta
+			newSheet.Cash = order.ReceivedAmount
+		}
+	}
+	if err := SaveTopSheetTx(tx, ctx, newSheet); err != nil {
+		return fmt.Errorf("apply top sheet failed: %w", err)
+	}
+
+	// --------------------
+	// 5. Handle Salesperson Progress
+	// --------------------
+
+	// 5a. Revert Old Salesperson
+	// We subtract the old stats from the OLD salesperson ID
+	oldProgress := &models.SalespersonProgress{
+		Date:       oldOrder.OrderDate,
+		BranchID:   oldOrder.BranchID,
+		EmployeeID: oldOrder.SalespersonID, // OLD ID
+		OrderCount: -oldOrder.TotalItems,
+		SaleAmount: -oldOrder.TotalAmount,
+	}
+	if err := UpdateSalespersonProgressReportTx(tx, ctx, oldProgress); err != nil {
+		return fmt.Errorf("revert old salesperson progress failed: %w", err)
+	}
+
+	// 5b. Apply New Salesperson
+	// We add the new stats to the NEW salesperson ID
+	newProgress := &models.SalespersonProgress{
+		Date:       order.OrderDate,
+		BranchID:   order.BranchID,
+		EmployeeID: order.SalespersonID, // NEW ID
+		OrderCount: order.TotalItems,
+		SaleAmount: order.TotalAmount,
+	}
+	if err := UpdateSalespersonProgressReportTx(tx, ctx, newProgress); err != nil {
+		return fmt.Errorf("apply new salesperson progress failed: %w", err)
+	}
+
+	// --------------------
+	// 6. Handle Customer Due
+	// --------------------
+
+	// 6a. Revert Old Customer Due
+	// Remove the *Old Due* amount from the *Old Customer*
+	oldDue := oldOrder.TotalAmount - oldOrder.ReceivedAmount
+	if oldDue != 0 {
+		_, err = tx.Exec(ctx, `
+			UPDATE customers 
+			SET due_amount = due_amount - $1 
+			WHERE id = $2
+		`, oldDue, oldOrder.CustomerID) // OLD Customer ID
+		if err != nil {
+			return fmt.Errorf("revert old customer due failed: %w", err)
 		}
 	}
 
-	if err := SaveTopSheetTx(tx, ctx, topSheet); err != nil {
-		return fmt.Errorf("update top sheet failed: %w", err)
+	// 6b. Apply New Customer Due
+	// Add the *New Due* amount to the *New Customer*
+	newDue := order.TotalAmount - order.ReceivedAmount
+	if newDue != 0 {
+		_, err = tx.Exec(ctx, `
+			UPDATE customers 
+			SET due_amount = due_amount + $1 
+			WHERE id = $2
+		`, newDue, order.CustomerID) // NEW Customer ID
+		if err != nil {
+			return fmt.Errorf("apply new customer due failed: %w", err)
+		}
 	}
 
 	// --------------------
-	// Step 4: Payment transaction adjustment
+	// 7. Handle Financials (Payments)
 	// --------------------
-	if amountDelta != 0 {
-		_, err := tx.Exec(ctx, `
+
+	// 7a. Revert Old Payment (If existed)
+	if oldOrder.ReceivedAmount > 0 && len(oldOrder.OrderTransactions) > 0 {
+		oldAcctID := oldOrder.OrderTransactions[0].PaymentAccountID
+
+		// Refund the money from the Old Account
+		_, err = tx.Exec(ctx, `UPDATE accounts SET current_balance = current_balance - $1 WHERE id = $2`,
+			oldOrder.ReceivedAmount, oldAcctID)
+		if err != nil {
+			return fmt.Errorf("revert old account balance failed: %w", err)
+		}
+
+		// Delete Old Logs
+		_, err = tx.Exec(ctx, `DELETE FROM order_transactions WHERE order_id=$1 AND transaction_type=$2`,
+			order.ID, models.ADVANCE_PAYMENT)
+		if err != nil {
+			return fmt.Errorf("delete old order tx failed: %w", err)
+		}
+
+		oldMemoStr := models.ORDER_MEMO_PREFIX + "-" + oldOrder.MemoNo
+		_, err = tx.Exec(ctx, `DELETE FROM transactions WHERE memo_no=$1 AND branch_id=$2 AND transaction_type=$3`,
+			oldMemoStr, oldOrder.BranchID, models.ADVANCE_PAYMENT)
+		if err != nil {
+			return fmt.Errorf("delete old global tx failed: %w", err)
+		}
+	}
+
+	// 7b. Apply New Payment (If > 0)
+	if order.ReceivedAmount > 0 {
+		// Add money to New Account
+		_, err = tx.Exec(ctx, `UPDATE accounts SET current_balance = current_balance + $1 WHERE id = $2`,
+			order.ReceivedAmount, order.PaymentAccountID)
+		if err != nil {
+			return fmt.Errorf("update new account balance failed: %w", err)
+		}
+
+		// Insert New Logs
+		_, err = tx.Exec(ctx, `
 			INSERT INTO order_transactions(
-				order_id, transaction_date, payment_account_id, memo_no, delivered_by,
-				quantity_delivered, amount, transaction_type
-			)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+				order_id, transaction_date, payment_account_id, memo_no, 
+				delivered_by, quantity_delivered, amount, transaction_type
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 		`,
-			order.ID,
-			order.OrderDate,
-			order.PaymentAccountID,
-			order.MemoNo,
-			order.SalespersonID,
-			order.DeliveredItems,
-			amountDelta,
-			models.ADJUSTMENT,
+			order.ID, order.OrderDate, order.PaymentAccountID, order.MemoNo,
+			order.SalespersonID, order.DeliveredItems, order.ReceivedAmount, models.ADVANCE_PAYMENT,
 		)
 		if err != nil {
-			return fmt.Errorf("insert payment adjustment failed: %w", err)
+			return fmt.Errorf("insert new order tx failed: %w", err)
 		}
 
 		_, err = tx.Exec(ctx, `
-			UPDATE accounts
-			SET current_balance = current_balance + $1
-			WHERE id = $2
-		`, amountDelta, order.PaymentAccountID)
+			INSERT INTO transactions(
+				transaction_date, memo_no, branch_id,
+				from_entity_id, from_entity_type,
+				to_entity_id, to_entity_type,
+				amount, transaction_type, notes
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		`,
+			order.OrderDate, models.ORDER_MEMO_PREFIX+"-"+order.MemoNo, order.BranchID,
+			order.CustomerID, models.ENTITY_CUSTOMER,
+			order.PaymentAccountID, models.ENTITY_ACCOUNT,
+			order.ReceivedAmount, models.ADVANCE_PAYMENT, "Advance payment (Updated)",
+		)
 		if err != nil {
-			return fmt.Errorf("update account balance failed: %w", err)
+			return fmt.Errorf("insert new global tx failed: %w", err)
 		}
-	}
-
-	// --------------------
-	// Step 5: Update customer due (delta)
-	// --------------------
-	oldDue := oldTotalAmount - oldReceivedAmount
-	newDue := order.TotalAmount - order.ReceivedAmount
-	dueDelta := newDue - oldDue
-
-	if dueDelta != 0 {
-		_, err := tx.Exec(ctx, `
-			UPDATE customers
-			SET due_amount = due_amount + $1
-			WHERE id = $2
-		`, dueDelta, order.CustomerID)
-		if err != nil {
-			return fmt.Errorf("update customer due failed: %w", err)
-		}
-	}
-
-	// --------------------
-	// Step 6: Update salesperson progress (delta)
-	// --------------------
-	progress := &models.SalespersonProgress{
-		Date:       order.OrderDate,
-		BranchID:   order.BranchID,
-		EmployeeID: order.SalespersonID,
-		OrderCount: itemDelta,
-		SaleAmount: order.TotalAmount - oldTotalAmount,
-	}
-
-	if err := UpdateSalespersonProgressReportTx(tx, ctx, progress); err != nil {
-		return fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 
 	return tx.Commit(ctx)
@@ -536,7 +591,7 @@ func (r *OrderRepo) GetOrders(
 	dataQuery := fmt.Sprintf(`
         SELECT
             o.id, o.branch_id, o.memo_no, o.order_date, o.delivery_date,
-            o.salesperson_id, e.name AS salesperson_name,
+            o.salesperson_id, e.name AS salesperson_name, e.mobile as salesperson_mobile,
             o.customer_id, c.name AS customer_name, c.mobile AS customer_mobile,
             o.total_products, o.delivered_products,
             o.total_amount, o.received_amount,
@@ -566,7 +621,7 @@ func (r *OrderRepo) GetOrders(
 
 		err := rows.Scan(
 			&o.ID, &o.BranchID, &o.MemoNo, &o.OrderDate, &o.DeliveryDate,
-			&o.SalespersonID, &o.Salesperson.Name,
+			&o.SalespersonID, &o.Salesperson.Name, &o.Salesperson.Mobile,
 			&o.CustomerID, &o.Customer.Name, &o.Customer.Mobile,
 			&o.TotalItems, &o.DeliveredItems,
 			&o.TotalAmount, &o.ReceivedAmount,
@@ -602,6 +657,7 @@ func (r *OrderRepo) GetOrderDetailsByID(
 			o.delivery_date,
 			o.salesperson_id,
 			e.name AS salesperson_name,
+			e.mobile AS salesperson_mobile,
 			o.customer_id,
 			c.name AS customer_name,
 			c.mobile AS customer_mobile,
@@ -625,6 +681,7 @@ func (r *OrderRepo) GetOrderDetailsByID(
 		&order.DeliveryDate,
 		&order.SalespersonID,
 		&order.Salesperson.Name,
+		&order.Salesperson.Mobile,
 		&order.CustomerID,
 		&order.Customer.Name,
 		&order.Customer.Mobile,
@@ -684,16 +741,18 @@ func (r *OrderRepo) GetOrderDetailsByID(
 	// ------------------------------------------------
 	txRows, err := r.db.Query(ctx, `
 		SELECT
-			transaction_id,
-			transaction_date,
-			payment_account_id,
-			memo_no,
-			delivered_by,
-			quantity_delivered,
-			amount,
-			transaction_type,
-			created_at
-		FROM order_transactions
+			t.transaction_id,
+			t.transaction_date,
+			t.payment_account_id,
+			a.name,
+			t.memo_no,
+			t.delivered_by,
+			t.quantity_delivered,
+			t.amount,
+			t.transaction_type,
+			t.created_at
+		FROM order_transactions t
+		LEFT JOIN accounts a ON(a.id=payment_account_id)
 		WHERE order_id = $1
 		ORDER BY created_at ASC
 	`, orderID)
@@ -708,6 +767,7 @@ func (r *OrderRepo) GetOrderDetailsByID(
 			&t.TransactionID,
 			&t.TransactionDate,
 			&t.PaymentAccountID,
+			&t.PaymentAccountName,
 			&t.MemoNo,
 			&t.DeliveredBy,
 			&t.QuantityDelivered,

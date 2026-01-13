@@ -5,7 +5,6 @@ window.printOrderInvoice = async function(id, order) {
     }
 
     try {
-        const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB') : "";
         const formatMoney = (m) => parseFloat(m || 0).toFixed(2);
 
         // Watermark Logic: Try order branch, global branch, or fallback
@@ -488,8 +487,8 @@ window.printReportGeneric = function ({ header, columns, rows, totals = null }) 
 };
 
 
-window.ConvertDateStr = (date)=>{
-    const dateObj = new Date(row.date);
+window.formatDate = (date)=>{
+    const dateObj = new Date(date);
   
   // Define short month names manually
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

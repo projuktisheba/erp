@@ -262,25 +262,25 @@ func (r *ReportRepo) GetAllWorkersProgressReport(
 // v2
 func (r *ReportRepo) GetBranchReport(ctx context.Context, branchID int64, startDate, endDate time.Time, reportType string) ([]*models.TopSheet, error) {
 	var sheets []*models.TopSheet
-
+	fmt.Println(startDate, endDate)
 	query := `
-        SELECT
-            id,
-            sheet_date,
-            branch_id,
-            expense,
-            cash,
-            bank,
-            order_count,
-            delivery,
-            cancelled,
-            ready_made
-        FROM top_sheet
-        WHERE branch_id = $1
-          AND sheet_date >= $2
-          AND sheet_date <= $3
-        ORDER BY sheet_date ASC;
-    `
+    SELECT
+        id,
+        sheet_date,
+        branch_id,
+        expense,
+        cash,
+        bank,
+        order_count,
+        delivery,
+        cancelled,
+        ready_made
+    FROM top_sheet
+    WHERE branch_id = $1
+      AND sheet_date BETWEEN $2::date AND $3::date
+    ORDER BY sheet_date ASC;
+`
+
 
 	rows, err := r.db.Query(ctx, query, branchID, startDate, endDate)
 	if err != nil {

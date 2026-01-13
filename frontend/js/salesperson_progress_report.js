@@ -1,5 +1,5 @@
 /* --- STATE --- */
-let salespersonProgressReportState = {
+window.salespersonProgressReportState = {
   data: [],
   totals: { order_count: 0, sale: 0, sale_return: 0 },
   // 1. ADDED: Search state management
@@ -186,7 +186,7 @@ function renderReportTable() {
                   row.sales_person_name
                 }</td>
                 <td class="px-4 py-3 text-right border-r border-slate-100">${
-                  row.order_count || "-"
+                  row.order_count || "0"
                 }</td>
                                 
                 <td class="px-4 py-3 text-right text-emerald-700 border-r border-slate-100">
@@ -227,7 +227,7 @@ function formatMoney(amount) {
 }
 
 /* --- 5. PRINT --- */
-window.printReport = function () {
+window.printSalespersonReport = function () {
   const start = document.getElementById("startDate").value;
   const end = document.getElementById("endDate").value;
   const branchName = GetBranchName ? GetBranchName() : "Branch"; // Added safety check
@@ -244,11 +244,7 @@ window.printReport = function () {
   const printData = salespersonProgressReportState.data.map(row => {
      const newRow = {...row};
      const dateObj = new Date(newRow.date);
-     newRow.date = dateObj.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+     newRow.date = formatDate(dateObj)
     return newRow;
   });
 

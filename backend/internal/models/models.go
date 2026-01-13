@@ -25,10 +25,17 @@ const (
 	ACCOUNT_CASH = "cash"
 )
 const (
-	ENTITY_CUSTOMER = "customer"
-	ENTITY_EMPLOYEE = "employee"
-	ENTITY_SALESPERSON = "salesperson"
-	ENTITY_WORKER = "worker"
+	ENTITY_ACCOUNT    = "accounts"
+	ENTITY_CUSTOMER    = "customers"
+	ENTITY_EMPLOYEE    = "employees"
+	ENTITY_SALESPERSON = "salespersons"
+	ENTITY_WORKER      = "workers"
+)
+const (
+	ORDER_PENDING          = "pending"
+	ORDER_PARTIAL_DELIVERY = "partial"
+	ORDER_DELIVERY         = "delivered"
+	ORDER_CANCELLED        = "cancelled"
 )
 
 // Response is the type for response
@@ -194,6 +201,7 @@ type AccountNameID struct {
 
 type Transaction struct {
 	TransactionID   string    `json:"transaction_id"` // optional unique identifier if needed
+	TransactionDate time.Time `json:"transaction_date"`
 	MemoNo          string    `json:"memo_no"`
 	BranchID        int64     `json:"branch_id"`
 	FromID          int64     `json:"from_id"`

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/projuktisheba/erp-mini-api/internal/dbrepo"
 	"github.com/projuktisheba/erp-mini-api/internal/models"
 	"github.com/projuktisheba/erp-mini-api/internal/utils"
@@ -70,14 +71,20 @@ func (h *SupplierHandler) AddSupplier(w http.ResponseWriter, r *http.Request) {
 // Update Supplier
 // =========================
 func (h *SupplierHandler) UpdateSupplier(w http.ResponseWriter, r *http.Request) {
+	supplierID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || supplierID == 0 {
+		utils.BadRequest(w, errors.New("Invalid supplier id"))
+		return
+	}
 	var supplier models.Supplier
-	err := utils.ReadJSON(w, r, &supplier)
+	err = utils.ReadJSON(w, r, &supplier)
 	if err != nil {
 		h.errorLog.Println("ERROR_01_UpdateSupplier:", err)
 		utils.BadRequest(w, err)
 		return
 	}
 
+	supplier.ID = supplierID
 	err = h.DB.UpdateSupplier(r.Context(), &supplier)
 	if err != nil {
 		h.errorLog.Println("ERROR_02_UpdateSupplier:", err)

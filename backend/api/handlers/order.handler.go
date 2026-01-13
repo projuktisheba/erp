@@ -26,7 +26,7 @@ func NewOrderHandler(db *dbrepo.OrderRepo, infoLog *log.Logger, errorLog *log.Lo
 	}
 }
 
-// AddOrder handles POST /orders
+// AddOrder handles POST /orders/new
 func (o *OrderHandler) AddOrder(w http.ResponseWriter, r *http.Request) {
 	var orderDetails models.OrderDB
 	if err := utils.ReadJSON(w, r, &orderDetails); err != nil {
@@ -60,6 +60,50 @@ func (o *OrderHandler) AddOrder(w http.ResponseWriter, r *http.Request) {
 		"status":   "success",
 		"message":  "Order added successfully",
 		"order_id": orderID,
+	}
+	utils.WriteJSON(w, http.StatusCreated, resp)
+}
+// UpdateOder handles PATCH /orders/update/{id}
+func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
+	id, err:= strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if id == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid order id"))
+		return
+	}
+	var orderDetails models.OrderDB
+	if err := utils.ReadJSON(w, r, &orderDetails); err != nil {
+		o.errorLog.Println("UpdateOrder_ReadJSON:", err)
+		utils.BadRequest(w, err)
+		return
+	}
+
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
+		return
+	}
+	orderDetails.BranchID = branchID
+
+	o.infoLog.Printf("Received order data: %+v\n", orderDetails)
+
+	// load old data
+	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderDetails.ID);
+	if err != nil {
+		o.errorLog.Println("UpdateOrder_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
+	err = o.DB.UpdateOrder(r.Context(), &orderDetails, oldOrderDetails);
+	if err != nil {
+		o.errorLog.Println("UpdateOrder_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
+
+	resp := map[string]any{
+		"error":    false,
+		"status":   "success",
+		"message":  "Order updated successfully",
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
