@@ -65,6 +65,59 @@
         }
     </style>
 
+<style>
+    /* Container for the dropdown */
+.custom-select-container {
+  position: relative;
+  width: 300px;
+  font-family: sans-serif;
+}
+
+/* The list of items */
+.custom-options {
+  border: 1px solid #ccc;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none; /* Hidden by default */
+  position: absolute;
+  width: 100%;
+  background: white;
+  z-index: 10;
+}
+
+.custom-options.open {
+  display: block;
+}
+
+/* The individual option */
+.custom-option {
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between; /* Pushes badge to the right */
+  align-items: center;
+}
+
+.custom-option:hover {
+  background-color: #f0f0f0;
+}
+
+/* THE BADGE STYLE */
+.stock-badge {
+  background-color: #e0e0e0;
+  color: #333;
+  padding: 2px 8px;
+  border-radius: 12px; /* Makes it pill-shaped */
+  font-size: 0.85em;
+  font-weight: bold;
+}
+
+/* specific colors for low stock */
+.stock-badge.low {
+  background-color: #ffebee;
+  color: #c62828;
+}
+</style>
     <script>
         tailwind.config = {
             theme: {

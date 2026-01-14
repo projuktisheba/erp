@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
+	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/projuktisheba/erp-mini-api/internal/dbrepo"
 	"github.com/projuktisheba/erp-mini-api/internal/models"
 	"github.com/projuktisheba/erp-mini-api/internal/utils"
@@ -147,174 +148,232 @@ func (h *ProductHandler) GetProductStockReportHandler(w http.ResponseWriter, r *
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-func (h *ProductHandler) SaleProducts(w http.ResponseWriter, r *http.Request) {
-	branchID := utils.GetBranchID(r)
-	if branchID == 0 {
-		h.errorLog.Println("ERROR_01_SaleProducts: Branch id not found")
-		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
-		return
-	}
+// func (h *ProductHandler) SaleProducts(w http.ResponseWriter, r *http.Request) {
+// 	branchID := utils.GetBranchID(r)
+// 	if branchID == 0 {
+// 		h.errorLog.Println("ERROR_01_SaleProducts: Branch id not found")
+// 		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
+// 		return
+// 	}
 
-	var requestBody models.Sale
+// 	var requestBody models.Sale
 
-	err := utils.ReadJSON(w, r, &requestBody)
-	if err != nil {
-		h.errorLog.Println("ERROR_02_SaleProducts: Unable to unmarshal JSON =>", err)
+// 	err := utils.ReadJSON(w, r, &requestBody)
+// 	if err != nil {
+// 		h.errorLog.Println("ERROR_02_SaleProducts: Unable to unmarshal JSON =>", err)
+// 		utils.BadRequest(w, err)
+// 		return
+// 	}
+
+// 	h.infoLog.Printf("Received order data: %+v\n", requestBody)
+
+// 	memoNo, err := h.DB.SaleProducts(r.Context(), branchID, &requestBody)
+// 	if err != nil {
+
+// 		h.errorLog.Println("ERROR_03_SaleProducts: Unable to process sale =>", err)
+// 		if strings.Contains(err.Error(), `duplicate key value violates unique constraint "sales_history_memo_no_branch_id_key"`) {
+// 			err = errors.New("Duplicate memo number is not allowed")
+// 		}
+// 		utils.BadRequest(w, err)
+// 		return
+// 	}
+
+// 	var resp struct {
+// 		Error   bool   `json:"error"`
+// 		Message string `json:"message"`
+// 		MemoNo  string `json:"memo_no"`
+// 	}
+
+// 	resp.Error = false
+// 	resp.Message = "Products sold successfully"
+// 	resp.MemoNo = memoNo
+
+// 	utils.WriteJSON(w, http.StatusCreated, resp)
+// }
+// func (h *ProductHandler) UpdateSoldProducts(w http.ResponseWriter, r *http.Request) {
+// 	branchID := utils.GetBranchID(r)
+// 	if branchID == 0 {
+// 		h.errorLog.Println("ERROR_01_UpdateSoldProducts: Branch id not found")
+// 		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
+// 		return
+// 	}
+// 	memoNo := strings.TrimSpace(r.URL.Query().Get("memo_no"))
+// 	if memoNo == "" {
+// 		h.errorLog.Println("ERROR_02_UpdateSoldProducts: Memo not found in the payload")
+// 		utils.BadRequest(w, errors.New("Memo not found in the payload"))
+// 		return
+// 	}
+// 	var requestBody models.Sale
+// 	err := utils.ReadJSON(w, r, &requestBody)
+// 	if err != nil {
+// 		h.errorLog.Println("ERROR_03_UpdateSoldProducts: Unable to unmarshal JSON =>", err)
+// 		utils.BadRequest(w, err)
+// 		return
+// 	}
+// 	requestBody.MemoNo = memoNo
+// 	h.infoLog.Println(requestBody)
+// 	for _, v := range requestBody.Items {
+// 		fmt.Println(v.ID)
+// 	}
+
+// 	err = h.DB.UpdateSoldProducts(r.Context(), branchID, requestBody)
+// 	if err != nil {
+// 		h.errorLog.Println("ERROR_03_SaleProducts: Unable to process sale =>", err)
+// 		utils.BadRequest(w, err)
+// 		return
+// 	}
+
+// 	var resp struct {
+// 		Error   bool   `json:"error"`
+// 		Message string `json:"message"`
+// 	}
+
+// 	resp.Error = false
+// 	resp.Message = "Sold products updated successfully"
+
+// 	utils.WriteJSON(w, http.StatusCreated, resp)
+// }
+
+// AddSale handles POST /sales/new
+func (o *ProductHandler) AddSale(w http.ResponseWriter, r *http.Request) {
+	var saleDetails models.SaleDB
+	if err := utils.ReadJSON(w, r, &saleDetails); err != nil {
+		o.errorLog.Println("AddSale_ReadJSON:", err)
 		utils.BadRequest(w, err)
 		return
 	}
 
-	h.infoLog.Printf("Received order data: %+v\n", requestBody)
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
+		return
+	}
+	saleDetails.BranchID = branchID
 
-	memoNo, err := h.DB.SaleProducts(r.Context(), branchID, &requestBody)
+	o.infoLog.Printf("Received sale data: %+v\n", saleDetails)
+
+	saleID, err := o.DB.SaleProducts(r.Context(), &saleDetails)
 	if err != nil {
-
-		h.errorLog.Println("ERROR_03_SaleProducts: Unable to process sale =>", err)
-		if strings.Contains(err.Error(), `duplicate key value violates unique constraint "sales_history_memo_no_branch_id_key"`) {
-			err = errors.New("Duplicate memo number is not allowed")
+		o.errorLog.Println("AddSale_DB:", err)
+		if utils.IsUniqueViolation(err, "sales_memo_no_branch_id_key") {
+			utils.BadRequest(w, errors.New("duplicate memo number not allowed"))
+			return
 		}
-		utils.BadRequest(w, err)
+		utils.ServerError(w, err)
 		return
 	}
 
-	var resp struct {
-		Error   bool   `json:"error"`
-		Message string `json:"message"`
-		MemoNo  string `json:"memo_no"`
+	resp := map[string]any{
+		"error":   false,
+		"status":  "success",
+		"message": "Sale added successfully",
+		"sale_id": saleID,
 	}
-
-	resp.Error = false
-	resp.Message = "Products sold successfully"
-	resp.MemoNo = memoNo
-
-	utils.WriteJSON(w, http.StatusCreated, resp)
-}
-func (h *ProductHandler) UpdateSoldProducts(w http.ResponseWriter, r *http.Request) {
-	branchID := utils.GetBranchID(r)
-	if branchID == 0 {
-		h.errorLog.Println("ERROR_01_UpdateSoldProducts: Branch id not found")
-		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
-		return
-	}
-	memoNo := strings.TrimSpace(r.URL.Query().Get("memo_no"))
-	if memoNo == "" {
-		h.errorLog.Println("ERROR_02_UpdateSoldProducts: Memo not found in the payload")
-		utils.BadRequest(w, errors.New("Memo not found in the payload"))
-		return
-	}
-	var requestBody models.Sale
-	err := utils.ReadJSON(w, r, &requestBody)
-	if err != nil {
-		h.errorLog.Println("ERROR_03_UpdateSoldProducts: Unable to unmarshal JSON =>", err)
-		utils.BadRequest(w, err)
-		return
-	}
-	requestBody.MemoNo = memoNo
-	h.infoLog.Println(requestBody)
-	for _, v := range requestBody.Items {
-		fmt.Println(v.ID)
-	}
-
-	err = h.DB.UpdateSoldProducts(r.Context(), branchID, requestBody)
-	if err != nil {
-		h.errorLog.Println("ERROR_03_SaleProducts: Unable to process sale =>", err)
-		utils.BadRequest(w, err)
-		return
-	}
-
-	var resp struct {
-		Error   bool   `json:"error"`
-		Message string `json:"message"`
-	}
-
-	resp.Error = false
-	resp.Message = "Sold products updated successfully"
-
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
 
-// GetSaleDetails handles fetch the sales details by id
-func (h *ProductHandler) GetSaleDetails(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters: start_date, end_date
-	memoNo := r.URL.Query().Get("memo_no")
+// UpdateOder handles PATCH /sales/update/{id}
+// func (o *ProductHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
+// 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+// 	if id == 0 || err != nil {
+// 		utils.BadRequest(w, errors.New("Invalid order id"))
+// 		return
+// 	}
+// 	var orderDetails models.OrderDB
+// 	if err := utils.ReadJSON(w, r, &orderDetails); err != nil {
+// 		o.errorLog.Println("UpdateOrder_ReadJSON:", err)
+// 		utils.BadRequest(w, err)
+// 		return
+// 	}
 
-	if memoNo == "" {
-		h.errorLog.Println("ERROR_01_GetSaleDetails:Missing required parameters: memo_no")
-		utils.BadRequest(w, errors.New("Missing required parameters:memo_no"))
+// 	branchID := utils.GetBranchID(r)
+// 	if branchID == 0 {
+// 		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
+// 		return
+// 	}
+// 	orderDetails.BranchID = branchID
+
+// 	o.infoLog.Printf("Received order data: %+v\n", orderDetails)
+
+// 	// load old data
+// 	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderDetails.ID)
+// 	if err != nil {
+// 		o.errorLog.Println("UpdateOrder_DB:", err)
+// 		utils.ServerError(w, err)
+// 		return
+// 	}
+// 	err = o.DB.UpdateOrder(r.Context(), &orderDetails, oldOrderDetails)
+// 	if err != nil {
+// 		o.errorLog.Println("UpdateOrder_DB:", err)
+// 		utils.ServerError(w, err)
+// 		return
+// 	}
+
+// 	resp := map[string]any{
+// 		"error":   false,
+// 		"status":  "success",
+// 		"message": "Order updated successfully",
+// 	}
+// 	utils.WriteJSON(w, http.StatusCreated, resp)
+// }
+
+// GetSaleByID handles GET /sales/{sale_id}
+// (v2)
+func (o *ProductHandler) GetSaleDetailsByID(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "sale_id")
+	if idStr == "" {
+		utils.BadRequest(w, errors.New("order ID required"))
 		return
 	}
 
-	// Fetch data from database
-	soldItems, err := h.DB.GetSoldItemsByMemoNo(r.Context(), memoNo)
+	saleID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		h.errorLog.Println("ERROR_02_GetSaleDetails: Unable to fetch details")
-		utils.BadRequest(w, fmt.Errorf("Database error: %w", err))
+		utils.BadRequest(w, errors.New("invalid order ID"))
 		return
 	}
 
-	var resp struct {
-		Error        bool              `json:"error"`
-		Message      string            `json:"message"`
-		ProductItems []*models.Product `json:"sold_items"`
+	sale, err := o.DB.GetSaleDetailsByID(r.Context(), saleID)
+	if err != nil {
+		o.errorLog.Println("GetOrderByID_DB:", err)
+		utils.ServerError(w, err)
+		return
 	}
 
-	resp.Error = false
-	resp.Message = "Sale details fetched successfully"
-	resp.ProductItems = soldItems
-
+	resp := map[string]any{
+		"error":  false,
+		"status": "success",
+		"sale":  sale,
+	}
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-// GetSaleReport handles fetch the sales report
-func (h *ProductHandler) GetSaleReport(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters: start_date, end_date
-	startDateStr := r.URL.Query().Get("start_date")
-	endDateStr := r.URL.Query().Get("end_date")
+// GetSalesHandler handles GET /sales/?search=xxx&branch_id=1&limit=20
+func (o *ProductHandler) GetSalesHandler(w http.ResponseWriter, r *http.Request) {
+	// 1. Get Query Params
+	query := r.URL.Query()
 
-	if startDateStr == "" || endDateStr == "" {
-		h.errorLog.Println("ERROR_01_GetSaleReport:Missing required parameters: branch_id, start_date, end_date")
-		utils.BadRequest(w, errors.New("Missing required parameters:start_date, end_date"))
-		return
-	}
+	// Helper to parse Int
+	page, _ := strconv.Atoi(query.Get("pageIndex")) // Frontend sends 0-based index
+	limit, _ := strconv.Atoi(query.Get("pageLength"))
+	search := query.Get("search")
+	status := query.Get("status")
 
+	// Assuming you have Branch ID in context/session
 	branchID := utils.GetBranchID(r)
-	if branchID == 0 {
-		h.errorLog.Println("ERROR_02_GetSaleReport: Branch id not found")
-		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
-		return
-	}
 
-	startDate, err := time.Parse("2006-01-02", startDateStr)
+	// 2. Call the Unified Repo Function
+	sales, totalCount, err := o.DB.GetSales(r.Context(), branchID, search, status, page, limit)
 	if err != nil {
-		h.errorLog.Println("ERROR_03_GetSaleReport: Invalid start_date format (expected YYYY-MM-DD)")
-		utils.BadRequest(w, errors.New("Invalid start_date format (expected YYYY-MM-DD)"))
+		utils.BadRequest(w, err)
 		return
 	}
 
-	endDate, err := time.Parse("2006-01-02", endDateStr)
-	if err != nil {
-		h.errorLog.Println("ERROR_04_GetSaleReport: Invalid end_date format (expected YYYY-MM-DD)")
-		utils.BadRequest(w, errors.New("Invalid end_date format (expected YYYY-MM-DD)"))
-		return
+	// 3. Return JSON
+	response := map[string]interface{}{
+		"sales":      sales,
+		"total_count": totalCount,
+		"page":        page,
 	}
 
-	// Fetch data from database
-	records, err := h.DB.GetAllSales(r.Context(), branchID, startDate, endDate)
-	if err != nil {
-		h.errorLog.Println("ERROR_05_GetSaleReport: Unable to fetch report")
-		utils.BadRequest(w, fmt.Errorf("Database error: %w", err))
-		return
-	}
-
-	var resp struct {
-		Error   bool           `json:"error"`
-		Message string         `json:"message"`
-		Report  []*models.Sale `json:"report"`
-	}
-
-	resp.Error = false
-	resp.Message = "Report fetched successfully"
-	resp.Report = records
-
-	utils.WriteJSON(w, http.StatusOK, resp)
+	utils.WriteJSON(w, http.StatusOK, response)
 }

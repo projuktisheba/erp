@@ -3,8 +3,10 @@ package dbrepo
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/projuktisheba/erp-mini-api/internal/models"
 	"github.com/projuktisheba/erp-mini-api/internal/utils"
@@ -21,6 +23,7 @@ func NewProductRepo(db *pgxpool.Pool) *ProductRepo {
 // ============================== PRODUCT OPERATIONS ==============================
 
 // GetProducts fetches all products by branch
+// (V2)
 func (s *ProductRepo) GetProducts(ctx context.Context, branchID int64) ([]*models.Product, error) {
 	query := `
         SELECT 
@@ -51,6 +54,7 @@ func (s *ProductRepo) GetProducts(ctx context.Context, branchID int64) ([]*model
 
 // ============================== ADD PRODUCTS TO STOCK ==============================
 // RestockProducts increments stock quantities for given products and logs the operation.
+// (V2)
 func (s *ProductRepo) RestockProducts(ctx context.Context, date time.Time, memoNo string, branchID int64, products []models.Product) (string, error) {
 	// Begin transaction
 	tx, err := s.db.Begin(ctx)
@@ -150,45 +154,33 @@ func (s *ProductRepo) GetProductStockReportByDateRange(ctx context.Context, bran
 // ============================== SALE TRANSACTIONS ==============================
 
 // SaleProducts records a sale and updates stock, accounts, and reports
-func (s *ProductRepo) SaleProducts(ctx context.Context, branchID int64, sale *models.Sale) (string, error) {
-	tx, err := s.db.Begin(ctx)
+// (V2)
+func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (int64, error) {
+	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return "", fmt.Errorf("begin tx: %w", err)
+		return 0, err
 	}
 	defer tx.Rollback(ctx)
 
-	// Step 1: Generate next memo number
+	// --------------------
+	// Basic validations
+	// --------------------
+	if len(sale.Items) == 0 {
+		return 0, fmt.Errorf("sale must contain at least one item")
+	}
+	if sale.ReceivedAmount < 0 {
+		return 0, fmt.Errorf("received amount cannot be negative")
+	}
+	if sale.ReceivedAmount > sale.TotalAmount {
+		return 0, fmt.Errorf("received amount cannot exceed total amount")
+	}
+
 	if sale.MemoNo == "" {
 		sale.MemoNo = utils.GenerateMemoNo()
 	}
-
-	// Step 2: Insert into sales_history
-	err = tx.QueryRow(ctx, `
-		INSERT INTO sales_history (
-			memo_no, sale_date, branch_id, customer_id, salesperson_id, 
-			payment_account_id, total_payable_amount, paid_amount, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		 RETURNING memo_no
-	`, sale.MemoNo, sale.SaleDate, branchID, sale.CustomerID, sale.SalespersonID,
-		sale.PaymentAccountID, sale.TotalPayableAmount, sale.PaidAmount).Scan(&sale.MemoNo)
-	if err != nil {
-		return "", fmt.Errorf("insert sales_history: %w", err)
-	}
-
-	// Step 3: Insert sold items into sold_items_history
-	for _, item := range sale.Items {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO sold_items_history (
-				memo_no, branch_id, product_id, quantity, total_prices, created_at, updated_at
-			) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		`, sale.MemoNo, branchID, item.ID, item.Quantity, item.TotalPrices)
-		if err != nil {
-			return "", fmt.Errorf("insert sold_items_history: %w", err)
-		}
-	}
-
-	// Step 4: Reduce stock for sold items
-	totalItems := int64(0)
+	// --------------------
+	// Step 0: Reduce stock  & calculate total items
+	// --------------------
 	for _, item := range sale.Items {
 		_, err = tx.Exec(ctx, `
 			UPDATE products
@@ -196,194 +188,473 @@ func (s *ProductRepo) SaleProducts(ctx context.Context, branchID int64, sale *mo
 			WHERE id = $2;
 		`, item.Quantity, item.ID)
 		if err != nil {
-			return "", fmt.Errorf("update stock: %w", err)
+			return 0, fmt.Errorf("update stock: %w", err)
 		}
-		totalItems += item.Quantity
+		sale.TotalItems += int64(item.Quantity)
 	}
 
-	// Step 5: Update account balance (for payment)
-	if sale.PaidAmount > 0 {
+	// --------------------
+	// Step 1: Insert sale
+	// --------------------
+	var saleID int64
+	err = tx.QueryRow(ctx, `
+		INSERT INTO sales(
+			branch_id, memo_no, sale_date,
+			salesperson_id, customer_id,
+			total_products, total_amount, received_amount,
+			status, notes, created_at, updated_at
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+		RETURNING id
+	`,
+		sale.BranchID,
+		sale.MemoNo,
+		sale.SaleDate,
+		sale.SalespersonID,
+		sale.CustomerID,
+		sale.TotalItems,
+		sale.TotalAmount,
+		sale.ReceivedAmount,
+		sale.Status,
+		sale.Notes,
+		sale.CreatedAt,
+		sale.UpdatedAt,
+	).Scan(&saleID)
+	if err != nil {
+		return 0, fmt.Errorf("insert sale failed: %w", err)
+	}
+
+	// --------------------
+	// Step 2: Insert sale items
+	// --------------------
+	for _, item := range sale.Items {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO sale_items(sale_id, product_id, quantity, subtotal)
+			VALUES ($1,$2,$3,$4)
+		`,
+			saleID,
+			item.ProductID,
+			item.Quantity,
+			item.Subtotal,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("insert sale item failed: %w", err)
+		}
+	}
+
+	// --------------------
+	// Step 3: Update top sheet
+	// --------------------
+	topSheet := &models.TopSheetDB{
+		SheetDate: sale.SaleDate,
+		BranchID:  sale.BranchID,
+		ReadyMade: sale.TotalItems, // total items
+	}
+
+	var acctType string
+	if sale.ReceivedAmount > 0 {
+		err = tx.QueryRow(ctx,
+			`SELECT type FROM accounts WHERE id=$1 AND branch_id=$2`,
+			sale.PaymentAccountID,
+			sale.BranchID,
+		).Scan(&acctType)
+		if err != nil {
+			return 0, fmt.Errorf("lookup account type failed: %w", err)
+		}
+
+		if acctType == models.ACCOUNT_BANK {
+			topSheet.Bank = sale.ReceivedAmount
+		} else {
+			topSheet.Cash = sale.ReceivedAmount
+		}
+	}
+
+	if err := SaveTopSheetTx(tx, ctx, topSheet); err != nil {
+		return 0, fmt.Errorf("save top sheet failed: %w", err)
+	}
+
+	// --------------------
+	// Step 4: Payment transactions
+	// --------------------
+	if sale.ReceivedAmount > 0 {
+		// lock account row
+		_, err := tx.Exec(ctx,
+			`SELECT id FROM accounts WHERE id=$1 FOR UPDATE`,
+			sale.PaymentAccountID,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("lock account failed: %w", err)
+		}
+
+		// 4a: sale payment transaction
+		_, err = tx.Exec(ctx, `
+			INSERT INTO sale_transactions(
+				sale_id, transaction_date, payment_account_id, memo_no, delivered_by, quantity_delivered,
+				amount, transaction_type
+			)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		`,
+			saleID,
+			sale.SaleDate,
+			sale.PaymentAccountID,
+			sale.MemoNo,
+			sale.SalespersonID,
+			sale.TotalAmount,
+			sale.ReceivedAmount,
+			models.PAYMENT,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("insert payment transaction failed (4a): %w", err)
+		}
+
+		// 4b: global transaction log
+		_, err = tx.Exec(ctx, `
+			INSERT INTO transactions(
+				transaction_date, memo_no, branch_id,
+				from_entity_id, from_entity_type,
+				to_entity_id, to_entity_type,
+				amount, transaction_type, notes
+			)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		`,
+			sale.SaleDate,
+			models.SALE_MEMO_PREFIX+"-"+sale.MemoNo,
+			sale.BranchID,
+			sale.CustomerID,
+			models.ENTITY_CUSTOMER,
+			sale.PaymentAccountID,
+			models.ENTITY_ACCOUNT,
+			sale.ReceivedAmount,
+			models.PAYMENT,
+			"Received payment on sale",
+		)
+		if err != nil {
+			return 0, fmt.Errorf("insert transaction failed (4b): %w", err)
+		}
+
+		// 4c: update account balance
 		_, err = tx.Exec(ctx, `
 			UPDATE accounts
 			SET current_balance = current_balance + $1
-			WHERE id = $2;
-		`, sale.PaidAmount, sale.PaymentAccountID)
+			WHERE id = $2
+		`,
+			sale.ReceivedAmount,
+			sale.PaymentAccountID,
+		)
 		if err != nil {
-			return "", fmt.Errorf("update account balance: %w", err)
+			return 0, fmt.Errorf("update account balance failed: %w", err)
 		}
 	}
 
-	// Step 6: Update customer due
-	due := sale.TotalPayableAmount - sale.PaidAmount
-	if due > 0 {
+	// --------------------
+	// Step 5: Update customer due
+	// --------------------
+	dueAmount := sale.TotalAmount - sale.ReceivedAmount
+	if dueAmount > 0 {
+		// lock customer row
+		_, err := tx.Exec(ctx,
+			`SELECT id FROM customers WHERE id=$1 FOR UPDATE`,
+			sale.CustomerID,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("lock customer failed: %w", err)
+		}
+
 		_, err = tx.Exec(ctx, `
 			UPDATE customers
 			SET due_amount = due_amount + $1
-			WHERE id = $2;
-		`, due, sale.CustomerID)
+			WHERE id = $2
+		`,
+			dueAmount,
+			sale.CustomerID,
+		)
 		if err != nil {
-			return "", fmt.Errorf("update customer due: %w", err)
-		}
-	}
-	// Step 7: Record top sheet for daily branch record
-	topSheet := &models.TopSheetDB{
-		SheetDate:      sale.SaleDate,
-		BranchID:  branchID,
-		ReadyMade: totalItems,
-	}
-
-	// safer: lookup account type (cash/bank)
-	var acctType string
-	err = tx.QueryRow(ctx, `SELECT type FROM accounts WHERE id=$1`, sale.PaymentAccountID).Scan(&acctType)
-	if err != nil {
-		return "", fmt.Errorf("lookup account type: %w", err)
-	}
-	if acctType == "bank" {
-		topSheet.Bank = sale.PaidAmount
-	} else {
-		topSheet.Cash = sale.PaidAmount
-	}
-
-	err = SaveTopSheetTx(tx, ctx, topSheet) // <-- must accept tx, not db
-	if err != nil {
-		return "", fmt.Errorf("save topsheet: %w", err)
-	}
-	// Step 8: Record financial transactions
-	if sale.PaidAmount > 0 {
-
-		//insert transaction
-		transaction := &models.Transaction{
-			BranchID:        branchID,
-			MemoNo:          sale.MemoNo,
-			FromID:          sale.CustomerID,
-			FromType:        "customers",
-			ToID:            sale.PaymentAccountID,
-			ToType:          "accounts",
-			Amount:          sale.PaidAmount,
-			TransactionType: "payment",
-			CreatedAt:       sale.SaleDate,
-			Notes:           "Sales Collection",
-		}
-		_, err = CreateTransactionTx(ctx, tx, transaction) // silently add transaction
-
-		if err != nil {
-			return "", fmt.Errorf("failed to create transaction: %w", err)
+			return 0, fmt.Errorf("update customer due failed: %w", err)
 		}
 	}
 
-	// Step 9: Update salesperson daily progress record
-	salespersonProgress := models.SalespersonProgress{
+	// --------------------
+	// Step 6: Salesperson progress
+	// --------------------
+	salespersonProgress := &models.SalespersonProgress{
 		Date:       sale.SaleDate,
-		BranchID:   branchID,
+		BranchID:   sale.BranchID,
 		EmployeeID: sale.SalespersonID,
-		SaleAmount: sale.TotalPayableAmount,
+		SaleAmount: sale.TotalAmount,
 	}
-	err = UpdateSalespersonProgressReportTx(tx, ctx, &salespersonProgress)
-	if err != nil {
-		return "", fmt.Errorf("failed to update employee progress: %w", err)
+
+	if err := UpdateSalespersonProgressReportTx(tx, ctx, salespersonProgress); err != nil {
+		return 0, fmt.Errorf("update salesperson progress failed: %w", err)
 	}
-	// Commit
-	if err := tx.Commit(ctx); err != nil {
-		return "", fmt.Errorf("commit tx: %w", err)
-	}
-	return sale.MemoNo, nil
+
+	return saleID, tx.Commit(ctx)
 }
 
 // ============================== SALE RETRIEVAL ==============================
+// GetSaleDetailsByID retrieves a sale info and details
+// (V2)
+func (r *ProductRepo) GetSaleDetailsByID(
+	ctx context.Context,
+	saleID int64,
+) (*models.SaleDB, error) {
 
-// GetSoldItemsByMemoNo fetches all sold items for a memo
-func (s *ProductRepo) GetSoldItemsByMemoNo(ctx context.Context, memoNo string) ([]*models.Product, error) {
-	query := `
-	SELECT 
-		p.id,
-		p.product_name,
-		sih.quantity,
-		sih.total_prices,
-		p.created_at,
-		p.updated_at
-	FROM sold_items_history sih
-	INNER JOIN products p ON sih.product_id = p.id
-	WHERE sih.memo_no = $1;
-	`
+	var sale models.SaleDB
+	sale.Customer = models.Customer{}
+	sale.Salesperson = models.Employee{}
 
-	rows, err := s.db.Query(ctx, query, memoNo)
+	// ------------------------------------------------
+	// 1. Fetch sale + customer + salesperson
+	// ------------------------------------------------
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			o.id,
+			o.branch_id,
+			o.memo_no,
+			o.sale_date,
+			o.salesperson_id,
+			e.name AS salesperson_name,
+			e.mobile AS salesperson_mobile,
+			o.customer_id,
+			c.name AS customer_name,
+			c.mobile AS customer_mobile,
+			o.total_products,
+			o.total_amount,
+			o.received_amount,
+			o.status,
+			o.notes,
+			o.created_at,
+			o.updated_at
+		FROM sales o
+		JOIN customers c ON c.id = o.customer_id
+		JOIN employees e ON e.id = o.salesperson_id
+		WHERE o.id = $1
+	`, saleID).Scan(
+		&sale.ID,
+		&sale.BranchID,
+		&sale.MemoNo,
+		&sale.SaleDate,
+		&sale.SalespersonID,
+		&sale.Salesperson.Name,
+		&sale.Salesperson.Mobile,
+		&sale.CustomerID,
+		&sale.Customer.Name,
+		&sale.Customer.Mobile,
+		&sale.TotalItems,
+		&sale.TotalAmount,    // float64
+		&sale.ReceivedAmount, // float64
+		&sale.Status,
+		&sale.Notes,
+		&sale.CreatedAt,
+		&sale.UpdatedAt,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("query items: %w", err)
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("sale not found")
+		}
+		return nil, fmt.Errorf("fetch sale failed: %w", err)
 	}
-	defer rows.Close()
 
-	var items []*models.Product
-	for rows.Next() {
-		var p models.Product
-		err := rows.Scan(&p.ID, &p.ProductName, &p.Quantity, &p.TotalPrices, &p.CreatedAt, &p.UpdatedAt)
-		if err != nil {
+	sale.Customer.ID = sale.CustomerID
+	sale.Salesperson.ID = sale.SalespersonID
+
+	// ------------------------------------------------
+	// 2. Fetch sale items + products
+	// ------------------------------------------------
+	itemRows, err := r.db.Query(ctx, `
+		SELECT
+			oi.product_id,
+			p.product_name,
+			oi.quantity,
+			oi.subtotal
+		FROM sale_items oi
+		JOIN products p ON p.id = oi.product_id
+		WHERE oi.sale_id = $1
+		ORDER BY p.product_name
+	`, saleID)
+	if err != nil {
+		return nil, fmt.Errorf("fetch sale items failed: %w", err)
+	}
+	defer itemRows.Close()
+
+	for itemRows.Next() {
+		var it models.SaleItemDB
+		if err := itemRows.Scan(
+			&it.ProductID,
+			&it.ProductName,
+			&it.Quantity,
+			&it.Subtotal, // float64
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, &p)
+		sale.Items = append(sale.Items, it)
 	}
-	if err = rows.Err(); err != nil {
-		return nil, err
+
+	// ------------------------------------------------
+	// 3. Fetch sale transactions (FIXED)
+	// ------------------------------------------------
+	txRows, err := r.db.Query(ctx, `
+		SELECT
+			t.transaction_id,
+			t.transaction_date,
+			COALESCE(t.payment_account_id, 0) AS payment_account_id,
+			COALESCE(a.name, 'N/A') AS payment_account_name,
+			t.memo_no,
+			t.delivered_by,
+			t.quantity_delivered,
+			t.amount,
+			t.transaction_type,
+			t.created_at
+		FROM sale_transactions t
+		LEFT JOIN accounts a ON(a.id=t.payment_account_id)
+		WHERE sale_id = $1
+		ORDER BY transaction_date DESC, sale_id DESC
+	`, saleID)
+	if err != nil {
+		return nil, fmt.Errorf("fetch sale transactions failed: %w", err)
 	}
-	return items, nil
+	defer txRows.Close()
+
+	for txRows.Next() {
+		var t models.SaleTransactionDB
+		if err := txRows.Scan(
+			&t.TransactionID,
+			&t.TransactionDate,
+			&t.PaymentAccountID,
+			&t.PaymentAccountName,
+			&t.MemoNo,
+			&t.DeliveredBy,
+			&t.QuantityDelivered,
+			&t.Amount,
+			&t.TransactionType,
+			&t.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		sale.SaleTransactions = append(sale.SaleTransactions, t)
+	}
+
+	return &sale, nil
 }
 
-// GetAllSales returns all sales within date range
-func (s *ProductRepo) GetAllSales(ctx context.Context, branchID int64, startDate, endDate time.Time) ([]*models.Sale, error) {
-	query := `
-	SELECT 
-		sh.memo_no,
-		sh.sale_date,
-		sh.branch_id,
-		c.id AS customer_id,
-		c.name AS customer_name,
-		e.id AS salesperson_id,
-		e.name AS salesperson_name,
-		sh.total_payable_amount,
-		sh.paid_amount,
-		(sh.total_payable_amount - sh.paid_amount) AS due_amount,
-		acc.id AS payment_account_id,
-		acc.name AS payment_account_name
-	FROM sales_history sh
-	LEFT JOIN customers c ON sh.customer_id = c.id
-	LEFT JOIN employees e ON sh.salesperson_id = e.id
-	LEFT JOIN accounts acc ON sh.payment_account_id = acc.id
-	WHERE sh.branch_id = $1
-	  AND sh.sale_date BETWEEN $2 AND $3
-	ORDER BY sh.sale_date DESC;
-	`
+func (r *ProductRepo) GetSales(
+	ctx context.Context,
+	branchID int64,
+	search string,
+	status string,
+	page int,
+	limit int,
+) ([]models.SaleDB, int, error) { // Returns (Data, TotalCount, Error)
 
-	rows, err := s.db.Query(ctx, query, branchID, startDate, endDate)
+	// 1. Prepare Base Query
+	baseQuery := `
+        FROM sales o
+        JOIN customers c ON c.id = o.customer_id
+        JOIN employees e ON e.id = o.salesperson_id
+    `
+
+	// 2. Build Conditions dynamically
+	var conditions []string
+	var args []interface{}
+	argPos := 1
+
+	// A. Branch Filter (Always Apply)
+	conditions = append(conditions, fmt.Sprintf("o.branch_id = $%d", argPos))
+	args = append(args, branchID)
+	argPos++
+
+	// B. Search Filter (Optional)
+	search = strings.TrimSpace(search)
+	if search != "" {
+		// Use ILIKE with %...% for "Contains" search (better UX)
+		searchTerm := "%" + search + "%"
+
+		conditions = append(conditions, fmt.Sprintf(`
+            (
+                o.memo_no ILIKE $%d OR
+                c.mobile ILIKE $%d OR
+                c.name ILIKE $%d
+            )
+        `, argPos, argPos, argPos))
+
+		// We use the same argument for all 4 placeholders
+		args = append(args, searchTerm)
+		argPos++
+	}
+
+	// C. Status Filter (Optional)
+	if status != "" && status != "all" {
+		conditions = append(conditions, fmt.Sprintf("o.status = $%d", argPos))
+		args = append(args, status)
+		argPos++
+	}
+
+	// Combine WHERE clause
+	whereClause := "WHERE " + strings.Join(conditions, " AND ")
+
+	// ------------------------------------------
+	// 3. Count Query (For Pagination)
+	// ------------------------------------------
+	var totalCount int
+	countQuery := fmt.Sprintf("SELECT COUNT(*) %s %s", baseQuery, whereClause)
+
+	// Note: We use the same 'args' for count as we do for the select
+	err := r.db.QueryRow(ctx, countQuery, args...).Scan(&totalCount)
 	if err != nil {
-		return nil, fmt.Errorf("query sales list: %w", err)
+		return nil, 0, fmt.Errorf("count sales failed: %w", err)
+	}
+
+	// ------------------------------------------
+	// 4. Data Query (With Pagination)
+	// ------------------------------------------
+	if limit <= 0 {
+		limit = 10
+	}
+	if page < 0 {
+		page = 0
+	}
+	offset := page * limit
+
+	dataQuery := fmt.Sprintf(`
+        SELECT
+            o.id, o.branch_id, o.memo_no, o.sale_date, o.salesperson_id, e.name AS salesperson_name, e.mobile as salesperson_mobile, o.customer_id, c.name AS customer_name, c.mobile AS customer_mobile, o.total_products, o.total_amount, o.received_amount, o.status, o.notes, o.created_at, o.updated_at
+        %s
+        %s
+        ORDER BY o.sale_date DESC, o.id DESC
+        LIMIT $%d OFFSET $%d
+    `, baseQuery, whereClause, argPos, argPos+1)
+
+	// Add Limit/Offset to args
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query sales failed: %w", err)
 	}
 	defer rows.Close()
 
-	var sales []*models.Sale
+	// 5. Scan Rows
+	sales := make([]models.SaleDB, 0)
 	for rows.Next() {
-		var sale models.Sale
+		var o models.SaleDB
+		// Ensure nested structs are initialized
+		o.Customer = models.Customer{}
+		o.Salesperson = models.Employee{}
+
 		err := rows.Scan(
-			&sale.MemoNo,
-			&sale.SaleDate,
-			&sale.BranchID,
-			&sale.CustomerID,
-			&sale.CustomerName,
-			&sale.SalespersonID,
-			&sale.SalespersonName,
-			&sale.TotalPayableAmount,
-			&sale.PaidAmount,
-			&sale.DueAmount,
-			&sale.PaymentAccountID,
-			&sale.PaymentAccountName,
+			&o.ID, &o.BranchID, &o.MemoNo, &o.SaleDate,
+			&o.SalespersonID, &o.Salesperson.Name, &o.Salesperson.Mobile,
+			&o.CustomerID, &o.Customer.Name, &o.Customer.Mobile,
+			&o.TotalItems, 
+			&o.TotalAmount, &o.ReceivedAmount,
+			&o.Status, &o.Notes, &o.CreatedAt, &o.UpdatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		sales = append(sales, &sale)
+		sales = append(sales, o)
 	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-	return sales, nil
+
+	return sales, totalCount, nil
 }
 
 // ============================== UPDATE SALE TRANSACTIONS ==============================
@@ -490,7 +761,7 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 	}
 
 	prevTopSheet := &models.TopSheetDB{
-		SheetDate:      prevSale.SaleDate,
+		SheetDate: prevSale.SaleDate,
 		BranchID:  branchID,
 		ReadyMade: -oldTotalItems, // Negative to reverse count
 	}
@@ -598,7 +869,7 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 	}
 
 	newTopSheet := &models.TopSheetDB{
-		SheetDate:      sale.SaleDate,
+		SheetDate: sale.SaleDate,
 		BranchID:  branchID,
 		ReadyMade: newTotalItems,
 	}

@@ -3,7 +3,6 @@
 -- =========================================================
 -- Note: This section assumes the existence of the dependent tables (branches, employees, customers, accounts, products)
 -- and drops the related tables defined in your updated_db.sql
-DROP TABLE IF EXISTS delivery_challans CASCADE;
 DROP TABLE IF EXISTS order_transactions CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;

@@ -6,18 +6,18 @@ window.orderState = window.orderState || {
   products: [],
   editingIndex: null, // Track which item is being edited (null = adding new)
   isOrderState: true, // true = Order (default), false = Sale
-  orderId: null,      // Tracks the ID of the order/sale being edited. null = New Entry
-  saleId: null        // Track sale ID separately if needed
+  orderId: null, // Tracks the ID of the order/sale being edited. null = New Entry
+  saleId: null, // Track sale ID separately if needed
 };
 
-window.resetOrderState = ()=>{
+window.resetOrderState = () => {
   window.orderState.cart = [];
   window.orderState.products = [];
   window.orderState.editingIndex = null;
   window.orderState.isOrderState = true;
   window.orderState.orderId = null;
   window.orderState.saleId = null;
-}
+};
 
 // --- INITIALIZATION ---
 window.initOrderSalePage = async function () {
@@ -102,18 +102,22 @@ window.initOrderSalePage = async function () {
       orderState.orderId = null;
       setTodayDates();
     }
+    
     // ----------------------------------------------------
 
     // --- Toggle Listener and Initialization ---
     const stateToggle = document.getElementById("stateToggle");
     if (stateToggle) {
       stateToggle.checked = orderState.isOrderState; // Set initial state (or loaded state)
-      stateToggle.addEventListener("change", updateOrderState);
+      stateToggle.addEventListener("change", () => {
+        updateOrderState();
+        renderProductOptions();
+      });
       updateOrderState(); // Call initially to set correct UI
       // Disable toggle if editing
       if (orderState.orderId) stateToggle.disabled = true;
     }
-    
+
     renderProductOptions();
   } catch (error) {
     console.error("Error loading order data:", error);
@@ -121,13 +125,15 @@ window.initOrderSalePage = async function () {
   }
 };
 
-
 // --- LOAD EXISTING DATA (UPDATED MAPPING) ---
 window.loadOrderForEdit = async function (orderId) {
   try {
-    const res = await fetch(`${window.globalState.apiBase}/products/orders/${orderId}`, {
+    const res = await fetch(
+      `${window.globalState.apiBase}/products/orders/${orderId}`,
+      {
         headers: window.getAuthHeaders(),
-    });
+      }
+    );
 
     if (!res.ok) throw new Error("Failed to fetch order details");
 
@@ -138,19 +144,23 @@ window.loadOrderForEdit = async function (orderId) {
     window.orderState.cart = (order.items || []).map((item) => {
       // API returns item.product_name, so we can use that directly
       // OR find it in our products list to be safe
-      const product = window.orderState.products.find((p) => p.id == item.product_id);
-      
+      const product = window.orderState.products.find(
+        (p) => p.id == item.product_id
+      );
+
       return {
         product_id: item.product_id,
-        name: item.product_name || (product ? product.product_name : `Item #${item.product_id}`),
+        name:
+          item.product_name ||
+          (product ? product.product_name : `Item #${item.product_id}`),
         qty: item.quantity,
-        price: (item.subtotal / item.quantity), // Derived unit price
+        price: item.subtotal / item.quantity, // Derived unit price
         total: item.subtotal,
       };
     });
 
     // 2. Set State Type
-    // Assuming your API distinguishes types, or we infer it. 
+    // Assuming your API distinguishes types, or we infer it.
     // If this endpoint only returns "orders", we force order state.
     const isOrder = true; // Since we fetched from /products/orders/
     window.orderState.isOrderState = isOrder;
@@ -164,30 +174,35 @@ window.loadOrderForEdit = async function (orderId) {
     // 3. Populate Form Fields
     // Use IDs from the response objects
     if (document.getElementById("customerSelect")) {
-        document.getElementById("customerSelect").value = order.customer_id || (order.customer ? order.customer.id : "");
+      document.getElementById("customerSelect").value =
+        order.customer_id || (order.customer ? order.customer.id : "");
     }
     if (document.getElementById("employeeSelect")) {
-        document.getElementById("employeeSelect").value = order.salesperson_id || (order.salesperson ? order.salesperson.id : "");
+      document.getElementById("employeeSelect").value =
+        order.salesperson_id || (order.salesperson ? order.salesperson.id : "");
     }
     if (document.getElementById("accountSelect")) {
-        document.getElementById("accountSelect").value =  String(order.order_transactions?.[0]?.payment_account_id || "");
+      document.getElementById("accountSelect").value = String(
+        order.order_transactions?.[0]?.payment_account_id || ""
+      );
     }
-    
+
     document.getElementById("memoNo").value = order.memo_no || "";
     document.getElementById("advanceInput").value = order.received_amount || 0;
     document.getElementById("orderNotes").value = order.notes || "";
 
     // 4. Populate Dates
-    const formatDate = (dateStr) => dateStr ? dateStr.split("T")[0] : "";
-    
+    const formatDate = (dateStr) => (dateStr ? dateStr.split("T")[0] : "");
+
     document.getElementById("orderDate").value = formatDate(order.order_date);
-    document.getElementById("deliveryDate").value = formatDate(order.delivery_date);
-    
+    document.getElementById("deliveryDate").value = formatDate(
+      order.delivery_date
+    );
+
     // 5. Update UI
     renderCart();
     updateOrderState();
     showNotification("info", `Order #${order.memo_no} loaded.`);
-
   } catch (error) {
     console.error("Error loading order:", error);
     showNotification("error", "Could not load data.");
@@ -202,7 +217,11 @@ window.updateOrderState = function () {
   const paymentLabel = document.getElementById("paymentLabel");
   const stateSaleLabel = document.getElementById("stateSaleLabel");
   const stateOrderLabel = document.getElementById("stateOrderLabel");
-  const confirmButton = document.querySelector("button[onclick='submitData()']");
+  const stateRightColTitle = document.getElementById("rightColTitle");
+  const statePageTitle = document.getElementById("pageTitle");
+  const confirmButton = document.querySelector(
+    "button[onclick='submitData()']"
+  );
 
   window.orderState.isOrderState = stateToggle.checked;
 
@@ -212,16 +231,20 @@ window.updateOrderState = function () {
     // ORDER MODE
     orderDateGroup.classList.remove("hidden");
     saleDateGroup.classList.add("hidden");
-    paymentLabel.innerHTML = 'Advance Payment <span class="text-red-500">*</span>';
-    
+    paymentLabel.innerHTML =
+      'Advance Payment <span class="text-red-500">*</span>';
+
     stateSaleLabel.classList.replace("text-slate-900", "text-slate-500");
     stateSaleLabel.classList.remove("font-bold");
-    
+
     stateOrderLabel.classList.replace("text-slate-500", "text-slate-900");
     stateOrderLabel.classList.add("font-bold");
 
-    if(confirmButton) confirmButton.querySelector("span").textContent = `${actionText} Order`;
-    
+    if (confirmButton)
+      confirmButton.querySelector("span").textContent = `${actionText} Order`;
+
+    stateRightColTitle.innerText = "Order";
+    statePageTitle.innerText = "New Order Entry";
   } else {
     // SALE MODE
     saleDateGroup.classList.remove("hidden");
@@ -230,13 +253,16 @@ window.updateOrderState = function () {
 
     stateSaleLabel.classList.replace("text-slate-500", "text-slate-900");
     stateSaleLabel.classList.add("font-bold");
-    
+
     stateOrderLabel.classList.replace("text-slate-900", "text-slate-500");
     stateOrderLabel.classList.remove("font-bold");
 
-    if(confirmButton) confirmButton.querySelector("span").textContent = `${actionText} Sale`;
-    
+    if (confirmButton)
+      confirmButton.querySelector("span").textContent = `${actionText} Sale`;
+
     if (!window.orderState.orderId) setTodayDates();
+    stateRightColTitle.innerText = "Sale";
+    statePageTitle.innerText = "New Sale Entry";
   }
   calculateDue();
 };
@@ -291,9 +317,15 @@ window.renderProductOptions = function () {
   const availableProducts = orderState.products.filter((p) => {
     const isInCart = orderState.cart.some((item) => item.product_id == p.id);
 
-    // If it's the item we are editing, allow it to show so we can see the name/price
+    // Always allow the product being edited
     if (p.id == editingProductId) return true;
 
+    // If NOT order state, stock must be > 0
+    if (window.orderState.isOrderState === false) {
+      return !isInCart && p.current_stock_level > 0;
+    }
+
+    // If order state, do not check stock
     return !isInCart;
   });
 
@@ -306,7 +338,7 @@ window.renderProductOptions = function () {
     availableProducts.forEach((p) => {
       // Re-select the item if it was previously selected (helps when switching edit modes)
       const isSelected = p.id == currentSelection ? "selected" : "";
-      select.innerHTML += `<option value="${p.id}" ${isSelected}>${p.product_name} (Stock: ${p.current_stock_level})</option>`;
+      select.innerHTML += `<option value="${p.id}" ${isSelected}>${p.product_name} [${p.current_stock_level}]</option>`;
     });
   }
 };
@@ -340,6 +372,21 @@ window.handleAddToCart = function (e) {
   const existingIndex = orderState.cart.findIndex(
     (item) => item.product_id == pid
   );
+
+  // 0. If Adding new item for sale where  qty > current_stock_level
+  if (
+    !window.orderState.isOrderState &&
+    parseInt(qty) > product.current_stock_level
+  ) {
+    showModalConfirm(
+      "error",
+      "Maximum quantity exceed!",
+      "Please select item with less quantity",
+      "Ok",
+      () => {}
+    );
+    return;
+  }
 
   // 1. If Adding New Item (editingIndex is null) AND Item exists
   if (orderState.editingIndex === null && existingIndex !== -1) {
@@ -546,7 +593,8 @@ window.submitData = async function () {
 // --- SUBMIT LOGIC (UPDATED FOR EDIT/PUT, ORDER vs SALE) ---
 window.submitOrderToDB = async function () {
   console.log("submitting the order");
-  if (orderState.cart.length === 0) return showNotification("error", "No product selected");
+  if (orderState.cart.length === 0)
+    return showNotification("error", "No product selected");
 
   const customerId = document.getElementById("customerSelect").value;
   const salespersonId = document.getElementById("employeeSelect").value;
@@ -612,7 +660,7 @@ window.submitOrderToDB = async function () {
 
   console.log(`${method} ORDER Payload:`, payload);
 
- try {
+  try {
     const res = await fetch(url, {
       method: method,
       headers: window.getAuthHeaders(),
@@ -620,7 +668,7 @@ window.submitOrderToDB = async function () {
     });
 
     // This is the OUTER 'data' variable
-    const data = await res.json(); 
+    const data = await res.json();
 
     if (res.ok) {
       showModalConfirm(
@@ -631,23 +679,25 @@ window.submitOrderToDB = async function () {
         async () => {
           // Use outer 'data' here safely
           const response = await fetch(
-            `${window.globalState.apiBase}/products/orders/${isEditing? orderState.orderId : data.order_id}`
+            `${window.globalState.apiBase}/products/orders/${
+              isEditing ? orderState.orderId : data.order_id
+            }`
           );
-          
+
           // FIX: Rename this to 'orderData' to avoid conflict
-          const orderData = await response.json(); 
-          
+          const orderData = await response.json();
+
           if (orderData.error) throw new Error(orderData.error);
-          
+
           const order = orderData.order;
           // Ensure your printInvoice function matches the one we created earlier
           // If you named it printOrderInvoice in previous steps, change this to printOrderInvoice(order)
           // or ensure you have: window.printInvoice = window.printOrderInvoice;
-          await printOrderInvoice(order.id, order); 
+          await printOrderInvoice(order.id, order);
         },
         "Cancel" // Fixed syntax here (removed 'cancelText =')
       );
-      
+
       if (!isEditing) {
         orderState.cart = [];
         renderCart();
@@ -672,7 +722,8 @@ window.submitOrderToDB = async function () {
 
 window.submitSaleToDB = async function () {
   console.log("submitting the sale");
-  if (orderState.cart.length === 0) return showNotification("error", "No product selected");
+  if (orderState.cart.length === 0)
+    return showNotification("error", "No product selected");
 
   const customerId = document.getElementById("customerSelect").value;
   const salespersonId = document.getElementById("employeeSelect").value;
@@ -713,7 +764,7 @@ window.submitSaleToDB = async function () {
     total_amount: totalAmount,
     payment_account_id: parseInt(paymentAccountId),
     received_amount: receivedAmount,
-    status: "completed", // or pending if you prefer
+    status: "delivered", // or pending if you prefer
     notes: document.getElementById("orderNotes").value || null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -742,7 +793,33 @@ window.submitSaleToDB = async function () {
     const data = await res.json();
 
     if (res.ok) {
-      showNotification("success", `Sale ${action} successfully!`);
+      showModalConfirm(
+        "success",
+        `Sale ${action}`,
+        `Sale ${action} successfully!`,
+        "Print Invoice",
+        async () => {
+          // Use outer 'data' here safely
+          const response = await fetch(
+            `${window.globalState.apiBase}/products/sales/details/${
+              isEditing ? orderState.saleId : data.sale_id
+            }`
+          );
+
+          // FIX: Rename this to 'saleData' to avoid conflict
+          const saleData = await response.json();
+
+          if (saleData.error) throw new Error(saleData.error);
+
+          const sale = saleData.sale;
+          // Ensure your printInvoice function matches the one we created earlier
+          // If you named it printSaleInvoice in previous steps, change this to printSaleInvoice(sale)
+          // or ensure you have: window.printInvoice = window.printSaleInvoice;
+          await printSaleInvoice(sale.id, sale);
+        },
+        "Cancel" // Fixed syntax here (removed 'cancelText =')
+      );
+
       if (!isEditing) {
         orderState.cart = [];
         renderCart();

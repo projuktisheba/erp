@@ -43,7 +43,7 @@ fi
 echo "Uploading new binary..."
 # Note: Ensure REMOTE_PATH points to the folder, not the file, or adjust accordingly.
 # If REMOTE_PATH is the folder:
-scp app samiul@"$VPS_HOST":"$REMOTE_PATH/"
+scp -C -o Cipher=aes128-ctr app samiul@"$VPS_HOST":"$REMOTE_PATH/"
 
 if [[ $? -ne 0 ]]; then
     echo "SCP failed. Exiting."

@@ -30,6 +30,12 @@ const menuConfig = [
         action: "loadPage('order_history','Order History')",
         roles: ["chairman", "manager"],
       },
+      {
+        label: "Sales History",
+        pageId: "sales_history",
+        action: "loadPage('sales_history','Sales History')",
+        roles: ["chairman", "manager"],
+      },
     ],
   },
   {

@@ -69,7 +69,7 @@ window.renderRestockProductOptions = function () {
   } else {
     availableProducts.forEach((p) => {
       const isSelected = p.id == currentSelection ? "selected" : "";
-      select.innerHTML += `<option value="${p.id}" ${isSelected}>${p.product_name} (Current: ${p.quantity})</option>`;
+      select.innerHTML += `<option value="${p.id}" ${isSelected}>${p.product_name} [${p.current_stock_level}]</option>`;
     });
   }
 };
