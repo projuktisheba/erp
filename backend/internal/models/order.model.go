@@ -74,11 +74,10 @@ type OrderItemDB struct {
 type OrderTransactionDB struct {
 	TransactionID    int64     `json:"transaction_id"`
 	TransactionDate  time.Time `json:"transaction_date"`
-	OrderID          *int64    `json:"order_id,omitempty"`
-	PaymentAccountID *int64    `json:"payment_account_id,omitempty"`
-	PaymentAccountName string    `json:"payment_account_name"`
-
+	OrderID          *int64    `json:"order_id,omitempty"`	
 	MemoNo            string    `json:"memo_no"`
+	PaymentAccountID int64    `json:"payment_account_id,omitempty"`
+	PaymentAccountName string    `json:"payment_account_name"`
 	DeliveredBy       *string   `json:"delivered_by,omitempty"`
 	QuantityDelivered int64     `json:"quantity_delivered"`
 	Amount            float64   `json:"amount"`

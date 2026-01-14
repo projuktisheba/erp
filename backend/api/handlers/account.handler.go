@@ -48,7 +48,7 @@ func (a *AccountHandler) GetAccountsHandler(w http.ResponseWriter, r *http.Reque
 	resp.Message = "Accounts fetched successfully"
 	resp.Accounts = accounts
 
-	utils.WriteJSON(w, http.StatusCreated, resp)
+	utils.WriteJSON(w, http.StatusOK, resp)
 
 }
 func (a *AccountHandler) GetAccountNamesHandler(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +75,6 @@ func (a *AccountHandler) GetAccountNamesHandler(w http.ResponseWriter, r *http.R
 	resp.Message = "Accounts fetched successfully"
 	resp.Accounts = accounts
 
-	utils.WriteJSON(w, http.StatusCreated, resp)
+	utils.WriteJSON(w, http.StatusOK, resp)
 
 }

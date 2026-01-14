@@ -19,6 +19,12 @@ const menuConfig = [
         roles: ["chairman", "manager"], // Everyone can see
       },
       {
+        label: "Restock Products",
+        pageId: "restock_products",
+        action: "loadPage('restock_products','Restock Product')",
+        roles: ["chairman", "manager"], // Everyone can see
+      },
+      {
         label: "Order History",
         pageId: "order_history",
         action: "loadPage('order_history','Order History')",
@@ -28,7 +34,7 @@ const menuConfig = [
   },
   {
     type: "parent", // This is a dropdown
-    label: "Employee",
+    label: "HR Management",
     icon: "ph-microsoft-teams-logo",
     pageId: "employee-menu",
     id: "employee-menu", // Unique ID for toggle

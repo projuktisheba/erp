@@ -88,63 +88,63 @@ func CreateTransactionTx(ctx context.Context, tx pgx.Tx, t *models.Transaction) 
 
 // ListTransactionsPaginated retrieves transactions with optional filters
 func (r *TransactionRepo) ListTransactionsPaginated(
-    ctx context.Context,
-    branchID int64,
-    startDate, endDate string,
-    trxType *string,
-    page, limit int, // Added pagination parameters
+	ctx context.Context,
+	branchID int64,
+	startDate, endDate string,
+	trxType *string,
+	page, limit int, // Added pagination parameters
 ) ([]*models.Transaction, int64, error) { // Added int64 return for total count
 
-    // 1. Handle default pagination values
-    if page < 1 {
-        page = 1
-    }
-    if limit < 1 {
-        limit = 10
-    }
-    offset := (page - 1) * limit
+	// 1. Handle default pagination values
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
 
-    // 2. Prepare Base Logic for Dynamic Conditions
-    // We build the WHERE clause separately so it can be used by both the Count and Data queries
-    whereClauses := []string{"t.transaction_date::date BETWEEN $1 AND $2"}
-    args := []interface{}{startDate, endDate}
-    argID := 3
+	// 2. Prepare Base Logic for Dynamic Conditions
+	// We build the WHERE clause separately so it can be used by both the Count and Data queries
+	whereClauses := []string{"t.transaction_date::date BETWEEN $1 AND $2"}
+	args := []interface{}{startDate, endDate}
+	argID := 3
 
-    if branchID > 0 {
-        whereClauses = append(whereClauses, fmt.Sprintf("t.branch_id=$%d", argID))
-        args = append(args, branchID)
-        argID++
-    }
+	if branchID > 0 {
+		whereClauses = append(whereClauses, fmt.Sprintf("t.branch_id=$%d", argID))
+		args = append(args, branchID)
+		argID++
+	}
 
-    if trxType != nil {
-        whereClauses = append(whereClauses, fmt.Sprintf("t.transaction_type=$%d", argID))
-        args = append(args, *trxType)
-        argID++
-    }
+	if trxType != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("t.transaction_type=$%d", argID))
+		args = append(args, *trxType)
+		argID++
+	}
 
-    whereStr := ""
-    if len(whereClauses) > 0 {
-        whereStr = " WHERE " + strings.Join(whereClauses, " AND ")
-    }
+	whereStr := ""
+	if len(whereClauses) > 0 {
+		whereStr = " WHERE " + strings.Join(whereClauses, " AND ")
+	}
 
-    // 3. EXECUTE COUNT QUERY
-    // Optimization: We don't need the JOINs to count the total records, 
-    // provided the filters are only on the 'transactions' table.
-    countQuery := `SELECT COUNT(*) FROM transactions t` + whereStr
+	// 3. EXECUTE COUNT QUERY
+	// Optimization: We don't need the JOINs to count the total records,
+	// provided the filters are only on the 'transactions' table.
+	countQuery := `SELECT COUNT(*) FROM transactions t` + whereStr
 
-    var totalCount int64
-    err := r.db.QueryRow(ctx, countQuery, args...).Scan(&totalCount)
-    if err != nil {
-        return nil, 0, fmt.Errorf("count query failed: %w", err)
-    }
+	var totalCount int64
+	err := r.db.QueryRow(ctx, countQuery, args...).Scan(&totalCount)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count query failed: %w", err)
+	}
 
-    // Optimization: If no records found, return empty early
-    if totalCount == 0 {
-        return []*models.Transaction{}, 0, nil
-    }
+	// Optimization: If no records found, return empty early
+	if totalCount == 0 {
+		return []*models.Transaction{}, 0, nil
+	}
 
-    // 4. EXECUTE DATA QUERY
-    selectQuery := `
+	// 4. EXECUTE DATA QUERY
+	selectQuery := `
     SELECT
         t.transaction_id,
         t.transaction_date,
@@ -186,40 +186,40 @@ func (r *TransactionRepo) ListTransactionsPaginated(
     LEFT JOIN suppliers s2 ON t.to_entity_type = 'suppliers' AND t.to_entity_id = s2.id
     `
 
-    // Add Where Clause
-    selectQuery += whereStr
+	// Add Where Clause
+	selectQuery += whereStr
 
-    // Add Sorting
-    selectQuery += " ORDER BY t.transaction_date DESC"
+	// Add Sorting
+	selectQuery += " ORDER BY t.transaction_date DESC, t.transaction_id DESC"
 
-    // Add Pagination (Limit & Offset)
-    // We add the limit and offset to the args slice and append the SQL
-    selectQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argID, argID+1)
-    args = append(args, limit, offset)
+	// Add Pagination (Limit & Offset)
+	// We add the limit and offset to the args slice and append the SQL
+	selectQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argID, argID+1)
+	args = append(args, limit, offset)
 
-    // Execute Main Query
-    rows, err := r.db.Query(ctx, selectQuery, args...)
-    if err != nil {
-        return nil, 0, fmt.Errorf("data query failed: %w", err)
-    }
-    defer rows.Close()
+	// Execute Main Query
+	rows, err := r.db.Query(ctx, selectQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("data query failed: %w", err)
+	}
+	defer rows.Close()
 
-    // Scan results
-    var summaries []*models.Transaction
-    for rows.Next() {
-        var t models.Transaction
-        if err := rows.Scan(
-            &t.TransactionID, &t.TransactionDate, &t.MemoNo, &t.BranchID,
-            &t.FromID, &t.FromType, &t.FromAccountName,
-            &t.ToID, &t.ToType, &t.ToAccountName,
-            &t.Amount, &t.TransactionType, &t.Notes, &t.CreatedAt,
-        ); err != nil {
-            return nil, 0, fmt.Errorf("row scan failed: %w", err)
-        }
-        summaries = append(summaries, &t)
-    }
+	// Scan results
+	var summaries []*models.Transaction
+	for rows.Next() {
+		var t models.Transaction
+		if err := rows.Scan(
+			&t.TransactionID, &t.TransactionDate, &t.MemoNo, &t.BranchID,
+			&t.FromID, &t.FromType, &t.FromAccountName,
+			&t.ToID, &t.ToType, &t.ToAccountName,
+			&t.Amount, &t.TransactionType, &t.Notes, &t.CreatedAt,
+		); err != nil {
+			return nil, 0, fmt.Errorf("row scan failed: %w", err)
+		}
+		summaries = append(summaries, &t)
+	}
 
-    return summaries, totalCount, nil
+	return summaries, totalCount, nil
 }
 func (r *TransactionRepo) GetTransactionSummary(
 	ctx context.Context,
@@ -293,7 +293,7 @@ func (r *TransactionRepo) GetTransactionSummary(
 	}
 
 	// Add ORDER BY
-	query += " ORDER BY t.transaction_date DESC"
+	query += " ORDER BY t.transaction_date DESC, t.transaction_id DESC"
 
 	// Execute query
 	rows, err := r.db.Query(ctx, query, args...)

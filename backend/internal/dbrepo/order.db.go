@@ -510,6 +510,188 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 
 	return tx.Commit(ctx)
 }
+
+// OrderDelivery record an order delivery, payment transaction,
+// updates top sheet, customer due.
+func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTransactionDB, orderInfo models.OrderDB) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("ERROR_0: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// --------------------
+	// 1.  Basic validations
+	// --------------------
+	currentStatus := models.ORDER_DELIVERY
+	dueAmount := orderInfo.TotalAmount - orderInfo.ReceivedAmount - orderTx.Amount
+	if dueAmount < 0 {
+		return fmt.Errorf("ERROR_1: received amount cannot exceed due amount")
+	}
+
+	remainingItems := orderInfo.TotalItems - orderInfo.DeliveredItems - orderTx.QuantityDelivered
+	if remainingItems < 0 {
+		return fmt.Errorf("ERROR_2: delivery quantity cannot exceed remaining quantity")
+	}
+
+	// update current status
+	if dueAmount > float64(0) || remainingItems > 0 {
+		currentStatus = models.ORDER_PARTIAL_DELIVERY
+	}
+
+	// --------------------
+	// 2. Update Order Header
+	// --------------------
+	_, err = tx.Exec(ctx, `
+		UPDATE orders SET
+			delivered_products = delivered_products + $1,
+			received_amount = received_amount + $2,
+			status = $3,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = $4
+	`,
+		orderTx.QuantityDelivered, orderTx.Amount, currentStatus, orderTx.OrderID,
+	)
+	if err != nil {
+		return fmt.Errorf("ERROR_3: update order header failed: %w", err)
+	}
+
+	// --------------------
+	// Step 3: Update top sheet
+	// --------------------
+	topSheet := &models.TopSheetDB{
+		SheetDate: orderTx.TransactionDate,
+		BranchID:  orderInfo.BranchID,
+		Delivery:  orderTx.QuantityDelivered, // total items ordered
+	}
+
+	var acctType string
+	if orderTx.Amount > 0 {
+		err = tx.QueryRow(ctx,
+			`SELECT type FROM accounts WHERE id=$1 AND branch_id=$2`,
+			orderTx.PaymentAccountID,
+			orderInfo.BranchID,
+		).Scan(&acctType)
+		if err != nil {
+			return fmt.Errorf("ERROR_4: lookup account type failed: %w", err)
+		}
+
+		if acctType == models.ACCOUNT_BANK {
+			topSheet.Bank = orderTx.Amount
+		} else {
+			topSheet.Cash = orderTx.Amount
+		}
+	}
+
+	if err := SaveTopSheetTx(tx, ctx, topSheet); err != nil {
+		return fmt.Errorf("ERROR_5: save top sheet failed: %w", err)
+	}
+
+	// --------------------
+	// Step 4: Order Payment transactions
+	// --------------------
+	// lock account row
+	_, err = tx.Exec(ctx,
+		`SELECT id FROM accounts WHERE id=$1 FOR UPDATE`,
+		orderTx.PaymentAccountID,
+	)
+	if err != nil {
+		return fmt.Errorf("ERROR_6: lock account failed: %w", err)
+	}
+
+	// 4a: order payment transaction
+	_, err = tx.Exec(ctx, `
+			INSERT INTO order_transactions(
+				order_id, transaction_date, payment_account_id, memo_no, delivered_by, quantity_delivered,
+				amount, transaction_type
+			)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		`,
+		orderTx.OrderID,
+		orderTx.TransactionDate,
+		orderTx.PaymentAccountID,
+		orderTx.MemoNo,
+		orderInfo.SalespersonID,
+		orderTx.QuantityDelivered,
+		orderTx.Amount,
+		models.PAYMENT,
+	)
+	if err != nil {
+		return fmt.Errorf("ERROR_7: insert payment transaction failed (4a): %w", err)
+	}
+
+	// --------------------
+	// Step 5: Global Payment transactions
+	// --------------------
+	if orderTx.Amount > 0 {
+
+		// 5a: global transaction log
+		_, err = tx.Exec(ctx, `
+			INSERT INTO transactions(
+				transaction_date, memo_no, branch_id,
+				from_entity_id, from_entity_type,
+				to_entity_id, to_entity_type,
+				amount, transaction_type, notes
+			)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		`,
+			orderTx.TransactionDate,
+			models.ORDER_MEMO_PREFIX+"-"+orderTx.MemoNo,
+			orderInfo.BranchID,
+			orderInfo.CustomerID,
+			models.ENTITY_CUSTOMER,
+			orderTx.PaymentAccountID,
+			models.ENTITY_ACCOUNT,
+			orderTx.Amount,
+			models.PAYMENT,
+			"Payment received upon delivery",
+		)
+		if err != nil {
+			return fmt.Errorf("ERROR_8: insert transaction failed (4b): %w", err)
+		}
+
+		// 5b: update account balance
+		_, err = tx.Exec(ctx, `
+			UPDATE accounts
+			SET current_balance = current_balance + $1
+			WHERE id = $2
+		`,
+			orderTx.Amount,
+			orderTx.PaymentAccountID,
+		)
+		if err != nil {
+			return fmt.Errorf("ERROR_9: update account balance failed: %w", err)
+		}
+
+		// --------------------
+		// Step 4d: Update customer due
+		// --------------------
+
+		// lock customer row
+		_, err = tx.Exec(ctx,
+			`SELECT id FROM customers WHERE id=$1 FOR UPDATE`,
+			orderInfo.CustomerID,
+		)
+		if err != nil {
+			return fmt.Errorf("ERROR_10: lock customer failed: %w", err)
+		}
+
+		_, err = tx.Exec(ctx, `
+			UPDATE customers
+			SET due_amount = due_amount - $1
+			WHERE id = $2
+		`,
+			orderTx.Amount,
+			orderInfo.CustomerID,
+		)
+		if err != nil {
+			return fmt.Errorf("ERROR_11: update customer due failed: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (r *OrderRepo) GetOrders(
 	ctx context.Context,
 	branchID int64,
@@ -743,8 +925,8 @@ func (r *OrderRepo) GetOrderDetailsByID(
 		SELECT
 			t.transaction_id,
 			t.transaction_date,
-			t.payment_account_id,
-			a.name,
+			COALESCE(t.payment_account_id, 0) AS payment_account_id,
+			COALESCE(a.name, 'N/A') AS payment_account_name,
 			t.memo_no,
 			t.delivered_by,
 			t.quantity_delivered,
@@ -752,7 +934,7 @@ func (r *OrderRepo) GetOrderDetailsByID(
 			t.transaction_type,
 			t.created_at
 		FROM order_transactions t
-		LEFT JOIN accounts a ON(a.id=payment_account_id)
+		LEFT JOIN accounts a ON(a.id=t.payment_account_id)
 		WHERE order_id = $1
 		ORDER BY created_at ASC
 	`, orderID)

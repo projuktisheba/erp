@@ -119,7 +119,7 @@ func (app *application) routes() http.Handler {
 	// -------------------- Product Routes --------------------
 	protected.Route("/api/v1/products", func(r chi.Router) {
 		r.Get("/", app.Handlers.Product.GetProductsHandler)
-		// r.Post("/restock", app.Handlers.Product.RestockProducts)
+		r.Post("/stock/add", app.Handlers.Product.RestockProducts)
 		// r.Get("/stocks", app.Handlers.Product.GetProductStockReportHandler)
 		r.Post("/sales/new", app.Handlers.Product.SaleProducts)
 		// r.Patch("/sale", app.Handlers.Product.UpdateSoldProducts)
@@ -135,7 +135,7 @@ func (app *application) routes() http.Handler {
 		r.Patch("/orders/update/{id}", app.Handlers.Order.UpdateOrder)
 		// r.Delete("/", app.Handlers.Order.CancelOrder)
 		// r.Patch("/checkout", app.Handlers.Order.CheckoutOrder)
-		// r.Patch("/delivery", app.Handlers.Order.OrderDelivery)
+		r.Post("/orders/delivery", app.Handlers.Order.OrderDelivery)
 		// r.Get("/", app.Handlers.Order.GetOrderDetailsByID)
 		// r.Get("/items", app.Handlers.Order.GetOrderItemsByMemoNo)
 		// r.Get("/list", app.Handlers.Order.ListOrders)

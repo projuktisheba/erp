@@ -38,13 +38,20 @@ function checkSession() {
   if (storedToken && storedUser) {
     // Restore Session
     window.globalState.token = storedToken;
-
-    // This line restores the branch_id you saved in handleBranchSwitch
+    // This line restores the branch_id
     window.globalState.user = JSON.parse(storedUser);
 
     document.getElementById("loginModal").classList.add("hidden");
     updateUI();
-    loadPage("order_sale", "New Order Entry");
+
+    // --- NEW LOGIC START ---
+    // Retrieve last visited page or default to 'order_sale'
+    const lastPage = localStorage.getItem("last_page_name") || "order_sale";
+    const lastTitle = localStorage.getItem("last_page_title") || "New Order Entry";
+    
+    loadPage(lastPage, lastTitle);
+    // --- NEW LOGIC END ---
+
   } else {
     document.getElementById("loginModal").classList.remove("hidden");
   }
@@ -129,7 +136,7 @@ function handleLoginSuccess(data) {
   // 3. Update UI
   updateUI();
 
-  // 4. Close Modal & Load Page
+  // 4. Close Modal
   document.getElementById("loginModal").classList.add("hidden");
 
   // Restore button state
@@ -137,6 +144,8 @@ function handleLoginSuccess(data) {
   btn.disabled = false;
   btn.innerHTML = `<span>Sign In</span> <i class="ph ph-arrow-right font-bold"></i>`;
 
+  // --- CHANGED --- 
+  // Force default page on fresh login to avoid confusion from previous sessions
   loadPage("order_sale", "New Order Entry");
 }
 
@@ -240,11 +249,12 @@ async function loadPage(pageName, pageTitle) {
     window.globalState.currentPage = pageName;
     const container = document.getElementById("dynamic-content");
 
-    // --- 1. UPDATE SIDEBAR UI (New Logic) ---
-    // This handles finding the button, highlighting it, and opening accordions
-    setActiveSidebarItem(pageName);
+    // 1. UPDATE SIDEBAR UI
+    if (typeof setActiveSidebarItem === "function") {
+        setActiveSidebarItem(pageName);
+    }
 
-    // --- 2. LOAD HTML CONTENT ---
+    // 2. LOAD HTML CONTENT
     try {
         const response = await fetch(`pages/${pageName}.html`);
         if (!response.ok) throw new Error("Page file not found");
@@ -252,14 +262,19 @@ async function loadPage(pageName, pageTitle) {
         const html = await response.text();
         container.innerHTML = html;
 
-        // Update Header Title (Auto-format if pageTitle is missing)
-        // e.g., "add-employee" becomes "Add Employee"
+        // Auto-format title if missing
         if (!pageTitle) {
             pageTitle = pageName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
         document.getElementById("pageTitle").textContent = pageTitle;
 
-        // --- 3. LOAD SPECIFIC JS ---
+        // --- NEW LOGIC START ---
+        // Persist the current location to LocalStorage
+        localStorage.setItem("last_page_name", pageName);
+        localStorage.setItem("last_page_title", pageTitle);
+        // --- NEW LOGIC END ---
+
+        // 3. LOAD SPECIFIC JS
         loadPageScript(pageName);
 
     } catch (error) {
@@ -270,7 +285,6 @@ async function loadPage(pageName, pageTitle) {
         </div>`;
     }
 }
-
 /* --- 6. DYNAMIC SCRIPT LOADER --- */
 function loadPageScript(pageName) {
   // A. Remove any previous page-specific script
@@ -391,7 +405,7 @@ window.showNotification = function (type, message) {
 
   toast.innerHTML = `
         <i class="ph ${style.icon} ${style.iconColor} text-2xl shrink-0"></i>
-        <div class="flex-1 min-w-0 z-10"> <p class="font-semibold text-[10px] ${style.text} truncate">${message}</p>
+        <div class="flex-1 min-w-0 z-10"> <p class="font-semibold text-[11px] ${style.text} truncate">${message}</p>
         </div>
         
         <button onclick="dismissToast(this)" class="text-slate-400 hover:text-slate-600 transition p-1 z-10">

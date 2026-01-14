@@ -241,7 +241,7 @@ window.updateOrderState = function () {
   calculateDue();
 };
 
-// Helper function to set today's date on all date inputs (No Change)
+// Helper function to set today's date on all date inputs
 function setTodayDates() {
   const today = new Date();
   const dateString = today.toISOString().split("T")[0];
@@ -256,7 +256,7 @@ function setTodayDates() {
   if (deliveryDateInput) deliveryDateInput.value = dateString;
 }
 
-// --- HELPER: Populate Select (No Change) ---
+// --- HELPER: Populate Select ---
 function populateSelect(elementId, labelName, data, labelFn, valueKey) {
   const select = document.getElementById(elementId);
   if (!select) return;
@@ -272,7 +272,7 @@ function populateSelect(elementId, labelName, data, labelFn, valueKey) {
   }
 }
 
-// --- Render Product Options (No Change) ---
+// --- Render Product Options ---
 window.renderProductOptions = function () {
   const select = document.getElementById("productSelect");
   const currentSelection = select.value; // Remember what was selected (if any)
@@ -306,12 +306,12 @@ window.renderProductOptions = function () {
     availableProducts.forEach((p) => {
       // Re-select the item if it was previously selected (helps when switching edit modes)
       const isSelected = p.id == currentSelection ? "selected" : "";
-      select.innerHTML += `<option value="${p.id}" ${isSelected}>${p.product_name} (Stock: ${p.quantity})</option>`;
+      select.innerHTML += `<option value="${p.id}" ${isSelected}>${p.product_name} (Stock: ${p.current_stock_level})</option>`;
     });
   }
 };
 
-// --- CART LOGIC (No Change) ---
+// --- CART LOGIC ---
 window.handleAddToCart = function (e) {
   e.preventDefault();
   const pid = document.getElementById("productSelect").value;
@@ -387,7 +387,7 @@ window.handleAddToCart = function (e) {
   }
 };
 
-// Start Editing an Item (No Change)
+// Start Editing an Item
 window.editCartItem = function (index) {
   const item = orderState.cart[index];
 
@@ -414,7 +414,7 @@ window.editCartItem = function (index) {
   // For now, we rely on the user finishing the update.
 };
 
-// Helper to reset form back to "Add" mode (No Change)
+// Helper to reset form back to "Add" mode
 function resetFormState() {
   orderState.editingIndex = null;
 
@@ -434,7 +434,7 @@ function resetFormState() {
   renderProductOptions();
 }
 
-// Render Cart (No Change)
+// Render Cart
 window.renderCart = function () {
   const tbody = document.getElementById("cartTableBody");
   tbody.innerHTML = "";
@@ -484,7 +484,7 @@ window.renderCart = function () {
   calculateDue();
 };
 
-// Remove Cart Item (No Change)
+// Remove Cart Item
 window.removeCartItem = function (index) {
   // If user deletes the item currently being edited, reset form
   if (orderState.editingIndex === index) {
@@ -503,7 +503,7 @@ window.removeCartItem = function (index) {
   renderProductOptions();
 };
 
-// Calculate Due (No Change)
+// Calculate Due
 window.calculateDue = function () {
   const total = orderState.cart.reduce((a, b) => a + b.total, 0);
   const advance =

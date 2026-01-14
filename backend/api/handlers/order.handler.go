@@ -107,6 +107,38 @@ func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
+// UpdateOder handles POST /orders/delivery
+func (o *OrderHandler) OrderDelivery(w http.ResponseWriter, r *http.Request) {
+	var orderTx models.OrderTransactionDB
+	err := utils.ReadJSON(w, r, &orderTx)
+	if  err != nil {
+		o.errorLog.Println("OrderDelivery_ReadJSON:", err)
+		utils.BadRequest(w, err)
+		return
+	}
+
+	o.infoLog.Printf("Received order data: %+v\n", orderTx)
+	// load old data
+	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), *orderTx.OrderID);
+	if err != nil {
+		o.errorLog.Println("OrderDelivery_DB => can't load old order info:", err)
+		utils.ServerError(w, err)
+		return
+	}
+	err = o.DB.OrderDelivery(r.Context(), orderTx, *oldOrderDetails);
+	if err != nil {
+		o.errorLog.Println("OrderDelivery_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
+
+	resp := map[string]any{
+		"error":    false,
+		"status":   "success",
+		"message":  "Order delivery recorded successfully",
+	}
+	utils.WriteJSON(w, http.StatusCreated, resp)
+}
 
 // SearchOrders handles GET /orders/search?search=xxx&branch_id=1&limit=20
 func (o *OrderHandler) GetOrdersHandler(w http.ResponseWriter, r *http.Request) {
