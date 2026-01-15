@@ -102,10 +102,25 @@ window.initOrderSalePage = async function () {
       orderState.orderId = null;
       setTodayDates();
     }
-    
+
     // ----------------------------------------------------
 
+    // --- SALE EDIT DETECTION ---
+    const existingSaleId = localStorage.getItem("saleID");
+    localStorage.removeItem("saleID");
+
+    if (existingSaleId) {
+      orderState.saleId = existingSaleId;
+      orderState.isOrderState = false;
+
+      await loadSaleForEdit(existingSaleId);
+
+      const pageTitle = document.getElementById("pageTitle");
+      if (pageTitle) pageTitle.textContent = "Edit Sale";
+    }
+
     // --- Toggle Listener and Initialization ---
+    const stateToggleContainer = document.getElementById("stateToggleContainer");
     const stateToggle = document.getElementById("stateToggle");
     if (stateToggle) {
       stateToggle.checked = orderState.isOrderState; // Set initial state (or loaded state)
@@ -115,7 +130,13 @@ window.initOrderSalePage = async function () {
       });
       updateOrderState(); // Call initially to set correct UI
       // Disable toggle if editing
-      if (orderState.orderId) stateToggle.disabled = true;
+      if (orderState.orderId || orderState.saleId) stateToggle.disabled = true;
+      if (orderState.orderId || orderState.saleId) {
+        stateToggleContainer.classList.add("bg-slate-100")
+      } else {
+        stateToggleContainer.classList.remove("bg-slate-100")
+
+      }
     }
 
     renderProductOptions();
@@ -208,6 +229,71 @@ window.loadOrderForEdit = async function (orderId) {
     showNotification("error", "Could not load data.");
   }
 };
+window.loadSaleForEdit = async function (saleId) {
+  try {
+    const res = await fetch(
+      `${window.globalState.apiBase}/products/sales/details/${saleId}`,
+      { headers: window.getAuthHeaders() }
+    );
+
+    if (!res.ok) throw new Error("Failed to fetch sale");
+
+    const data = await res.json();
+    const sale = data.sale;
+
+    // --- CART MAPPING ---
+    orderState.cart = (sale.items || []).map((item) => {
+      const product = orderState.products.find(
+        (p) => p.id == item.product_id
+      );
+
+      return {
+        product_id: item.product_id,
+        name:
+          item.product_name ||
+          (product ? product.product_name : `Item #${item.product_id}`),
+        qty: item.quantity,
+        price: item.subtotal / item.quantity,
+        total: item.subtotal,
+      };
+    });
+
+    // --- FORCE SALE MODE ---
+    orderState.isOrderState = false;
+
+    const stateToggle = document.getElementById("stateToggle");
+    if (stateToggle) {
+      stateToggle.checked = false;
+      stateToggle.disabled = true;
+    }
+
+    // --- FORM FIELDS ---
+    document.getElementById("customerSelect").value = sale.customer_id;
+    document.getElementById("employeeSelect").value = sale.salesperson_id;
+    if (document.getElementById("accountSelect")) {
+      document.getElementById("accountSelect").value = String(
+        sale.sale_transactions?.[0]?.payment_account_id || ""
+      );
+    }
+
+    document.getElementById("memoNo").value = sale.memo_no;
+    document.getElementById("advanceInput").value = sale.received_amount || 0;
+    document.getElementById("orderNotes").value = sale.notes || "";
+
+    // --- SALE DATE ---
+    document.getElementById("saleDate").value =
+      sale.sale_date?.split("T")[0] || "";
+
+    // --- UI UPDATE ---
+    renderCart();
+    updateOrderState();
+
+    showNotification("info", `Sale #${sale.memo_no} loaded`);
+  } catch (error) {
+    console.error(error);
+    showNotification("error", "Failed to load sale");
+  }
+};
 
 // --- TOGGLE UI STATE ---
 window.updateOrderState = function () {
@@ -225,7 +311,7 @@ window.updateOrderState = function () {
 
   window.orderState.isOrderState = stateToggle.checked;
 
-  const actionText = window.orderState.orderId ? "Update" : "Confirm";
+  const actionText = orderState.orderId || orderState.saleId ? "Update" : "Confirm";
 
   if (window.orderState.isOrderState) {
     // ORDER MODE
@@ -453,7 +539,7 @@ window.editCartItem = function (index) {
   const submitBtn = document.querySelector(
     "form[onsubmit='handleAddToCart(event)'] button"
   );
-  submitBtn.innerHTML = `<i class="ph ph-check-circle font-bold"></i> Update`;
+  submitBtn.innerHTML = `<i class="ph ph-check font-bold"></i> Update`;
   submitBtn.classList.remove("bg-slate-900", "hover:bg-slate-800");
   submitBtn.classList.add("bg-brand-600", "hover:bg-brand-700");
 
@@ -755,7 +841,7 @@ window.submitSaleToDB = async function () {
 
   // --- Prepare payload matching SaleDB & OrderItemDB ---
   const payload = {
-    ...(isEditing && { id: orderState.saleId }),
+    ...(isEditing && { id: parseInt(orderState.saleId) }),
     branch_id: window.globalState.user.branch_id,
     memo_no: memoNo,
     sale_date: saleDate.toISOString(),
@@ -776,9 +862,9 @@ window.submitSaleToDB = async function () {
   };
 
   const url = isEditing
-    ? `${window.globalState.apiBase}/products/sales/${orderState.saleId}`
+    ? `${window.globalState.apiBase}/products/sales/update/${orderState.saleId}`
     : `${window.globalState.apiBase}/products/sales/new`;
-  const method = isEditing ? "PUT" : "POST";
+  const method = isEditing ? "PATCH" : "POST";
   const action = isEditing ? "Updated" : "Confirmed";
 
   console.log(`${method} SALE Payload:`, payload);
