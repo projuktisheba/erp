@@ -152,9 +152,28 @@ func (s *ProductRepo) GetProductStockReportByDateRange(ctx context.Context, bran
 }
 
 // ============================== SALE TRANSACTIONS ==============================
-
 // SaleProducts records a sale and updates stock, accounts, and reports
-// (V2)
+// // (V2)
+// Start a database transaction.
+// Validate sale items and received amount.
+// Generate memo number if missing.
+// Reduce product stock for each sold item.
+// Calculate total number of sold items.
+// Insert main sale record and get sale ID.
+// Insert all sale items linked to the sale.
+// Prepare daily top-sheet data for the sale date.
+// Determine payment account type (cash/bank).
+// Update top-sheet cash or bank amount.
+// Save or update the top-sheet record.
+// Lock payment account row if payment exists.
+// Insert sale payment transaction record.
+// Insert global transaction ledger entry.
+// Update payment account balance.
+// Calculate customer due amount.
+// Lock customer row if due exists.
+// Update customer due balance.
+// Update salesperson daily progress report.
+// Commit the transaction and return sale ID.
 func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (int64, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -215,7 +234,7 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 		sale.TotalItems,
 		sale.TotalAmount,
 		sale.ReceivedAmount,
-		sale.Status,
+		models.SALE_DELIVERY,
 		sale.Notes,
 		sale.CreatedAt,
 		sale.UpdatedAt,
@@ -248,6 +267,7 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 	topSheet := &models.TopSheetDB{
 		SheetDate: sale.SaleDate,
 		BranchID:  sale.BranchID,
+		SalesAmount: sale.TotalAmount, // total amount
 		ReadyMade: sale.TotalItems, // total items
 	}
 
@@ -389,6 +409,261 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 
 	return saleID, tx.Commit(ctx)
 }
+// ============================== UPDATE SALE TRANSACTIONS ==============================
+// UpdateSale updates an existing sale and adjusts all dependent reports.
+// It creates a "Revert Old" -> "Apply New" flow to handle changes in
+// Customer, Salesperson, Dates, or Accounts safely.
+func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.SaleDB) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// --------------------
+	// 1. Validations
+	// --------------------
+	if oldSale.Status == models.SALE_RETURNED {
+		return fmt.Errorf("Returned sales can't be modified")
+	}
+	if len(sale.Items) == 0 {
+		return fmt.Errorf("sale must contain at least one item")
+	}
+	if sale.ReceivedAmount < 0 || sale.ReceivedAmount > sale.TotalAmount {
+		return fmt.Errorf("invalid received amount")
+	}
+
+	// --------------------
+	// 2. Restore OLD stock
+	// --------------------
+	for _, item := range oldSale.Items {
+		_, err = tx.Exec(ctx, `
+			UPDATE products
+			SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP
+			WHERE id = $2
+		`, item.Quantity, item.ProductID)
+		if err != nil {
+			return fmt.Errorf("restore stock failed: %w", err)
+		}
+	}
+
+	// --------------------
+	// 3. Apply NEW stock
+	// --------------------
+	sale.TotalItems = 0
+	for _, item := range sale.Items {
+		_, err = tx.Exec(ctx, `
+			UPDATE products
+			SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP
+			WHERE id = $2
+		`, item.Quantity, item.ProductID)
+		if err != nil {
+			return fmt.Errorf("apply stock failed: %w", err)
+		}
+		sale.TotalItems += int64(item.Quantity)
+	}
+
+	// --------------------
+	// 4. Update sale header
+	// --------------------
+	_, err = tx.Exec(ctx, `
+		UPDATE sales SET
+			memo_no=$1, sale_date=$2,
+			salesperson_id=$3, customer_id=$4,
+			total_products=$5, total_amount=$6,
+			received_amount=$7, notes=$8,
+			updated_at=CURRENT_TIMESTAMP
+		WHERE id=$9
+	`, sale.MemoNo, sale.SaleDate,
+		sale.SalespersonID, sale.CustomerID,
+		sale.TotalItems, sale.TotalAmount,
+		sale.ReceivedAmount, sale.Notes,
+		sale.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update sale failed: %w", err)
+	}
+
+	// --------------------
+	// 5. Replace sale items
+	// --------------------
+	_, err = tx.Exec(ctx, `DELETE FROM sale_items WHERE sale_id=$1`, sale.ID)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range sale.Items {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO sale_items(sale_id, product_id, quantity, subtotal)
+			VALUES ($1,$2,$3,$4)
+		`, sale.ID, item.ProductID, item.Quantity, item.Subtotal)
+		if err != nil {
+			return err
+		}
+	}
+
+	// --------------------
+	// 6. Top Sheet
+	// --------------------
+	oldSheet := &models.TopSheetDB{
+		SheetDate: oldSale.SaleDate,
+		BranchID:  oldSale.BranchID,
+		SalesAmount: -oldSale.TotalAmount, 
+		ReadyMade: -oldSale.TotalItems,
+	}
+	var acctType string
+	if oldSale.ReceivedAmount > 0 {
+		err = tx.QueryRow(ctx,
+			`SELECT type FROM accounts WHERE id=$1 AND branch_id=$2`,
+			oldSale.SaleTransactions[0].PaymentAccountID,
+			oldSale.BranchID,
+		).Scan(&acctType)
+		if err != nil {
+			return fmt.Errorf("lookup account type failed: %w", err)
+		}
+
+		if acctType == models.ACCOUNT_BANK {
+			oldSheet.Bank = -oldSale.ReceivedAmount
+		} else {
+			oldSheet.Cash = -oldSale.ReceivedAmount
+		}
+	}
+	newSheet := &models.TopSheetDB{
+		SheetDate: sale.SaleDate,
+		BranchID:  sale.BranchID,
+		SalesAmount: sale.TotalAmount,
+		ReadyMade: sale.TotalItems,
+	}
+	
+	if sale.ReceivedAmount > 0 {
+		err = tx.QueryRow(ctx,
+			`SELECT type FROM accounts WHERE id=$1 AND branch_id=$2`,
+			sale.PaymentAccountID,
+			sale.BranchID,
+		).Scan(&acctType)
+		if err != nil {
+			return fmt.Errorf("lookup account type failed: %w", err)
+		}
+
+		if acctType == models.ACCOUNT_BANK {
+			newSheet.Bank = sale.ReceivedAmount
+		} else {
+			newSheet.Cash = sale.ReceivedAmount
+		}
+	}
+	if err := SaveTopSheetTx(tx, ctx, oldSheet); err != nil {
+		return err
+	}
+	if err := SaveTopSheetTx(tx, ctx, newSheet); err != nil {
+		return err
+	}
+
+	// --------------------
+	// 7. Customer Due
+	// --------------------
+	oldDue := oldSale.TotalAmount - oldSale.ReceivedAmount
+	newDue := sale.TotalAmount - sale.ReceivedAmount
+	deltaDue := newDue - oldDue
+	
+	if deltaDue != 0 {
+		_, err = tx.Exec(ctx,
+			`UPDATE customers SET due_amount = due_amount + $1 WHERE id=$2`,
+			deltaDue, sale.CustomerID)
+		if err != nil {
+			return err
+		}
+	}
+
+	// --------------------
+	// 8. Accounts & Transaction
+	// --------------------
+	if oldSale.ReceivedAmount > 0 {
+		_, err = tx.Exec(ctx,
+			`UPDATE accounts SET current_balance = current_balance - $1 WHERE id=$2`,
+			oldSale.ReceivedAmount, oldSale.PaymentAccountID)
+		if err != nil {
+			return err
+		}
+
+		_, _ = tx.Exec(ctx, `DELETE FROM sale_transactions WHERE sale_id=$1`, sale.ID)
+		_, _ = tx.Exec(ctx, `DELETE FROM transactions WHERE memo_no=$1`,
+			models.SALE_MEMO_PREFIX+"-"+oldSale.MemoNo)
+	}
+
+	if sale.ReceivedAmount > 0 {
+		_, err = tx.Exec(ctx,
+			`UPDATE accounts SET current_balance = current_balance + $1 WHERE id=$2`,
+			sale.ReceivedAmount, sale.PaymentAccountID)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(ctx, `
+			INSERT INTO sale_transactions(
+				sale_id, transaction_date, payment_account_id,
+				memo_no, delivered_by, quantity_delivered,
+				amount, transaction_type
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		`,
+			sale.ID, sale.SaleDate, sale.PaymentAccountID,
+			sale.MemoNo, sale.SalespersonID,
+			sale.TotalItems, sale.ReceivedAmount, models.PAYMENT)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO transactions(
+				transaction_date, memo_no, branch_id,
+				from_entity_id, from_entity_type,
+				to_entity_id, to_entity_type,
+				amount, transaction_type, notes
+			)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		`,
+			sale.SaleDate,
+			models.SALE_MEMO_PREFIX+"-"+sale.MemoNo,
+			sale.BranchID,
+			sale.CustomerID,
+			models.ENTITY_CUSTOMER,
+			sale.PaymentAccountID,
+			models.ENTITY_ACCOUNT,
+			sale.ReceivedAmount,
+			models.PAYMENT,
+			"Received payment on sale",
+		)
+		if err != nil {
+			return fmt.Errorf("insert transaction failed (4b): %w", err)
+		}
+
+	}
+
+	// --------------------
+	// 9. Salesperson progress
+	// --------------------
+	oldSalespersonProgress := &models.SalespersonProgress{
+		Date:       oldSale.SaleDate,
+		BranchID:   oldSale.BranchID,
+		EmployeeID: oldSale.SalespersonID,
+		SaleAmount: -oldSale.TotalAmount,
+	}
+
+	if err := UpdateSalespersonProgressReportTx(tx, ctx, oldSalespersonProgress); err != nil {
+		return fmt.Errorf("update salesperson progress failed: %w", err)
+	}
+	newSalespersonProgress := &models.SalespersonProgress{
+		Date:       sale.SaleDate,
+		BranchID:   sale.BranchID,
+		EmployeeID: sale.SalespersonID,
+		SaleAmount: sale.TotalAmount,
+	}
+
+	if err := UpdateSalespersonProgressReportTx(tx, ctx, newSalespersonProgress); err != nil {
+		return fmt.Errorf("update salesperson progress failed: %w", err)
+	}
+
+	return tx.Commit(ctx)
+}
+
 
 // ============================== SALE RETRIEVAL ==============================
 // GetSaleDetailsByID retrieves a sale info and details
@@ -657,7 +932,6 @@ func (r *ProductRepo) GetSales(
 	return sales, totalCount, nil
 }
 
-// ============================== UPDATE SALE TRANSACTIONS ==============================
 // UpdateSoldProducts updates an existing sale and all related records
 func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sale models.Sale) error {
 	tx, err := s.db.Begin(ctx)

@@ -273,49 +273,49 @@ func (o *ProductHandler) AddSale(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateOder handles PATCH /sales/update/{id}
-// func (o *ProductHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
-// 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-// 	if id == 0 || err != nil {
-// 		utils.BadRequest(w, errors.New("Invalid order id"))
-// 		return
-// 	}
-// 	var orderDetails models.OrderDB
-// 	if err := utils.ReadJSON(w, r, &orderDetails); err != nil {
-// 		o.errorLog.Println("UpdateOrder_ReadJSON:", err)
-// 		utils.BadRequest(w, err)
-// 		return
-// 	}
+func (o *ProductHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
+	id, err:= strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if id == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid sale id"))
+		return
+	}
+	var saleDetails models.SaleDB
+	if err := utils.ReadJSON(w, r, &saleDetails); err != nil {
+		o.errorLog.Println("UpdateSale_ReadJSON:", err)
+		utils.BadRequest(w, err)
+		return
+	}
 
-// 	branchID := utils.GetBranchID(r)
-// 	if branchID == 0 {
-// 		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
-// 		return
-// 	}
-// 	orderDetails.BranchID = branchID
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
+		return
+	}
+	saleDetails.BranchID = branchID
 
-// 	o.infoLog.Printf("Received order data: %+v\n", orderDetails)
+	o.infoLog.Printf("Received sale data: %+v\n", saleDetails)
 
-// 	// load old data
-// 	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderDetails.ID)
-// 	if err != nil {
-// 		o.errorLog.Println("UpdateOrder_DB:", err)
-// 		utils.ServerError(w, err)
-// 		return
-// 	}
-// 	err = o.DB.UpdateOrder(r.Context(), &orderDetails, oldOrderDetails)
-// 	if err != nil {
-// 		o.errorLog.Println("UpdateOrder_DB:", err)
-// 		utils.ServerError(w, err)
-// 		return
-// 	}
+	// load old data
+	oldSaleDetails, err := o.DB.GetSaleDetailsByID(r.Context(), saleDetails.ID);
+	if err != nil {
+		o.errorLog.Println("UpdateSale_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
+	err = o.DB.UpdateSale(r.Context(), &saleDetails, oldSaleDetails);
+	if err != nil {
+		o.errorLog.Println("UpdateSale_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
 
-// 	resp := map[string]any{
-// 		"error":   false,
-// 		"status":  "success",
-// 		"message": "Order updated successfully",
-// 	}
-// 	utils.WriteJSON(w, http.StatusCreated, resp)
-// }
+	resp := map[string]any{
+		"error":    false,
+		"status":   "success",
+		"message":  "Sale updated successfully",
+	}
+	utils.WriteJSON(w, http.StatusCreated, resp)
+}
 
 // GetSaleByID handles GET /sales/{sale_id}
 // (v2)

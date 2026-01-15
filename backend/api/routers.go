@@ -122,7 +122,7 @@ func (app *application) routes() http.Handler {
 		r.Post("/stock/add", app.Handlers.Product.RestockProducts)
 		// r.Get("/stocks", app.Handlers.Product.GetProductStockReportHandler)
 		r.Post("/sales/new", app.Handlers.Product.AddSale)
-		// r.Patch("/sale", app.Handlers.Product.UpdateSoldProducts)
+		r.Patch("/sales/update/{id}", app.Handlers.Product.UpdateSale)
 		r.Get("/sales/details/{sale_id}", app.Handlers.Product.GetSaleDetailsByID)
 		r.Get("/sales/list", app.Handlers.Product.GetSalesHandler)
 

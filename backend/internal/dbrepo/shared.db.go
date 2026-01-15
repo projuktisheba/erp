@@ -17,8 +17,8 @@ import (
 func SaveTopSheet(db *pgxpool.Pool, ctx context.Context, ts *models.TopSheetDB) error {
 	query := `
 	INSERT INTO top_sheet (
-		sheet_date, branch_id, expense, cash, bank, order_count, delivery, cancelled, ready_made
-	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		sheet_date, branch_id, expense, cash, bank, order_count, delivery, cancelled, ready_made, sales_amount
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 	ON CONFLICT (sheet_date, branch_id) DO UPDATE SET
 		expense      = top_sheet.expense + EXCLUDED.expense,
 		cash         = top_sheet.cash + EXCLUDED.cash,
@@ -26,7 +26,8 @@ func SaveTopSheet(db *pgxpool.Pool, ctx context.Context, ts *models.TopSheetDB) 
 		order_count  = top_sheet.order_count + EXCLUDED.order_count,
 		delivery     = top_sheet.delivery + EXCLUDED.delivery,
 		cancelled     = top_sheet.cancelled + EXCLUDED.cancelled,
-		ready_made   = top_sheet.ready_made + EXCLUDED.ready_made;
+		ready_made   = top_sheet.ready_made + EXCLUDED.ready_made,
+		sales_amount   = top_sheet.sales_amount + EXCLUDED.sales_amount;
 	`
 	_, err := db.Exec(ctx, query,
 		ts.SheetDate, ts.BranchID, ts.Expense, ts.Cash, ts.Bank,
@@ -39,8 +40,8 @@ func SaveTopSheet(db *pgxpool.Pool, ctx context.Context, ts *models.TopSheetDB) 
 func SaveTopSheetTx(tx pgx.Tx, ctx context.Context, ts *models.TopSheetDB) error {
 	query := `
 	INSERT INTO top_sheet (
-		sheet_date, branch_id, expense, cash, bank, order_count, delivery, cancelled, ready_made
-	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		sheet_date, branch_id, expense, cash, bank, order_count, delivery, cancelled, ready_made, sales_amount
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 	ON CONFLICT (sheet_date, branch_id) DO UPDATE SET
 		expense      = top_sheet.expense + EXCLUDED.expense,
 		cash         = top_sheet.cash + EXCLUDED.cash,
@@ -48,11 +49,12 @@ func SaveTopSheetTx(tx pgx.Tx, ctx context.Context, ts *models.TopSheetDB) error
 		order_count  = top_sheet.order_count + EXCLUDED.order_count,
 		delivery     = top_sheet.delivery + EXCLUDED.delivery,
 		cancelled    = top_sheet.cancelled + EXCLUDED.cancelled,
-		ready_made   = top_sheet.ready_made + EXCLUDED.ready_made;
+		ready_made   = top_sheet.ready_made + EXCLUDED.ready_made,
+		sales_amount   = top_sheet.sales_amount + EXCLUDED.sales_amount;
 	`
 	_, err := tx.Exec(ctx, query,
 		ts.SheetDate, ts.BranchID, ts.Expense, ts.Cash, ts.Bank,
-		ts.OrderCount, ts.Delivery, ts.Cancelled, ts.ReadyMade,
+		ts.OrderCount, ts.Delivery, ts.Cancelled, ts.ReadyMade, ts.SalesAmount,
 	)
 	return err
 }

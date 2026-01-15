@@ -226,6 +226,7 @@ CREATE TABLE top_sheet (
     delivery BIGINT NOT NULL DEFAULT 0,
     cancelled BIGINT NOT NULL DEFAULT 0,
     ready_made BIGINT NOT NULL DEFAULT 0,
+    sales_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
     UNIQUE(sheet_date, branch_id)
 );
 CREATE INDEX idx_top_sheet_sheet_date ON top_sheet(sheet_date, branch_id);

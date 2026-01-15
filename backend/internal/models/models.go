@@ -37,6 +37,10 @@ const (
 	ORDER_DELIVERY         = "delivered"
 	ORDER_CANCELLED        = "cancelled"
 )
+const (
+	SALE_DELIVERY         = "delivered"
+	SALE_RETURNED        = "returned"
+)
 
 // Response is the type for response
 type Response struct {
