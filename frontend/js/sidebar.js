@@ -105,12 +105,6 @@ const menuConfig = [
         roles: ["chairman", "manager"],
       },
       {
-        label: "Sales Report",
-        action: "loadPage('sales_report','Sales Report')",
-        pageId: "sales_report",
-        roles: ["chairman", "manager"],
-      },
-      {
         label: "Stock Report",
         action: "loadPage('stock_report','Stock Report')",
         pageId: "stock_report",

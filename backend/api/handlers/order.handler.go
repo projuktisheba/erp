@@ -107,6 +107,41 @@ func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
+
+// CancelOrder handles DELETE /orders/cancel/{id}
+func (o *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
+	orderID, err:= strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if orderID == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid order id"))
+		return
+	}
+	
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
+		return
+	}
+	// load old data
+	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderID);
+	if err != nil {
+		o.errorLog.Println("UpdateOrder_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
+	err = o.DB.CancelOrder(r.Context(), oldOrderDetails);
+	if err != nil {
+		o.errorLog.Println("CancelOrder_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
+
+	resp := map[string]any{
+		"error":    false,
+		"status":   "success",
+		"message":  "Order cancelled successfully",
+	}
+	utils.WriteJSON(w, http.StatusCreated, resp)
+}
 // UpdateOder handles POST /orders/delivery
 func (o *OrderHandler) OrderDelivery(w http.ResponseWriter, r *http.Request) {
 	var orderTx models.OrderTransactionDB

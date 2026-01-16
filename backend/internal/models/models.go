@@ -25,7 +25,7 @@ const (
 	ACCOUNT_CASH = "cash"
 )
 const (
-	ENTITY_ACCOUNT    = "accounts"
+	ENTITY_ACCOUNT     = "accounts"
 	ENTITY_CUSTOMER    = "customers"
 	ENTITY_EMPLOYEE    = "employees"
 	ENTITY_SALESPERSON = "salespersons"
@@ -38,8 +38,8 @@ const (
 	ORDER_CANCELLED        = "cancelled"
 )
 const (
-	SALE_DELIVERY         = "delivered"
-	SALE_RETURNED        = "returned"
+	SALE_DELIVERY = "delivered"
+	SALE_RETURNED = "returned"
 )
 
 // Response is the type for response
@@ -235,7 +235,7 @@ type OrderOverview struct {
 	CancelledOrdersAmount int64 `json:"cancelled_orders_amount"`
 }
 
-type SalesPersonProgressReport struct {
+type SalesPersonProgressReportDB struct {
 	SalesPersonID   int64   `json:"sales_person_id"`
 	SalesPersonName string  `json:"sales_person_name"`
 	Mobile          string  `json:"mobile"`
@@ -249,7 +249,7 @@ type SalesPersonProgressReport struct {
 	SaleReturn      float64 `json:"sale_return"`
 }
 
-type WorkerProgressReport struct {
+type WorkerProgressReportDB struct {
 	WorkerID             int64   `json:"worker_id"`
 	WorkerName           string  `json:"worker_name"`
 	Mobile               string  `json:"mobile"`
@@ -278,26 +278,35 @@ type TopSheet struct {
 	ReadyMade   int64     `json:"ready_made"`
 }
 
-// Salesperson progress struct
-type SalespersonProgress struct {
-	Date             time.Time `json:"sheet_date"`
+// Employee progress struct
+type EmployeeProgressDB struct {
+	SheetDate        time.Time `json:"sheet_date"`
 	BranchID         int64     `json:"branch_id"`
 	EmployeeID       int64     `json:"employee_id"`
 	SaleAmount       float64   `json:"sale_amount"`
 	SaleReturnAmount float64   `json:"sale_return_amount"`
 	OrderCount       int64     `json:"order_count"`
+	ProductionUnits  int64     `json:"production_units"`
+	OvertimeHours    int16     `json:"overtime_hours"`
+	AdvancePayment   float64   `json:"advance_payment"`
 	Salary           float64   `json:"salary"`
 }
 
-// Worker progress struct
-type WorkerProgress struct {
-	Date            time.Time `json:"work_date"`
-	BranchID        int64     `json:"branch_id"`
-	EmployeeID      int64     `json:"employee_id"`
+type SalaryLogDB struct {
+	ID           int64     `json:"id"`
+	EmployeeName string    `json:"employee_name"`
+	SheetDate         time.Time `json:"sheet_date"`
+	Amount       float64   `json:"amount"`
+	Note         string    `json:"note"` // Populated manually or via DB if column exists
+}
+
+type WorkerLogDB struct {
+	ID              int64     `json:"id"`
+	EmployeeName    string    `json:"employee_name"`
+	SheetDate            time.Time `json:"sheet_date"`
 	ProductionUnits int64     `json:"production_units"`
-	OvertimeHours   int16     `json:"overtime_hours"`
-	AdvancePayment  float64   `json:"advance_payment"`
-	Salary          float64   `json:"salary"`
+	OvertimeHours   float64   `json:"overtime_hours"`
+	AdvancePayment   float64   `json:"advance_payment"`
 }
 
 type SalaryRecord struct {

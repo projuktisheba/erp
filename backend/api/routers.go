@@ -79,16 +79,19 @@ func (app *application) routes() http.Handler {
 		// 	// Example: PUT /api/v1/hr/employee/salary
 		// 	r.Put("/employee/salary", app.Handlers.Employee.UpdateEmployeeSalary)
 
+		r.Get("/employee/salary/history", app.Handlers.Employee.SalaryLogList)
+		r.Get("/employee/worker/history", app.Handlers.Employee.WorkerLogList)
+
 		// 	// Generate and give employee salary
-		// 	// Example: POST /api/v1/hr/employee/salary/submit
-		// 	r.Post("/employee/salary/submit", app.Handlers.Employee.SubmitSalary)
+		// 	// Example: POST /api/v1/hr/employee/salary/new
+		r.Post("/employee/salary/create", app.Handlers.Employee.SaveSalaryRecord)
 
 		// 	// Update employee role and status
 		// 	// Example: PUT /api/v1/hr/employee/role
 		// 	r.Put("/employee/role", app.Handlers.Employee.UpdateEmployeeRole)
 
 		// 	// Update employee progress record
-		// 	r.Post("/worker/progress", app.Handlers.Employee.RecordWorkerDailyProgress)
+		r.Post("/employee/worker/progress", app.Handlers.Employee.RecordWorkerDailyProgress)
 		// 	r.Patch("/worker/progress", app.Handlers.Employee.UpdateWorkerDailyProgress)
 	})
 
@@ -133,7 +136,7 @@ func (app *application) routes() http.Handler {
 		r.Get("/orders", app.Handlers.Order.GetOrdersHandler)
 		r.Get("/orders/{id}", app.Handlers.Order.GetOrderDetailsByID)
 		r.Patch("/orders/update/{id}", app.Handlers.Order.UpdateOrder)
-		// r.Delete("/", app.Handlers.Order.CancelOrder)
+		// r.Delete("orders/cancel/{id}", app.Handlers.Order.CancelOrder)
 		// r.Patch("/checkout", app.Handlers.Order.CheckoutOrder)
 		r.Post("/orders/delivery", app.Handlers.Order.OrderDelivery)
 		// r.Get("/", app.Handlers.Order.GetOrderDetailsByID)

@@ -260,7 +260,7 @@ CREATE TABLE employees_progress (
 
     -- progress metrics for worker
     production_units BIGINT NOT NULL DEFAULT 0,
-    overtime_hours SMALLINT NOT NULL DEFAULT 0,
+    overtime_hours NUMERIC(12,2) NOT NULL  DEFAULT 0.00,
     advance_payment NUMERIC(12,2) NOT NULL  DEFAULT 0.00,
 
     salary NUMERIC(12,2) NOT NULL  DEFAULT 0.00,

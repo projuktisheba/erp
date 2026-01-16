@@ -232,15 +232,15 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 	// --------------------
 	// Step 6: Salesperson progress
 	// --------------------
-	salespersonProgress := &models.SalespersonProgress{
-		Date:       order.OrderDate,
+	salespersonProgress := &models.EmployeeProgressDB{
+		SheetDate:       order.OrderDate,
 		BranchID:   order.BranchID,
 		EmployeeID: order.SalespersonID,
 		OrderCount: order.TotalItems,
 		SaleAmount: order.TotalAmount,
 	}
 
-	if err := UpdateSalespersonProgressReportTx(tx, ctx, salespersonProgress); err != nil {
+	if err := UpdateEmployeeProgressReportTx(tx, ctx, salespersonProgress); err != nil {
 		return 0, fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 
@@ -381,27 +381,27 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 
 	// 5a. Revert Old Salesperson
 	// We subtract the old stats from the OLD salesperson ID
-	oldProgress := &models.SalespersonProgress{
-		Date:       oldOrder.OrderDate,
+	oldProgress := &models.EmployeeProgressDB{
+		SheetDate:       oldOrder.OrderDate,
 		BranchID:   oldOrder.BranchID,
 		EmployeeID: oldOrder.SalespersonID, // OLD ID
 		OrderCount: -oldOrder.TotalItems,
 		SaleAmount: -oldOrder.TotalAmount,
 	}
-	if err := UpdateSalespersonProgressReportTx(tx, ctx, oldProgress); err != nil {
+	if err := UpdateEmployeeProgressReportTx(tx, ctx, oldProgress); err != nil {
 		return fmt.Errorf("revert old salesperson progress failed: %w", err)
 	}
 
 	// 5b. Apply New Salesperson
 	// We add the new stats to the NEW salesperson ID
-	newProgress := &models.SalespersonProgress{
-		Date:       order.OrderDate,
+	newProgress := &models.EmployeeProgressDB{
+		SheetDate:       order.OrderDate,
 		BranchID:   order.BranchID,
 		EmployeeID: order.SalespersonID, // NEW ID
 		OrderCount: order.TotalItems,
 		SaleAmount: order.TotalAmount,
 	}
-	if err := UpdateSalespersonProgressReportTx(tx, ctx, newProgress); err != nil {
+	if err := UpdateEmployeeProgressReportTx(tx, ctx, newProgress); err != nil {
 		return fmt.Errorf("apply new salesperson progress failed: %w", err)
 	}
 
@@ -507,6 +507,217 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 			return fmt.Errorf("insert new global tx failed: %w", err)
 		}
 	}
+
+	return tx.Commit(ctx)
+}
+
+// CancelOrder revert all the records of an order
+func (r *OrderRepo) CancelOrder(ctx context.Context, oldOrder *models.OrderDB) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// // --------------------
+	// // 1. Basic Validations
+	// // --------------------
+	// if (oldOrder.Status != models.ORDER_PENDING) || (oldOrder.Status != models.ORDER_PARTIAL_DELIVERY) {
+	// 	return fmt.Errorf("only pending orders can be modified")
+	// }
+
+	// // --------------------
+	// // 2. Delete Order relate record (orders, order_items, order_transactions)
+	// // --------------------
+	// _, err = tx.Exec(ctx, `DELETE FROM order_items WHERE id=$1`, oldOrder.ID)
+	// if err != nil {
+	// 	return fmt.Errorf("delete order header failed: %w", err)
+	// }
+
+	// // --------------------
+	// // 4. Handle Top Sheet (Daily Summary)
+	// // --------------------
+
+	
+	// // 4a. Revert Old (Subtract from OLD Date)
+	// oldSheet := &models.TopSheetDB{
+	// 	SheetDate:  oldOrder.OrderDate,
+	// 	BranchID:   oldOrder.BranchID,
+	// 	OrderCount: -oldOrder.TotalItems, // Negative to subtract
+	// }
+	// // Determine old account type for Top Sheet
+	// if oldOrder.ReceivedAmount > 0 && len(oldOrder.OrderTransactions) > 0 {
+	// 	var oldAcctType string
+	// 	// Try to get account from old transaction, fallback to order struct
+	// 	acctID := oldOrder.OrderTransactions[0].PaymentAccountID
+
+	// 	err = tx.QueryRow(ctx, `SELECT type FROM accounts WHERE id=$1`, acctID).Scan(&oldAcctType)
+	// 	if err == nil {
+	// 		if oldAcctType == models.ACCOUNT_BANK {
+	// 			oldSheet.Bank = -oldOrder.ReceivedAmount
+	// 		} else {
+	// 			oldSheet.Cash = -oldOrder.ReceivedAmount
+	// 		}
+	// 	}
+	// }
+	// if err := SaveTopSheetTx(tx, ctx, oldSheet); err != nil {
+	// 	return fmt.Errorf("revert top sheet failed: %w", err)
+	// }
+
+	// // 4b. Apply New (Add to NEW Date)
+	// newSheet := &models.TopSheetDB{
+	// 	SheetDate:  order.OrderDate,
+	// 	BranchID:   order.BranchID,
+	// 	OrderCount: order.TotalItems,
+	// }
+	// var newAcctType string // Needed later for transaction logs too
+	// if order.ReceivedAmount > 0 {
+	// 	err = tx.QueryRow(ctx, `SELECT type FROM accounts WHERE id=$1`, order.PaymentAccountID).Scan(&newAcctType)
+	// 	if err != nil {
+	// 		return fmt.Errorf("lookup new account type failed: %w", err)
+	// 	}
+	// 	if newAcctType == models.ACCOUNT_BANK {
+	// 		newSheet.Bank = order.ReceivedAmount
+	// 	} else {
+	// 		newSheet.Cash = order.ReceivedAmount
+	// 	}
+	// }
+	// if err := SaveTopSheetTx(tx, ctx, newSheet); err != nil {
+	// 	return fmt.Errorf("apply top sheet failed: %w", err)
+	// }
+
+	// // --------------------
+	// // 5. Handle Salesperson Progress
+	// // --------------------
+
+	// // 5a. Revert Old Salesperson
+	// // We subtract the old stats from the OLD salesperson ID
+	// oldProgress := &models.SalespersonProgress{
+	// 	Date:       oldOrder.OrderDate,
+	// 	BranchID:   oldOrder.BranchID,
+	// 	EmployeeID: oldOrder.SalespersonID, // OLD ID
+	// 	OrderCount: -oldOrder.TotalItems,
+	// 	SaleAmount: -oldOrder.TotalAmount,
+	// }
+	// if err := UpdateSalespersonProgressReportTx(tx, ctx, oldProgress); err != nil {
+	// 	return fmt.Errorf("revert old salesperson progress failed: %w", err)
+	// }
+
+	// // 5b. Apply New Salesperson
+	// // We add the new stats to the NEW salesperson ID
+	// newProgress := &models.SalespersonProgress{
+	// 	Date:       order.OrderDate,
+	// 	BranchID:   order.BranchID,
+	// 	EmployeeID: order.SalespersonID, // NEW ID
+	// 	OrderCount: order.TotalItems,
+	// 	SaleAmount: order.TotalAmount,
+	// }
+	// if err := UpdateSalespersonProgressReportTx(tx, ctx, newProgress); err != nil {
+	// 	return fmt.Errorf("apply new salesperson progress failed: %w", err)
+	// }
+
+	// // --------------------
+	// // 6. Handle Customer Due
+	// // --------------------
+
+	// // 6a. Revert Old Customer Due
+	// // Remove the *Old Due* amount from the *Old Customer*
+	// oldDue := oldOrder.TotalAmount - oldOrder.ReceivedAmount
+	// if oldDue != 0 {
+	// 	_, err = tx.Exec(ctx, `
+	// 		UPDATE customers 
+	// 		SET due_amount = due_amount - $1 
+	// 		WHERE id = $2
+	// 	`, oldDue, oldOrder.CustomerID) // OLD Customer ID
+	// 	if err != nil {
+	// 		return fmt.Errorf("revert old customer due failed: %w", err)
+	// 	}
+	// }
+
+	// // 6b. Apply New Customer Due
+	// // Add the *New Due* amount to the *New Customer*
+	// newDue := order.TotalAmount - order.ReceivedAmount
+	// if newDue != 0 {
+	// 	_, err = tx.Exec(ctx, `
+	// 		UPDATE customers 
+	// 		SET due_amount = due_amount + $1 
+	// 		WHERE id = $2
+	// 	`, newDue, order.CustomerID) // NEW Customer ID
+	// 	if err != nil {
+	// 		return fmt.Errorf("apply new customer due failed: %w", err)
+	// 	}
+	// }
+
+	// // --------------------
+	// // 7. Handle Financials (Payments)
+	// // --------------------
+
+	// // 7a. Revert Old Payment (If existed)
+	// if oldOrder.ReceivedAmount > 0 && len(oldOrder.OrderTransactions) > 0 {
+	// 	oldAcctID := oldOrder.OrderTransactions[0].PaymentAccountID
+
+	// 	// Refund the money from the Old Account
+	// 	_, err = tx.Exec(ctx, `UPDATE accounts SET current_balance = current_balance - $1 WHERE id = $2`,
+	// 		oldOrder.ReceivedAmount, oldAcctID)
+	// 	if err != nil {
+	// 		return fmt.Errorf("revert old account balance failed: %w", err)
+	// 	}
+
+	// 	// Delete Old Logs
+	// 	_, err = tx.Exec(ctx, `DELETE FROM order_transactions WHERE order_id=$1 AND transaction_type=$2`,
+	// 		order.ID, models.ADVANCE_PAYMENT)
+	// 	if err != nil {
+	// 		return fmt.Errorf("delete old order tx failed: %w", err)
+	// 	}
+
+	// 	oldMemoStr := models.ORDER_MEMO_PREFIX + "-" + oldOrder.MemoNo
+	// 	_, err = tx.Exec(ctx, `DELETE FROM transactions WHERE memo_no=$1 AND branch_id=$2 AND transaction_type=$3`,
+	// 		oldMemoStr, oldOrder.BranchID, models.ADVANCE_PAYMENT)
+	// 	if err != nil {
+	// 		return fmt.Errorf("delete old global tx failed: %w", err)
+	// 	}
+	// }
+
+	// // 7b. Apply New Payment (If > 0)
+	// if order.ReceivedAmount > 0 {
+	// 	// Add money to New Account
+	// 	_, err = tx.Exec(ctx, `UPDATE accounts SET current_balance = current_balance + $1 WHERE id = $2`,
+	// 		order.ReceivedAmount, order.PaymentAccountID)
+	// 	if err != nil {
+	// 		return fmt.Errorf("update new account balance failed: %w", err)
+	// 	}
+
+	// 	// Insert New Logs
+	// 	_, err = tx.Exec(ctx, `
+	// 		INSERT INTO order_transactions(
+	// 			order_id, transaction_date, payment_account_id, memo_no, 
+	// 			delivered_by, quantity_delivered, amount, transaction_type
+	// 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+	// 	`,
+	// 		order.ID, order.OrderDate, order.PaymentAccountID, order.MemoNo,
+	// 		order.SalespersonID, order.DeliveredItems, order.ReceivedAmount, models.ADVANCE_PAYMENT,
+	// 	)
+	// 	if err != nil {
+	// 		return fmt.Errorf("insert new order tx failed: %w", err)
+	// 	}
+
+	// 	_, err = tx.Exec(ctx, `
+	// 		INSERT INTO transactions(
+	// 			transaction_date, memo_no, branch_id,
+	// 			from_entity_id, from_entity_type,
+	// 			to_entity_id, to_entity_type,
+	// 			amount, transaction_type, notes
+	// 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+	// 	`,
+	// 		order.OrderDate, models.ORDER_MEMO_PREFIX+"-"+order.MemoNo, order.BranchID,
+	// 		order.CustomerID, models.ENTITY_CUSTOMER,
+	// 		order.PaymentAccountID, models.ENTITY_ACCOUNT,
+	// 		order.ReceivedAmount, models.ADVANCE_PAYMENT, "Advance payment (Updated)",
+	// 	)
+	// 	if err != nil {
+	// 		return fmt.Errorf("insert new global tx failed: %w", err)
+	// 	}
+	// }
 
 	return tx.Commit(ctx)
 }

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/projuktisheba/erp-mini-api/internal/models"
+	"github.com/projuktisheba/erp-mini-api/internal/utils"
 )
 
 // ============================== Employee Repository ==============================
@@ -21,6 +23,7 @@ func NewEmployeeRepo(db *pgxpool.Pool) *EmployeeRepo {
 	return &EmployeeRepo{db: db}
 }
 
+// (V2)
 func (r *EmployeeRepo) CreateEmployee(ctx context.Context, e *models.Employee) error {
 	query := `
 		INSERT INTO employees 
@@ -54,6 +57,7 @@ func (r *EmployeeRepo) CreateEmployee(ctx context.Context, e *models.Employee) e
 	return nil
 }
 
+// (V2)
 // GetEmployee fetches an employee by ID
 func (user *EmployeeRepo) GetEmployeeByID(ctx context.Context, id int64) (*models.Employee, error) {
 	query := `
@@ -105,6 +109,7 @@ func (user *EmployeeRepo) GetEmployeeByUsernameOrMobile(ctx context.Context, use
 	return e, nil
 }
 
+// (V2)
 // UpdateEmployee updates employee details
 func (r *EmployeeRepo) UpdateEmployee(ctx context.Context, e *models.Employee) error {
 	query := `
@@ -187,9 +192,10 @@ func (user *EmployeeRepo) UpdateEmployeeSalary(ctx context.Context, e *models.Em
 	).Scan(&e.UpdatedAt)
 }
 
+// (V2)
 // SubmitSalary generates and give employee salary
 // Call this function if the role of the token user is Admin
-func (user *EmployeeRepo) SubmitSalary(ctx context.Context, salaryDate time.Time, employeeID, branchID int64, amount float64) error {
+func (user *EmployeeRepo) SaveSalaryRecord(ctx context.Context, salaryDate time.Time, employeeID, branchID, accountID int64, amount float64) error {
 	//using pgxpool begin a transaction
 	tx, err := user.db.Begin(ctx)
 	if err != nil {
@@ -197,8 +203,14 @@ func (user *EmployeeRepo) SubmitSalary(ctx context.Context, salaryDate time.Time
 	}
 	defer tx.Rollback(ctx)
 
+	employeeSalary := &models.EmployeeProgressDB{
+		SheetDate:  salaryDate,
+		BranchID:   branchID,
+		EmployeeID: employeeID,
+		Salary:     amount,
+	}
 	// update employee_progress
-	err = SubmitEmployeeSalaryTx(tx, ctx, salaryDate, branchID, employeeID, amount)
+	err = UpdateEmployeeProgressReportTx(tx, ctx, employeeSalary)
 	if err != nil {
 		return fmt.Errorf("insert salary: %w", err)
 	}
@@ -213,27 +225,18 @@ func (user *EmployeeRepo) SubmitSalary(ctx context.Context, salaryDate time.Time
 	if err != nil {
 		return fmt.Errorf("save topsheet: %w", err)
 	}
-	// get the branch accounts id
-	var fromAccountID int64
-	err = tx.QueryRow(ctx, `
-        SELECT id
-        FROM accounts
-		WHERE branch_id = $1 AND type = 'bank'
-		LIMIT 1
-    `, branchID).Scan(&fromAccountID)
-	if err != nil {
-		return err
-	}
+
 	//insert transaction
 	transaction := &models.Transaction{
+		TransactionDate: salaryDate,
+		MemoNo:          models.SALARY_MEMO_PREFIX + utils.GenerateMemoNo(),
 		BranchID:        branchID,
-		FromID:          fromAccountID,
-		FromType:        "accounts",
+		FromID:          accountID,
+		FromType:        models.ENTITY_ACCOUNT,
 		ToID:            employeeID,
-		ToType:          "employees",
+		ToType:          models.ENTITY_EMPLOYEE,
 		Amount:          amount,
-		TransactionType: "salary",
-		CreatedAt:       salaryDate,
+		TransactionType: models.SALARY,
 		Notes:           "Employee Salary",
 	}
 	_, err = CreateTransactionTx(ctx, tx, transaction) // silently add transaction
@@ -244,6 +247,110 @@ func (user *EmployeeRepo) SubmitSalary(ctx context.Context, salaryDate time.Time
 	}
 
 	return tx.Commit(ctx)
+}
+
+func (user *EmployeeRepo) GetSalaryLogs(ctx context.Context, branchID int64, page, limit int, search string) ([]*models.SalaryLogDB, int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	offset := (page - 1) * limit
+
+	// Base Query
+	query := `
+		SELECT ep.id, e.name, ep.sheet_date, ep.salary
+		FROM employees_progress ep
+		JOIN employees e ON ep.employee_id = e.id
+		WHERE ep.branch_id = $1 AND ep.salary > 0
+	`
+
+	// Add search filter if present
+	args := []interface{}{branchID}
+	if search != "" {
+		query += ` AND (LOWER(e.name) LIKE LOWER($` + strconv.Itoa(len(args)+1) + `))`
+		args = append(args, "%"+search+"%")
+	}
+
+	query += ` ORDER BY ep.sheet_date DESC`
+
+	// Add Pagination
+	if limit > 0 {
+		query += ` LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
+		args = append(args, limit, offset)
+	}
+
+	// Execute
+	rows, err := user.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var logs []*models.SalaryLogDB
+	for rows.Next() {
+		var l models.SalaryLogDB
+		if err := rows.Scan(&l.ID, &l.EmployeeName, &l.SheetDate, &l.Amount); err != nil {
+			return nil, 0, err
+		}
+		l.Note = "Salary Payment" // Static note as DB column doesn't exist yet
+		logs = append(logs, &l)
+	}
+
+	// Get Total Count (Simplification: ideally run a separate COUNT query with same WHERE clauses)
+	total := len(logs) // Replace with actual COUNT(*) query for accurate pagination
+
+	return logs, total, nil
+}
+
+func (user *EmployeeRepo) GetWorkerLogs(ctx context.Context, branchID int64, page, limit int, search string) ([]*models.WorkerLogDB, int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	offset := (page - 1) * limit
+	
+	// Base Query: Filters where meaningful data exists for workers
+	query := `
+		SELECT ep.id, e.name, ep.sheet_date, ep.production_units, ep.overtime_hours, ep.advance_payment
+		FROM employees_progress ep
+		JOIN employees e ON ep.employee_id = e.id
+		WHERE ep.branch_id = $1 
+		AND (ep.production_units > 0 OR ep.overtime_hours > 0 OR ep.advance_payment > 0)
+	`
+	
+	// Add search filter
+	args := []interface{}{branchID}
+	if search != "" {
+		query += ` AND (LOWER(e.name) LIKE LOWER($` + strconv.Itoa(len(args)+1) + `))`
+		args = append(args, "%"+search+"%")
+	}
+
+	query += ` ORDER BY ep.sheet_date DESC`
+
+	// Add Pagination
+	if limit > 0 {
+		query += ` LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
+		args = append(args, limit, offset)
+	}
+
+	// Execute
+	rows, err := user.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var logs []*models.WorkerLogDB
+	for rows.Next() {
+		var l models.WorkerLogDB
+		if err := rows.Scan(&l.ID, &l.EmployeeName, &l.SheetDate, &l.ProductionUnits, &l.OvertimeHours, &l.AdvancePayment); err != nil {
+			return nil, 0, err
+		}
+		logs = append(logs, &l)
+	}
+
+    // Replace with actual count query
+	total := len(logs) 
+
+	return logs, total, nil
 }
 
 // UpdateEmployeeStatus updates employee role and status
@@ -408,20 +515,20 @@ func (e *EmployeeRepo) PaginatedEmployeeList(ctx context.Context, page, limit in
 	return employees, total, nil
 }
 
-func (e *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, workerProgress models.WorkerProgress) error {
+func (e *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, workerProgress models.EmployeeProgressDB) error {
 	tx, err := e.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	//update employee_progress_table
-	err = UpdateWorkerProgressReportTx(tx, ctx, &workerProgress)
+	err = UpdateEmployeeProgressReportTx(tx, ctx, &workerProgress)
 	if err != nil {
 		return err
 	}
 	//update top_sheet if AdvancePayment > 0
 	if workerProgress.AdvancePayment > 0 {
 		err := SaveTopSheetTx(tx, ctx, &models.TopSheetDB{
-			SheetDate: workerProgress.Date,
+			SheetDate: workerProgress.SheetDate,
 			BranchID:  workerProgress.BranchID,
 			Expense:   workerProgress.AdvancePayment,
 		})
@@ -431,17 +538,16 @@ func (e *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, workerProgress 
 
 		//insert transaction
 		transaction := &models.Transaction{
+			TransactionDate: workerProgress.SheetDate,
 			BranchID:        workerProgress.BranchID,
-			MemoNo:          "",
+			MemoNo:          models.SALARY_MEMO_PREFIX+utils.GenerateMemoNo(),
 			FromID:          workerProgress.BranchID,
-			FromAccountName: "Branch",
-			FromType:        "branch",
+			FromType: models.ENTITY_ACCOUNT,
 			ToID:            workerProgress.EmployeeID,
-			ToAccountName:   "",
-			ToType:          "employees",
+			ToType:          models.ENTITY_EMPLOYEE,
 			Amount:          workerProgress.AdvancePayment,
-			TransactionType: "salary",
-			CreatedAt:       workerProgress.Date,
+			TransactionType: models.ADVANCE_PAYMENT,
+			CreatedAt:       workerProgress.SheetDate,
 			Notes:           "Worker advance payment",
 		}
 		CreateTransactionTx(ctx, tx, transaction) // silently add transaction

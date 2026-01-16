@@ -30,7 +30,7 @@ func (r *TransactionRepo) CreateTransaction(ctx context.Context, t *models.Trans
 	query := `
 		INSERT INTO transactions
 			(transaction_date, memo_no, branch_id, from_entity_id, from_entity_type, to_entity_id, to_entity_type, amount, transaction_type, notes, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
 		RETURNING transaction_id
 	`
 	err := r.db.QueryRow(ctx, query,

@@ -396,14 +396,14 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 	// --------------------
 	// Step 6: Salesperson progress
 	// --------------------
-	salespersonProgress := &models.SalespersonProgress{
-		Date:       sale.SaleDate,
+	salespersonProgress := &models.EmployeeProgressDB{
+		SheetDate:       sale.SaleDate,
 		BranchID:   sale.BranchID,
 		EmployeeID: sale.SalespersonID,
 		SaleAmount: sale.TotalAmount,
 	}
 
-	if err := UpdateSalespersonProgressReportTx(tx, ctx, salespersonProgress); err != nil {
+	if err := UpdateEmployeeProgressReportTx(tx, ctx, salespersonProgress); err != nil {
 		return 0, fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 
@@ -640,24 +640,24 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 	// --------------------
 	// 9. Salesperson progress
 	// --------------------
-	oldSalespersonProgress := &models.SalespersonProgress{
-		Date:       oldSale.SaleDate,
+	oldSalespersonProgress := &models.EmployeeProgressDB{
+		SheetDate:       oldSale.SaleDate,
 		BranchID:   oldSale.BranchID,
 		EmployeeID: oldSale.SalespersonID,
 		SaleAmount: -oldSale.TotalAmount,
 	}
 
-	if err := UpdateSalespersonProgressReportTx(tx, ctx, oldSalespersonProgress); err != nil {
+	if err := UpdateEmployeeProgressReportTx(tx, ctx, oldSalespersonProgress); err != nil {
 		return fmt.Errorf("update salesperson progress failed: %w", err)
 	}
-	newSalespersonProgress := &models.SalespersonProgress{
-		Date:       sale.SaleDate,
+	newSalespersonProgress := &models.EmployeeProgressDB{
+		SheetDate:       sale.SaleDate,
 		BranchID:   sale.BranchID,
 		EmployeeID: sale.SalespersonID,
 		SaleAmount: sale.TotalAmount,
 	}
 
-	if err := UpdateSalespersonProgressReportTx(tx, ctx, newSalespersonProgress); err != nil {
+	if err := UpdateEmployeeProgressReportTx(tx, ctx, newSalespersonProgress); err != nil {
 		return fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 
@@ -1050,13 +1050,13 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 	}
 
 	// 1.4: Reverse Salesperson Progress (Negative Amount)
-	prevProgress := models.SalespersonProgress{
-		Date:       prevSale.SaleDate,
+	prevProgress := models.EmployeeProgressDB{
+		SheetDate:       prevSale.SaleDate,
 		BranchID:   branchID,
 		EmployeeID: prevSale.SalespersonID,
 		SaleAmount: -prevSale.TotalPayableAmount,
 	}
-	if err := UpdateSalespersonProgressReportTx(tx, ctx, &prevProgress); err != nil {
+	if err := UpdateEmployeeProgressReportTx(tx, ctx, &prevProgress); err != nil {
 		return fmt.Errorf("reverse salesperson progress: %w", err)
 	}
 
@@ -1179,13 +1179,13 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 	}
 
 	// 2.6: Update Salesperson Progress (Positive Amount)
-	newProgress := models.SalespersonProgress{
-		Date:       sale.SaleDate,
+	newProgress := models.EmployeeProgressDB{
+		SheetDate:       sale.SaleDate,
 		BranchID:   branchID,
 		EmployeeID: sale.SalespersonID,
 		SaleAmount: sale.TotalPayableAmount,
 	}
-	if err := UpdateSalespersonProgressReportTx(tx, ctx, &newProgress); err != nil {
+	if err := UpdateEmployeeProgressReportTx(tx, ctx, &newProgress); err != nil {
 		return fmt.Errorf("update salesperson progress: %w", err)
 	}
 

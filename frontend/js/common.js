@@ -561,7 +561,7 @@ window.printSaleInvoice = async function(id, sale) {
                                 <td colspan="2" class="total-amount-cell">${formatMoney(totalAmount)}</td>
                             </tr>
                              <tr class="total-row">
-                                <td colspan="3" class="total-label-cell">ADVANCE / مقدماً</td>
+                                <td colspan="3" class="total-label-cell">RECEIVED / مقدماً</td>
                                 <td colspan="2" class="total-amount-cell">${formatMoney(receivedAmount)}</td>
                             </tr>
                              <tr class="total-row">

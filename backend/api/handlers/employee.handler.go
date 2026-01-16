@@ -41,6 +41,8 @@ func NewEmployeeHandler(db *dbrepo.EmployeeRepo, infoLog *log.Logger, errorLog *
 		errorLog: errorLog,
 	}
 }
+
+// (V2)
 func (e *EmployeeHandler) AddEmployee(w http.ResponseWriter, r *http.Request) {
 
 	//read branch id
@@ -88,6 +90,8 @@ func (e *EmployeeHandler) AddEmployee(w http.ResponseWriter, r *http.Request) {
 	resp.Employee = &employeeDetails
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
+
+// (V2)
 func (e *EmployeeHandler) GetEmployeeByID(w http.ResponseWriter, r *http.Request) {
 	idParam := strings.TrimSpace(r.URL.Query().Get("id"))
 	if idParam == "" {
@@ -159,6 +163,7 @@ func (e *EmployeeHandler) GetEmployeesNameAndID(w http.ResponseWriter, r *http.R
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
+// (V2)
 // UpdateEmployee updates general employee details
 func (e *EmployeeHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 	//read employee id
@@ -174,7 +179,7 @@ func (e *EmployeeHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request)
 		utils.BadRequest(w, err)
 		return
 	}
-	
+
 	employeeDetails.ID = employeeID
 	fmt.Println(employeeDetails.Role)
 	err = e.DB.UpdateEmployee(r.Context(), &employeeDetails)
@@ -239,36 +244,37 @@ func (e *EmployeeHandler) UpdateEmployeeSalary(w http.ResponseWriter, r *http.Re
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-// SubmitSalary generate and give employee salary
-func (e *EmployeeHandler) SubmitSalary(w http.ResponseWriter, r *http.Request) {
+// (V2)
+// SaveSalaryRecord record employee salary
+func (e *EmployeeHandler) SaveSalaryRecord(w http.ResponseWriter, r *http.Request) {
 	var salary struct {
-		EmployeeID int64     `json:"employee_id"`
-		Amount     float64   `json:"salary_amount"`
-		SalaryDate time.Time `json:"salary_date"`
+		EmployeeID       int64     `json:"employee_id"`
+		PaymentAccountID int64     `json:"payment_account_id"`
+		Amount           float64   `json:"amount"`
+		PaymentDate      time.Time `json:"payment_date"`
 	}
 	err := utils.ReadJSON(w, r, &salary)
 	if err != nil {
-		e.errorLog.Println("ERROR_01_SubmitSalary", err)
+		e.errorLog.Println("ERROR_01_SaveSalaryRecord", err)
 		utils.BadRequest(w, err)
 		return
 	}
-	e.infoLog.Println(salary)
 	if salary.EmployeeID == 0 {
-		e.errorLog.Println("ERROR_02_SubmitSalary: Missing employee ID")
+		e.errorLog.Println("ERROR_02_SaveSalaryRecord: Missing employee ID")
 		utils.BadRequest(w, errors.New("missing employee ID"))
 		return
 	}
 
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {
-		e.errorLog.Println("ERROR_03_SubmitSalary: Missing branch ID")
+		e.errorLog.Println("ERROR_03_SaveSalaryRecord: Missing branch ID")
 		utils.BadRequest(w, errors.New("missing branch ID"))
 		return
 	}
-	e.infoLog.Println("salary: ", salary, branchID)
-	err = e.DB.SubmitSalary(r.Context(), salary.SalaryDate, salary.EmployeeID, branchID, salary.Amount)
+	e.infoLog.Printf("%+v", salary)
+	err = e.DB.SaveSalaryRecord(r.Context(), salary.PaymentDate, salary.EmployeeID, branchID, salary.PaymentAccountID, salary.Amount)
 	if err != nil {
-		e.errorLog.Println("ERROR_04_SubmitSalary: ", err)
+		e.errorLog.Println("ERROR_04_SaveSalaryRecord: ", err)
 		if errors.Is(err, pgx.ErrNoRows) {
 			utils.BadRequest(w, errors.New("Invalid user id"))
 		} else {
@@ -284,7 +290,158 @@ func (e *EmployeeHandler) SubmitSalary(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.Error = false
 	resp.Status = "success"
-	resp.Message = "Employee salary updated successfully"
+	resp.Message = "Employee salary recorded"
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+// SalaryLogList handles fetching paginated salary payment history
+func (e *EmployeeHandler) SalaryLogList(w http.ResponseWriter, r *http.Request) {
+
+	// Extract query params
+	pageParam := strings.TrimSpace(r.URL.Query().Get("page"))
+	limitParam := strings.TrimSpace(r.URL.Query().Get("limit"))
+	searchParam := strings.TrimSpace(r.URL.Query().Get("search"))
+
+	// Defaults
+	page := 0   // 0 means list all
+	limit := 10 // Default limit if not specified
+	branchID := utils.GetBranchID(r)
+
+	// Parse page param
+	if pageParam != "" {
+		if p, err := strconv.Atoi(pageParam); err == nil && p > 0 {
+			page = p
+		} else {
+			e.errorLog.Println("ERROR_01_SalaryLogList: Invalid page")
+			utils.BadRequest(w, errors.New("ERROR_01_SalaryLogList: Invalid page"))
+			return
+		}
+	}
+
+	// Parse limit param
+	if limitParam != "" {
+		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
+			limit = l
+		} else {
+			e.errorLog.Println("ERROR_02_SalaryLogList: Invalid limit")
+			utils.BadRequest(w, errors.New("ERROR_02_SalaryLogList: Invalid limit"))
+			return
+		}
+	}
+
+	// Fetch filtered logs from DB
+	// Note: You need to implement GetSalaryLogs in your DB layer (query provided below)
+	logs, total, err := e.DB.GetSalaryLogs(r.Context(), branchID, page, limit, searchParam)
+	if err != nil {
+		e.errorLog.Println("ERROR_03_SalaryLogList: ", err)
+		utils.BadRequest(w, err)
+		return
+	}
+
+	// Calculate pagination
+	totalPages := 1
+	if limit > 0 && total > 0 {
+		totalPages = (total + limit - 1) / limit
+	} else if total == 0 {
+		totalPages = 0
+	}
+
+	// Build response
+	var resp struct {
+		Error      bool                  `json:"error"`
+		Status     string                `json:"status"`
+		Message    string                `json:"message"`
+		Page       int                   `json:"page"`
+		Limit      int                   `json:"limit"`
+		Total      int                   `json:"total"`
+		TotalPages int                   `json:"total_pages"`
+		History    []*models.SalaryLogDB `json:"history"` // Matches frontend 'history' key
+	}
+
+	resp.Error = false
+	resp.Status = "success"
+	resp.Message = "Salary history fetched successfully"
+	resp.Page = page
+	resp.Limit = limit
+	resp.Total = total
+	resp.TotalPages = totalPages
+	resp.History = logs
+
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+// WorkerLogList handles fetching paginated worker progress (OT, Units, Advance)
+func (e *EmployeeHandler) WorkerLogList(w http.ResponseWriter, r *http.Request) {
+
+	// Extract query params
+	pageParam := strings.TrimSpace(r.URL.Query().Get("page"))
+	limitParam := strings.TrimSpace(r.URL.Query().Get("limit"))
+	searchParam := strings.TrimSpace(r.URL.Query().Get("search"))
+
+	// Defaults
+	page := 0
+	limit := 10
+	branchID := utils.GetBranchID(r)
+
+	// Parse page param
+	if pageParam != "" {
+		if p, err := strconv.Atoi(pageParam); err == nil && p > 0 {
+			page = p
+		} else {
+			e.errorLog.Println("ERROR_01_WorkerLogList: Invalid page")
+			utils.BadRequest(w, errors.New("ERROR_01_WorkerLogList: Invalid page"))
+			return
+		}
+	}
+
+	// Parse limit param
+	if limitParam != "" {
+		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
+			limit = l
+		} else {
+			e.errorLog.Println("ERROR_02_WorkerLogList: Invalid limit")
+			utils.BadRequest(w, errors.New("ERROR_02_WorkerLogList: Invalid limit"))
+			return
+		}
+	}
+
+	// Fetch filtered logs from DB
+	logs, total, err := e.DB.GetWorkerLogs(r.Context(), branchID, page, limit, searchParam)
+	if err != nil {
+		e.errorLog.Println("ERROR_03_WorkerLogList: ", err)
+		utils.BadRequest(w, err)
+		return
+	}
+
+	// Calculate pagination
+	totalPages := 1
+	if limit > 0 && total > 0 {
+		totalPages = (total + limit - 1) / limit
+	} else if total == 0 {
+		totalPages = 0
+	}
+
+	// Build response
+	var resp struct {
+		Error      bool                  `json:"error"`
+		Status     string                `json:"status"`
+		Message    string                `json:"message"`
+		Page       int                   `json:"page"`
+		Limit      int                   `json:"limit"`
+		Total      int                   `json:"total"`
+		TotalPages int                   `json:"total_pages"`
+		History    []*models.WorkerLogDB `json:"history"`
+	}
+
+	resp.Error = false
+	resp.Status = "success"
+	resp.Message = "Worker progress logs fetched successfully"
+	resp.Page = page
+	resp.Limit = limit
+	resp.Total = total
+	resp.TotalPages = totalPages
+	resp.History = logs
+
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
@@ -532,7 +689,7 @@ func (e *EmployeeHandler) RecordWorkerDailyProgress(w http.ResponseWriter, r *ht
 		utils.BadRequest(w, errors.New("missing branch ID"))
 		return
 	}
-	var requestBody models.WorkerProgress
+	var requestBody models.EmployeeProgressDB
 	err := utils.ReadJSON(w, r, &requestBody)
 
 	if err != nil {
@@ -541,6 +698,8 @@ func (e *EmployeeHandler) RecordWorkerDailyProgress(w http.ResponseWriter, r *ht
 		return
 	}
 	requestBody.BranchID = branchID
+
+	e.infoLog.Printf("%+v", requestBody)
 	err = e.DB.UpdateWorkerProgress(r.Context(), requestBody)
 	if err != nil {
 		e.errorLog.Println("ERROR_03_RecordWorkerDailyProgress: Database error", err)
@@ -562,7 +721,7 @@ func (e *EmployeeHandler) UpdateWorkerDailyProgress(w http.ResponseWriter, r *ht
 		utils.BadRequest(w, errors.New("missing branch ID"))
 		return
 	}
-	var requestBody models.WorkerProgress
+	var requestBody models.EmployeeProgressDB
 	err := utils.ReadJSON(w, r, &requestBody)
 
 	if err != nil {

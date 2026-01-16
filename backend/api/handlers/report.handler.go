@@ -78,86 +78,23 @@ func (rp *ReportHandler) GetOrderOverView(w http.ResponseWriter, r *http.Request
 }
 
 func (rp *ReportHandler) GetEmployeeProgressReport(w http.ResponseWriter, r *http.Request) {
-    // Read branch id
-    branchID := utils.GetBranchID(r)
-    if branchID == 0 {
-        rp.errorLog.Println("ERROR_01_GetEmployeeProgressReport: Branch id not found")
-        utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
-        return
-    }
-
-    startDateStr := strings.TrimSpace(r.URL.Query().Get("start_date"))
-    endDateStr := strings.TrimSpace(r.URL.Query().Get("end_date"))
-    reportType := strings.TrimSpace(r.URL.Query().Get("report_type"))
-    
-    // 1. ADDED: Read search parameter
-    search := strings.TrimSpace(r.URL.Query().Get("search"))
-
-    if reportType == "" {
-        reportType = "monthly" // default report type
-    }
-
-    // Default: current month range
-    var startDate, endDate time.Time
-    var err error
-    if startDateStr == "" || endDateStr == "" {
-        now := time.Now()
-        startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-        // last day of current month
-        endDate = startDate.AddDate(0, 1, 0).Add(-time.Nanosecond)
-    } else {
-        // Parse provided date range
-        startDate, err = time.Parse("2006-01-02", startDateStr)
-        if err != nil {
-            utils.BadRequest(w, fmt.Errorf("Invalid start_date format, expected YYYY-MM-DD"))
-            return
-        }
-        endDate, err = time.Parse("2006-01-02", endDateStr)
-        if err != nil {
-            utils.BadRequest(w, fmt.Errorf("Invalid end_date format, expected YYYY-MM-DD"))
-            return
-        }
-        // Normalize end date to include full day
-        endDate = endDate.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
-    }
-
-    // Fetch report from repo
-    // 2. UPDATED: Passed 'search' variable to the repo function
-    empReport, err := rp.DB.GetSalesPersonProgressReport(r.Context(), branchID, startDate, endDate, reportType, search)
-    if err != nil {
-        rp.errorLog.Println("ERROR_03_GetEmployeeProgressReport: ", err)
-        utils.BadRequest(w, err)
-        return
-    }
-
-    // Prepare response
-    resp := struct {
-        Error                      bool                                `json:"error"`
-        Message                    string                              `json:"message"`
-        EmployeeProgressReport []*models.SalesPersonProgressReport `json:"report"`
-    }{
-        Error:                  false,
-        Message:                "Progress report created successfully",
-        EmployeeProgressReport: empReport,
-    }
-
-    utils.WriteJSON(w, http.StatusOK, resp)
-}
-
-func (rp *ReportHandler) GetWorkerProgressReport(w http.ResponseWriter, r *http.Request) {
 	// Read branch id
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {
-		rp.errorLog.Println("ERROR_01_GetWorkerProgressReport: Branch id not found")
+		rp.errorLog.Println("ERROR_01_GetEmployeeProgressReport: Branch id not found")
 		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
 		return
 	}
+
 	startDateStr := strings.TrimSpace(r.URL.Query().Get("start_date"))
 	endDateStr := strings.TrimSpace(r.URL.Query().Get("end_date"))
 	reportType := strings.TrimSpace(r.URL.Query().Get("report_type"))
 
+	// 1. ADDED: Read search parameter
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+
 	if reportType == "" {
-		reportType = "daily" // default report type
+		reportType = "monthly" // default report type
 	}
 
 	// Default: current month range
@@ -185,7 +122,74 @@ func (rp *ReportHandler) GetWorkerProgressReport(w http.ResponseWriter, r *http.
 	}
 
 	// Fetch report from repo
-	workerReports, err := rp.DB.GetAllWorkersProgressReport(r.Context(), branchID, startDate, endDate, reportType)
+	// 2. UPDATED: Passed 'search' variable to the repo function
+	empReport, err := rp.DB.GetSalesPersonProgressReport(r.Context(), branchID, startDate, endDate, reportType, search)
+	if err != nil {
+		rp.errorLog.Println("ERROR_03_GetEmployeeProgressReport: ", err)
+		utils.BadRequest(w, err)
+		return
+	}
+
+	// Prepare response
+	resp := struct {
+		Error                  bool                                  `json:"error"`
+		Message                string                                `json:"message"`
+		EmployeeProgressReport []*models.SalesPersonProgressReportDB `json:"report"`
+	}{
+		Error:                  false,
+		Message:                "Progress report created successfully",
+		EmployeeProgressReport: empReport,
+	}
+
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+func (rp *ReportHandler) GetWorkerProgressReport(w http.ResponseWriter, r *http.Request) {
+	// Read branch id
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		rp.errorLog.Println("ERROR_01_GetWorkerProgressReport: Branch id not found")
+		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
+		return
+	}
+
+	startDateStr := strings.TrimSpace(r.URL.Query().Get("start_date"))
+	endDateStr := strings.TrimSpace(r.URL.Query().Get("end_date"))
+	reportType := strings.TrimSpace(r.URL.Query().Get("report_type"))
+
+	// 1. ADDED: Read search parameter
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+
+	if reportType == "" {
+		reportType = "monthly" // default report type
+	}
+
+	// Default: current month range
+	var startDate, endDate time.Time
+	var err error
+	if startDateStr == "" || endDateStr == "" {
+		now := time.Now()
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		// last day of current month
+		endDate = startDate.AddDate(0, 1, 0).Add(-time.Nanosecond)
+	} else {
+		// Parse provided date range
+		startDate, err = time.Parse("2006-01-02", startDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("Invalid start_date format, expected YYYY-MM-DD"))
+			return
+		}
+		endDate, err = time.Parse("2006-01-02", endDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("Invalid end_date format, expected YYYY-MM-DD"))
+			return
+		}
+		// Normalize end date to include full day
+		endDate = endDate.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	}
+
+	// Fetch report from repo
+	// 2. UPDATED: Passed 'search' variable to the repo function
+	empReport, err := rp.DB.GetWorkerProgressReport(r.Context(), branchID, startDate, endDate, reportType, search)
 	if err != nil {
 		rp.errorLog.Println("ERROR_03_GetWorkerProgressReport: ", err)
 		utils.BadRequest(w, err)
@@ -194,82 +198,82 @@ func (rp *ReportHandler) GetWorkerProgressReport(w http.ResponseWriter, r *http.
 
 	// Prepare response
 	resp := struct {
-		Error         bool                           `json:"error"`
-		Message       string                         `json:"message"`
-		WorkerReports []*models.WorkerProgressReport `json:"report"`
+		Error                  bool                             `json:"error"`
+		Message                string                           `json:"message"`
+		EmployeeProgressReport []*models.WorkerProgressReportDB `json:"report"`
 	}{
-		Error:         false,
-		Message:       "Progress report created successfully",
-		WorkerReports: workerReports,
+		Error:                  false,
+		Message:                "Progress report created successfully",
+		EmployeeProgressReport: empReport,
 	}
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 func (rp *ReportHandler) GetBranchReport(w http.ResponseWriter, r *http.Request) {
-    // 1. Validate Branch ID
-    branchID := utils.GetBranchID(r)
-    if branchID == 0 {
-        rp.errorLog.Println("ERROR_01_GetBranchReport: Branch id not found")
-        utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header"))
-        return
-    }
+	// 1. Validate Branch ID
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		rp.errorLog.Println("ERROR_01_GetBranchReport: Branch id not found")
+		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header"))
+		return
+	}
 
-    // 2. Parse Query Params
-    q := r.URL.Query()
-    startDateStr := strings.TrimSpace(q.Get("start_date"))
-    endDateStr := strings.TrimSpace(q.Get("end_date"))
-    reportType := strings.TrimSpace(q.Get("report_type"))
+	// 2. Parse Query Params
+	q := r.URL.Query()
+	startDateStr := strings.TrimSpace(q.Get("start_date"))
+	endDateStr := strings.TrimSpace(q.Get("end_date"))
+	reportType := strings.TrimSpace(q.Get("report_type"))
 
-    if reportType == "" {
-        reportType = "daily" // default
-    }
+	if reportType == "" {
+		reportType = "daily" // default
+	}
 
-    // 3. Date Logic (Pure Date Parsing)
-    var startDate, endDate time.Time
-    var err error
-    const dateLayout = "2006-01-02"
+	// 3. Date Logic (Pure Date Parsing)
+	var startDate, endDate time.Time
+	var err error
+	const dateLayout = "2006-01-02"
 
-    if startDateStr == "" || endDateStr == "" {
-        // DEFAULT: Current Month Range
-        now := time.Now()
-        // First day of current month (00:00:00)
-        startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-        // Last day of current month (First day of next month - 1 day)
-        endDate = startDate.AddDate(0, 1, -1)
-    } else {
-        // CUSTOM: Parse inputs simply as dates
-        startDate, err = time.Parse(dateLayout, startDateStr)
-        if err != nil {
-            utils.BadRequest(w, fmt.Errorf("invalid start_date format, expected YYYY-MM-DD"))
-            return
-        }
-        endDate, err = time.Parse(dateLayout, endDateStr)
-        if err != nil {
-            utils.BadRequest(w, fmt.Errorf("invalid end_date format, expected YYYY-MM-DD"))
-            return
-        }
-    }
+	if startDateStr == "" || endDateStr == "" {
+		// DEFAULT: Current Month Range
+		now := time.Now()
+		// First day of current month (00:00:00)
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		// Last day of current month (First day of next month - 1 day)
+		endDate = startDate.AddDate(0, 1, -1)
+	} else {
+		// CUSTOM: Parse inputs simply as dates
+		startDate, err = time.Parse(dateLayout, startDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("invalid start_date format, expected YYYY-MM-DD"))
+			return
+		}
+		endDate, err = time.Parse(dateLayout, endDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("invalid end_date format, expected YYYY-MM-DD"))
+			return
+		}
+	}
 
-    // 4. Fetch Report from 'top_sheet' table
-    branchReport, err := rp.DB.GetBranchReport(r.Context(), branchID, startDate, endDate, reportType)
-    if err != nil {
-        rp.errorLog.Println("ERROR_03_GetBranchReport: ", err)
-        utils.BadRequest(w, err)
-        return
-    }
+	// 4. Fetch Report from 'top_sheet' table
+	branchReport, err := rp.DB.GetBranchReport(r.Context(), branchID, startDate, endDate, reportType)
+	if err != nil {
+		rp.errorLog.Println("ERROR_03_GetBranchReport: ", err)
+		utils.BadRequest(w, err)
+		return
+	}
 
-    // 5. Response
-    resp := struct {
-        Error        bool               `json:"error"`
-        Message      string             `json:"message"`
-        BranchReport []*models.TopSheet `json:"report"`
-    }{
-        Error:        false,
-        Message:      "Branch report generated successfully",
-        BranchReport: branchReport,
-    }
+	// 5. Response
+	resp := struct {
+		Error        bool               `json:"error"`
+		Message      string             `json:"message"`
+		BranchReport []*models.TopSheet `json:"report"`
+	}{
+		Error:        false,
+		Message:      "Branch report generated successfully",
+		BranchReport: branchReport,
+	}
 
-    utils.WriteJSON(w, http.StatusOK, resp)
+	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
 // GET /api/salaries?employee_id=123

@@ -158,7 +158,7 @@ async function fetchOrders() {
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-            <td colspan="7" class="py-8 text-center text-rose-500 bg-rose-50 rounded-lg">
+            <td colspan="7" class="py-8 text-center text-red-500 bg-red-50 rounded-lg">
                 Error loading data. Please try again.
             </td>
         </tr>`;
@@ -202,7 +202,7 @@ function renderOrders() {
       "bg-purple-100 text-purple-600",
       "bg-emerald-100 text-emerald-600",
       "bg-amber-100 text-amber-600",
-      "bg-rose-100 text-rose-600",
+      "bg-red-100 text-red-600",
     ];
     return colors[(name?.length || 0) % colors.length];
   };
@@ -245,8 +245,8 @@ function renderOrders() {
         };
       else if (o.status === "cancelled")
         st = {
-          css: "bg-rose-50 text-rose-700 border-rose-200",
-          dot: "bg-rose-500",
+          css: "bg-red-50 text-red-700 border-red-200",
+          dot: "bg-red-500",
         };
 
       const canDeliver = o.status === "pending" || o.status === "partial";
@@ -287,13 +287,12 @@ function renderOrders() {
              
              ${
                due > 0
-                 ? `<span class="inline-flex items-center gap-1.5 rounded px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
-                    <span>Due:</span>
+                 ? `<span class="inline-flex items-center gap-1.5 rounded px-2.5 py-0.5 text-xs font-semibold bg-red-50 text-red-600 border border-red-100">
+                    <span>Unpaid:</span>
                     <span>${due}</span>
                   </span>`
-                 : `<span class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-transparent px-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
-                    Paid
+                 : `<span class="inline-flex items-center gap-1.5 rounded px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-600 border border-red-100">
+                    Paid in Full
                   </span>`
              }
            </div>
@@ -308,30 +307,45 @@ function renderOrders() {
           </span>
         </td>
 
-        <td class="px-6 py-4 whitespace-nowrap text-center">
-          <div class="flex items-center justify-center space-x-3 opacity-80 group-hover:opacity-100 transition-opacity">
-            <button onclick="viewOrder(${
-              o.id
-            })" class="p-2 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200 hover:shadow-sm" title="View">
-               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-            </button>
+        <td class="whitespace-nowrap text-center"> 
+            <button onclick="viewOrder(${o.id})" 
+              class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 focus:outline-none active:scale-95" 
+              title="View Details">
+               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+            View 
+               </button>
+        </td>
+        <td class="whitespace-nowrap text-center">
             ${
               canEdit
                 ? `
-            <button onclick="editOrder(${o.id})" class="p-2 text-slate-400 hover:text-amber-600 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200 hover:shadow-sm" title="Edit">
-               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+            <button onclick="editOrder(${o.id})" 
+              class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800 focus:outline-none active:scale-95" 
+              title="Edit Order">
+               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
             </button>`
-                : `<div class="w-9"></div>`
+                : ""
             }
+        </td>
+        <td class="whitespace-nowrap text-center">
             ${
               canDeliver
                 ? `
-            <button onclick="deliverOrder(${o.id})" class="p-2 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all border border-transparent hover:border-emerald-200 hover:shadow-sm" title="Deliver">
-               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            <button onclick="deliverOrder(${o.id})" 
+              class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus:outline-none active:scale-95" 
+              title="Mark Delivered">
+               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            </button>
+        </td>
+        <td class="whitespace-nowrap text-center">
+
+            <button onclick="cancelOrder(${o.id})"
+              class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none active:scale-95"
+              title="Cancel Order">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>`
-                : `<div class="w-9"></div>`
-            } 
-          </div>
+                : ""
+            }
         </td>
       </tr>`;
     })
@@ -341,12 +355,7 @@ function renderOrders() {
 // --- GLOBAL ACTIONS ---
 // These need to be on the window object so the HTML 'onclick' attributes can find them
 
-window.editOrder = function (id) {
-  console.log("Edit Order:", id);
-  // Trigger your Edit Logic here
-  localStorage.setItem("orderID", id);
-  loadPage("order_sale", "New Order Entry");
-};
+
 
 async function viewOrder(id) {
   const modal = document.getElementById("viewOrderModal");
@@ -443,11 +452,7 @@ async function viewOrder(id) {
           "ring-blue-600/20"
         );
       } else if (status === "cancelled") {
-        statusEl.classList.add(
-          "bg-rose-50",
-          "text-rose-700",
-          "ring-rose-600/20"
-        );
+        statusEl.classList.add("bg-red-50", "text-red-700", "ring-red-600/20");
       } else {
         statusEl.classList.add(
           "bg-slate-50",
@@ -577,7 +582,7 @@ async function viewOrder(id) {
     // Colorize Due Amount logic
     const dueEl = document.getElementById("viewDueAmount");
     if (dueEl) {
-      if (due > 0) dueEl.className = "text-xl font-extrabold text-rose-600";
+      if (due > 0) dueEl.className = "text-xl font-extrabold text-red-600";
       else {
         dueEl.className = "text-xl font-extrabold text-emerald-600";
         dueEl.textContent = "PAID";
@@ -592,6 +597,49 @@ async function viewOrder(id) {
       itemsBody.innerHTML = `<tr><td colspan="3" class="px-4 py-4 text-center text-red-500">Error loading data.</td></tr>`;
   }
 }
+
+window.editOrder = function (id) {
+  console.log("Edit Order:", id);
+  // Trigger your Edit Logic here
+  localStorage.setItem("orderID", id);
+  loadPage("order_sale", "New Order Entry");
+};
+
+window.cancelOrder = async function (id) {
+  console.log("Edit Order:", id);
+  try {
+    const url = `${window.globalState.apiBase}/products/orders/cancel/${id}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: window.getAuthHeaders(),
+    });
+    const data = await response.json();
+    console.log("data", data)
+    if(!response.ok){
+      throw new Error(`${data.message ?? data.message}` || "Internal Server Error");
+    }
+    
+    showModalConfirm(
+      "success",
+      "Order cancelled Successfully",
+      "",
+      "Ok",
+      () => {
+        fetchOrders()
+      }
+    );
+    
+  } catch (error) {
+    console.error("Cancel Order Error:", error);
+    showModalConfirm(
+      "error",
+      "Unable to cancel order",
+      error,
+      "Ok",
+      () => {}
+    );
+  }
+};
 
 window.printSelectedOrder = async function () {
   printOrderInvoice(
@@ -636,9 +684,9 @@ window.deliverOrder = function (id) {
 
   // Format Due Amount Color (Red if positive, Green if paid)
   const remainingClass =
-    parseInt(remainingItems) > 0 ? "text-rose-600" : "text-emerald-600";
+    parseInt(remainingItems) > 0 ? "text-red-600" : "text-emerald-600";
   const dueClass =
-    parseFloat(dueAmount) > 0 ? "text-rose-600" : "text-emerald-600";
+    parseFloat(dueAmount) > 0 ? "text-red-600" : "text-emerald-600";
 
   // 3. Prepare Account Options
   let accountOptions =

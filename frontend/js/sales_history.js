@@ -118,14 +118,17 @@ async function fetchSales() {
     // Ensure apiBase is defined, fallback to relative path if not
     const apiBase = window.globalState?.apiBase || "/api/v1";
 
-    const res = await fetch(`${apiBase}/products/sales/list?${params.toString()}`, {
-      headers: window.getAuthHeaders
-        ? window.getAuthHeaders()
-        : {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-    });
+    const res = await fetch(
+      `${apiBase}/products/sales/list?${params.toString()}`,
+      {
+        headers: window.getAuthHeaders
+          ? window.getAuthHeaders()
+          : {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+      }
+    );
 
     if (!res.ok) throw new Error("Failed to fetch sales");
 
@@ -324,14 +327,6 @@ function renderSales() {
             </button>`
                 : `<div class="w-9"></div>`
             }
-            ${
-              canDeliver
-                ? `
-            <button onclick="deliverSale(${o.id})" class="p-2 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all border border-transparent hover:border-emerald-200 hover:shadow-sm" title="Deliver">
-               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            </button>`
-                : `<div class="w-9"></div>`
-            } 
           </div>
         </td>
       </tr>`;
@@ -694,9 +689,7 @@ window.PaymentHandler = function (id) {
                 </div>
 
                 <div class="space-y-4">
-                    <input type="hidden" id="deliverSaleId" value="${
-                      sale.id
-                    }">
+                    <input type="hidden" id="deliverSaleId" value="${sale.id}">
                     <input type="hidden" id="memoNo" value="${sale.memo_no}">
 
                     <div>
