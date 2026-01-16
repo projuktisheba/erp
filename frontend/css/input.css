@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Inter", sans-serif;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Scroll bar(hidden) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  /* IE & Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari, Opera */
+}
+
+/* --- COLLAPSIBLE MENU ANIMATION (REQUIRED) --- */
+.submenu-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease-out;
+}
+
+.submenu-wrapper.open {
+  grid-template-rows: 1fr;
+}
+
+.submenu-inner {
+  overflow: hidden;
+  /* This hides the content when closed */
+}
+
+/* Container for the dropdown */
+.custom-select-container {
+  position: relative;
+  width: 300px;
+  font-family: sans-serif;
+}
+
+/* The list of items */
+.custom-options {
+  border: 1px solid #ccc;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none;
+  /* Hidden by default */
+  position: absolute;
+  width: 100%;
+  background: white;
+  z-index: 10;
+}
+
+.custom-options.open {
+  display: block;
+}
+
+/* The individual option */
+.custom-option {
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  /* Pushes badge to the right */
+  align-items: center;
+}
+
+.custom-option:hover {
+  background-color: #f0f0f0;
+}
+
+/* THE BADGE STYLE */
+.stock-badge {
+  background-color: #e0e0e0;
+  color: #333;
+  padding: 2px 8px;
+  border-radius: 12px;
+  /* Makes it pill-shaped */
+  font-size: 0.85em;
+  font-weight: bold;
+}
+
+/* specific colors for low stock */
+.stock-badge.low {
+  background-color: #ffebee;
+  color: #ff7171;
+}
