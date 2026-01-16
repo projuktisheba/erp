@@ -99,9 +99,62 @@ func (s *ProductRepo) RestockProducts(ctx context.Context, date time.Time, memoN
 	return memoNo, nil
 }
 
-// GetProductStockReportByDateRange retrieves stock registry records joined with product names for a given branch and date range.
-func (s *ProductRepo) GetProductStockReportByDateRange(ctx context.Context, branchID int64, startDate, endDate time.Time) ([]*models.ProductStockRegistry, error) {
-	query := `
+
+
+
+// GetProductStockReportByDateRange retrieves stock registry records
+// with pagination, total counts, and quantity summation.
+func (s *ProductRepo) GetProductStockReportByDateRange(
+	ctx context.Context,
+	branchID int64,
+	startDate, endDate time.Time,
+	search string,
+	page, limit int64,
+) ([]*models.ProductStockRegistry, int64, *models.StockReportTotals, error) {
+
+	var records []*models.ProductStockRegistry
+	totals := &models.StockReportTotals{}
+	var totalCount int64
+
+	// --- 1. BUILD BASE QUERY & ARGS ---
+	// We construct the FROM and WHERE clauses first since they are shared
+	baseQuery := `
+		FROM product_stock_registry AS psr
+		INNER JOIN products AS p ON psr.product_id = p.id
+		WHERE psr.branch_id = $1
+		  AND psr.stock_date BETWEEN $2 AND $3
+	`
+	// Initial args: $1=branchID, $2=startDate, $3=endDate
+	args := []interface{}{branchID, startDate, endDate}
+	argCounter := 4 // Next available placeholder index
+
+	// Add Search Condition if exists
+	if search != "" {
+		// Use the current argCounter ($4) for both ILIKE clauses
+		baseQuery += fmt.Sprintf(" AND (p.product_name ILIKE $%d OR psr.memo_no ILIKE $%d)", argCounter, argCounter)
+		args = append(args, "%"+search+"%")
+		argCounter++ // <--- IMPORTANT: Increment counter so LIMIT uses the next index ($5)
+	}
+
+	// --- 2. QUERY TOTALS (Count & Sum Quantity) ---
+	// Note: We use the baseQuery (which includes filters) but without LIMIT/OFFSET
+	totalsQuery := `
+		SELECT 
+			COUNT(*),
+			COALESCE(SUM(psr.quantity), 0)
+	` + baseQuery
+
+	err := s.db.QueryRow(ctx, totalsQuery, args...).Scan(&totalCount, &totals.TotalQuantity)
+	if err != nil {
+		return nil, 0, nil, fmt.Errorf("failed to fetch stock totals: %w", err)
+	}
+
+	// --- 3. QUERY DATA (Paginated) ---
+	offset := (page - 1) * limit
+
+	// Construct the final data query with ORDER BY, LIMIT, and OFFSET
+	// We use argCounter for LIMIT and argCounter+1 for OFFSET
+	dataQuery := `
 		SELECT 
 			psr.id,
 			psr.memo_no,
@@ -112,20 +165,17 @@ func (s *ProductRepo) GetProductStockReportByDateRange(ctx context.Context, bran
 			psr.quantity,
 			psr.created_at,
 			psr.updated_at
-		FROM product_stock_registry AS psr
-		INNER JOIN products AS p ON psr.product_id = p.id
-		WHERE psr.branch_id = $1
-		  AND psr.stock_date BETWEEN $2 AND $3
-		ORDER BY psr.stock_date ASC, psr.id ASC;
-	`
+	` + baseQuery + fmt.Sprintf(" ORDER BY psr.stock_date ASC, psr.id ASC LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
 
-	rows, err := s.db.Query(ctx, query, branchID, startDate, endDate)
+	// Append Limit and Offset to args
+	args = append(args, limit, offset)
+
+	rows, err := s.db.Query(ctx, dataQuery, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch stock report: %w", err)
+		return nil, 0, nil, fmt.Errorf("failed to fetch stock report: %w", err)
 	}
 	defer rows.Close()
 
-	var records []*models.ProductStockRegistry
 	for rows.Next() {
 		var r models.ProductStockRegistry
 		if err := rows.Scan(
@@ -139,16 +189,16 @@ func (s *ProductRepo) GetProductStockReportByDateRange(ctx context.Context, bran
 			&r.CreatedAt,
 			&r.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+			return nil, 0, nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		records = append(records, &r)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("row iteration error: %w", err)
+		return nil, 0, nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
-	return records, nil
+	return records, totalCount, totals, nil
 }
 
 // ============================== SALE TRANSACTIONS ==============================

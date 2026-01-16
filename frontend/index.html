@@ -24,6 +24,7 @@
                 opacity: 0;
                 transform: translateY(5px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -32,8 +33,8 @@
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+            width: 4px;
+            height: 4px;
         }
 
         ::-webkit-scrollbar-track {
@@ -49,6 +50,20 @@
             background: #94a3b8;
         }
 
+        /* Scroll bar(hidden) */
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            /* IE & Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+            /* Chrome, Safari, Opera */
+        }
+
+
         /* --- COLLAPSIBLE MENU ANIMATION (REQUIRED) --- */
         .submenu-wrapper {
             display: grid;
@@ -61,63 +76,67 @@
         }
 
         .submenu-inner {
-            overflow: hidden; /* This hides the content when closed */
+            overflow: hidden;
+            /* This hides the content when closed */
         }
     </style>
 
-<style>
-    /* Container for the dropdown */
-.custom-select-container {
-  position: relative;
-  width: 300px;
-  font-family: sans-serif;
-}
+    <style>
+        /* Container for the dropdown */
+        .custom-select-container {
+            position: relative;
+            width: 300px;
+            font-family: sans-serif;
+        }
 
-/* The list of items */
-.custom-options {
-  border: 1px solid #ccc;
-  max-height: 200px;
-  overflow-y: auto;
-  display: none; /* Hidden by default */
-  position: absolute;
-  width: 100%;
-  background: white;
-  z-index: 10;
-}
+        /* The list of items */
+        .custom-options {
+            border: 1px solid #ccc;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            /* Hidden by default */
+            position: absolute;
+            width: 100%;
+            background: white;
+            z-index: 10;
+        }
 
-.custom-options.open {
-  display: block;
-}
+        .custom-options.open {
+            display: block;
+        }
 
-/* The individual option */
-.custom-option {
-  padding: 10px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between; /* Pushes badge to the right */
-  align-items: center;
-}
+        /* The individual option */
+        .custom-option {
+            padding: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            /* Pushes badge to the right */
+            align-items: center;
+        }
 
-.custom-option:hover {
-  background-color: #f0f0f0;
-}
+        .custom-option:hover {
+            background-color: #f0f0f0;
+        }
 
-/* THE BADGE STYLE */
-.stock-badge {
-  background-color: #e0e0e0;
-  color: #333;
-  padding: 2px 8px;
-  border-radius: 12px; /* Makes it pill-shaped */
-  font-size: 0.85em;
-  font-weight: bold;
-}
+        /* THE BADGE STYLE */
+        .stock-badge {
+            background-color: #e0e0e0;
+            color: #333;
+            padding: 2px 8px;
+            border-radius: 12px;
+            /* Makes it pill-shaped */
+            font-size: 0.85em;
+            font-weight: bold;
+        }
 
-/* specific colors for low stock */
-.stock-badge.low {
-  background-color: #ffebee;
-  color: #c62828;
-}
-</style>
+        /* specific colors for low stock */
+        .stock-badge.low {
+            background-color: #ffebee;
+            color: #ff7171;
+        }
+    </style>
     <script>
         tailwind.config = {
             theme: {
@@ -141,26 +160,26 @@
         class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col transition-transform duration-300 transform -translate-x-full md:relative md:translate-x-0 shadow-2xl md:shadow-none">
 
         <div class="h-16 flex items-center px-6 border-b border-slate-800 bg-slate-950">
-    <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center mr-3 shrink-0">
-        <i class="ph ph-code text-xl text-white"></i>
-    </div>
+            <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <i class="ph ph-code text-xl text-white"></i>
+            </div>
 
-    <div class="flex flex-col justify-center overflow-hidden">
-        <span class="text-lg font-bold tracking-wide leading-tight whitespace-nowrap">
-            Projukti<span class="text-brand-500">Sheba</span>
-        </span>
-        <span class="text-[9px] text-slate-400 uppercase tracking-widest leading-none">
-            Software Ltd.
-        </span>
-    </div>
+            <div class="flex flex-col justify-center overflow-hidden">
+                <span class="text-lg font-bold tracking-wide leading-tight whitespace-nowrap">
+                    Projukti<span class="text-brand-500">Sheba</span>
+                </span>
+                <span class="text-[9px] text-slate-400 uppercase tracking-widest leading-none">
+                    Software Ltd.
+                </span>
+            </div>
 
-    <button onclick="toggleSidebar()" class="ml-auto md:hidden text-slate-400 hover:text-white">
-        <i class="ph ph-x text-xl"></i>
-    </button>
-</div>
+            <button onclick="toggleSidebar()" class="ml-auto md:hidden text-slate-400 hover:text-white">
+                <i class="ph ph-x text-xl"></i>
+            </button>
+        </div>
 
-        <nav id="sidebar-nav" class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
-    </nav>
+        <nav id="sidebar-nav" class="flex-1 overflow-y-auto no-scrollbar py-6 px-3 space-y-1">
+        </nav>
 
         <div class="p-4 border-t border-slate-800 bg-slate-950">
             <div class="flex items-center gap-3">
@@ -170,8 +189,7 @@
                     <p class="text-sm font-medium truncate">Logged In</p>
                     <p id="displayRoleSide" class="text-xs text-slate-400 truncate">Select Role</p>
                 </div>
-                <button onclick="signout()"
-                    class="text-slate-400 hover:text-white">
+                <button onclick="signout()" class="text-slate-400 hover:text-white">
                     <i class="ph ph-sign-out text-xl"></i>
                 </button>
             </div>
@@ -256,18 +274,20 @@
         </div>
     </div>
 
-    <div id="notification-container" 
-     class="fixed z-[100] top-4 right-4 flex flex-col gap-3 w-full max-w-xs px-4 pointer-events-none sm:px-0 sm:right-6 sm:top-6">
+    <div id="notification-container"
+        class="fixed z-[100] top-4 right-4 flex flex-col gap-3 w-full max-w-xs px-4 pointer-events-none sm:px-0 sm:right-6 sm:top-6">
     </div>
 
     <script>
-        
+
     </script>
 
-    <script src="script.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/pagination.js"></script>
-    <script src="js/common.js"></script>
-    <script src="js/modals.js"></script>
+    <script src="js/common/script.js"></script>
+    <script src="js/common/sidebar.js"></script>
+    <script src="js/common/pagination.js"></script>
+    <script src="js/common/common.js"></script>
+    <script src="js/common/modals.js"></script>
+    <script src="js/common/formatter.js"></script>
 </body>
+
 </html>

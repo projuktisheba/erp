@@ -14,4 +14,8 @@ type TopSheetDB struct {
 	Cancelled  int64     `json:"cancelled"`
 	ReadyMade  int64     `json:"ready_made"`
 	SalesAmount  float64     `json:"sales_amount"`
+
+	//totals
+	TotalAmount float64 `json:"total_amount"`
+	Balance float64 `json:"balance"`
 }

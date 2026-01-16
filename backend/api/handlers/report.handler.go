@@ -78,10 +78,88 @@ func (rp *ReportHandler) GetOrderOverView(w http.ResponseWriter, r *http.Request
 }
 
 func (rp *ReportHandler) GetEmployeeProgressReport(w http.ResponseWriter, r *http.Request) {
+	// 1. Validate Branch ID
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		rp.errorLog.Println("ERROR_01_GetProductStockReportHandler: Branch id not found")
+		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header"))
+		return
+	}
+
+	// 2. Parse Query Params
+	q := r.URL.Query()
+	startDateStr := strings.TrimSpace(q.Get("start_date"))
+	endDateStr := strings.TrimSpace(q.Get("end_date"))
+	reportType := strings.TrimSpace(q.Get("report_type"))
+	search := strings.TrimSpace(q.Get("search"))
+
+	// Pagination Params (Default: Page 1, Limit 10)
+	page, err := strconv.ParseInt(q.Get("page"), 10, 64)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	limit, err := strconv.ParseInt(q.Get("limit"), 10, 64)
+	if err != nil || limit < 1 {
+		limit = 10
+	}
+
+	if reportType == "" {
+		reportType = "daily" // default
+	}
+
+	// 3. Date Logic
+	var startDate, endDate time.Time
+	const dateLayout = "2006-01-02"
+
+	if startDateStr == "" || endDateStr == "" {
+		// DEFAULT: Current Month Range
+		now := time.Now()
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		endDate = startDate.AddDate(0, 1, -1)
+	} else {
+		startDate, err = time.Parse(dateLayout, startDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("invalid start_date format, expected YYYY-MM-DD"))
+			return
+		}
+		endDate, err = time.Parse(dateLayout, endDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("invalid end_date format, expected YYYY-MM-DD"))
+			return
+		}
+	}
+
+	// 4. Fetch Report (Data + Count + Totals)
+	branchReport, totals, err := rp.DB.GetSalesPersonProgressReport(r.Context(), branchID, startDate, endDate, page, limit, search)
+	if err != nil {
+		rp.errorLog.Println("ERROR_03_GetBranchReport: ", err)
+		utils.BadRequest(w, err)
+		return
+	}
+
+	// 5. Response
+	resp := struct {
+		Error      bool                                  `json:"error"`
+		Message    string                                `json:"message"`
+		Report     []*models.SalesPersonProgressReportDB `json:"report"`
+		TotalCount int                                 `json:"total_count"`
+		Totals     interface{}                           `json:"totals"` // Generic interface to hold the totals struct
+	}{
+		Error:      false,
+		Message:    "Branch report generated successfully",
+		Report:     branchReport,
+		TotalCount: len(branchReport),
+		Totals:     totals,
+	}
+
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (rp *ReportHandler) GetEmployeeSalaryReport(w http.ResponseWriter, r *http.Request) {
 	// Read branch id
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {
-		rp.errorLog.Println("ERROR_01_GetEmployeeProgressReport: Branch id not found")
+		rp.errorLog.Println("ERROR_01_GetEmployeeSalaryReport: Branch id not found")
 		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
 		return
 	}
@@ -123,18 +201,18 @@ func (rp *ReportHandler) GetEmployeeProgressReport(w http.ResponseWriter, r *htt
 
 	// Fetch report from repo
 	// 2. UPDATED: Passed 'search' variable to the repo function
-	empReport, err := rp.DB.GetSalesPersonProgressReport(r.Context(), branchID, startDate, endDate, reportType, search)
+	empReport, err := rp.DB.GetWorkerProgressReport(r.Context(), branchID, startDate, endDate, reportType, search)
 	if err != nil {
-		rp.errorLog.Println("ERROR_03_GetEmployeeProgressReport: ", err)
+		rp.errorLog.Println("ERROR_03_GetEmployeeSalaryReport: ", err)
 		utils.BadRequest(w, err)
 		return
 	}
 
 	// Prepare response
 	resp := struct {
-		Error                  bool                                  `json:"error"`
-		Message                string                                `json:"message"`
-		EmployeeProgressReport []*models.SalesPersonProgressReportDB `json:"report"`
+		Error                  bool                             `json:"error"`
+		Message                string                           `json:"message"`
+		EmployeeProgressReport []*models.WorkerProgressReportDB `json:"report"`
 	}{
 		Error:                  false,
 		Message:                "Progress report created successfully",
@@ -143,6 +221,7 @@ func (rp *ReportHandler) GetEmployeeProgressReport(w http.ResponseWriter, r *htt
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
+
 func (rp *ReportHandler) GetWorkerProgressReport(w http.ResponseWriter, r *http.Request) {
 	// Read branch id
 	branchID := utils.GetBranchID(r)
@@ -209,6 +288,7 @@ func (rp *ReportHandler) GetWorkerProgressReport(w http.ResponseWriter, r *http.
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
+
 func (rp *ReportHandler) GetBranchReport(w http.ResponseWriter, r *http.Request) {
 	// 1. Validate Branch ID
 	branchID := utils.GetBranchID(r)
@@ -223,25 +303,32 @@ func (rp *ReportHandler) GetBranchReport(w http.ResponseWriter, r *http.Request)
 	startDateStr := strings.TrimSpace(q.Get("start_date"))
 	endDateStr := strings.TrimSpace(q.Get("end_date"))
 	reportType := strings.TrimSpace(q.Get("report_type"))
+	search := strings.TrimSpace(q.Get("search"))
+
+	// Pagination Params (Default: Page 1, Limit 10)
+	page, err := strconv.Atoi(q.Get("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+	limit, err := strconv.Atoi(q.Get("limit"))
+	if err != nil || limit < 1 {
+		limit = 10
+	}
 
 	if reportType == "" {
 		reportType = "daily" // default
 	}
 
-	// 3. Date Logic (Pure Date Parsing)
+	// 3. Date Logic
 	var startDate, endDate time.Time
-	var err error
 	const dateLayout = "2006-01-02"
 
 	if startDateStr == "" || endDateStr == "" {
 		// DEFAULT: Current Month Range
 		now := time.Now()
-		// First day of current month (00:00:00)
 		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-		// Last day of current month (First day of next month - 1 day)
 		endDate = startDate.AddDate(0, 1, -1)
 	} else {
-		// CUSTOM: Parse inputs simply as dates
 		startDate, err = time.Parse(dateLayout, startDateStr)
 		if err != nil {
 			utils.BadRequest(w, fmt.Errorf("invalid start_date format, expected YYYY-MM-DD"))
@@ -254,8 +341,8 @@ func (rp *ReportHandler) GetBranchReport(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// 4. Fetch Report from 'top_sheet' table
-	branchReport, err := rp.DB.GetBranchReport(r.Context(), branchID, startDate, endDate, reportType)
+	// 4. Fetch Report (Data + Count + Totals)
+	branchReport, totalCount, totals, err := rp.DB.GetBranchReport(r.Context(), branchID, startDate, endDate, reportType, page, limit, search)
 	if err != nil {
 		rp.errorLog.Println("ERROR_03_GetBranchReport: ", err)
 		utils.BadRequest(w, err)
@@ -264,61 +351,18 @@ func (rp *ReportHandler) GetBranchReport(w http.ResponseWriter, r *http.Request)
 
 	// 5. Response
 	resp := struct {
-		Error        bool               `json:"error"`
-		Message      string             `json:"message"`
-		BranchReport []*models.TopSheet `json:"report"`
+		Error      bool                 `json:"error"`
+		Message    string               `json:"message"`
+		Report     []*models.TopSheetDB `json:"report"`
+		TotalCount int64                `json:"total_count"`
+		Totals     interface{}          `json:"totals"` // Generic interface to hold the totals struct
 	}{
-		Error:        false,
-		Message:      "Branch report generated successfully",
-		BranchReport: branchReport,
+		Error:      false,
+		Message:    "Branch report generated successfully",
+		Report:     branchReport,
+		TotalCount: totalCount,
+		Totals:     totals,
 	}
-
-	utils.WriteJSON(w, http.StatusOK, resp)
-}
-
-// GET /api/salaries?employee_id=123
-// GetSalaryListHandler list all rows of employee's salary
-// GetSalaryListHandler handles GET /reports/salaries
-func (h *ReportHandler) GetSalaryListHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	branchID := utils.GetBranchID(r)
-	if branchID == 0 {
-		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
-		return
-	}
-
-	// Parse query params
-	employeeIDStr := r.URL.Query().Get("employee_id")
-	startDate := r.URL.Query().Get("start_date")
-	endDate := r.URL.Query().Get("end_date")
-
-	var employeeID int64
-	if employeeIDStr != "" {
-		id, err := strconv.ParseInt(employeeIDStr, 10, 64)
-		if err != nil {
-			utils.BadRequest(w, errors.New("Invalid employee_id"))
-			return
-		}
-		employeeID = id
-	}
-
-	// Fetch salary list
-	salaries, err := h.DB.GetSalaryList(ctx, branchID, employeeID, startDate, endDate)
-	if err != nil {
-		h.errorLog.Println("ERROR fetching salaries:", err)
-		utils.ServerError(w, err)
-		return
-	}
-
-	// Return response
-	var resp struct {
-		Error   bool                   `json:"error"`
-		Message string                 `json:"message"`
-		Report  []*models.SalaryRecord `json:"report"`
-	}
-	resp.Error = false
-	resp.Message = "Salary list fetched successfully"
-	resp.Report = salaries
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }

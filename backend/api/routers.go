@@ -79,9 +79,6 @@ func (app *application) routes() http.Handler {
 		// 	// Example: PUT /api/v1/hr/employee/salary
 		// 	r.Put("/employee/salary", app.Handlers.Employee.UpdateEmployeeSalary)
 
-		r.Get("/employee/salary/history", app.Handlers.Employee.SalaryLogList)
-		r.Get("/employee/worker/history", app.Handlers.Employee.WorkerLogList)
-
 		// 	// Generate and give employee salary
 		// 	// Example: POST /api/v1/hr/employee/salary/new
 		r.Post("/employee/salary/create", app.Handlers.Employee.SaveSalaryRecord)
@@ -123,7 +120,7 @@ func (app *application) routes() http.Handler {
 	protected.Route("/api/v1/products", func(r chi.Router) {
 		r.Get("/", app.Handlers.Product.GetProductsHandler)
 		r.Post("/stock/add", app.Handlers.Product.RestockProducts)
-		// r.Get("/stocks", app.Handlers.Product.GetProductStockReportHandler)
+		r.Get("/stocks", app.Handlers.Product.GetProductStockReportHandler)
 		r.Post("/sales/new", app.Handlers.Product.AddSale)
 		r.Patch("/sales/update/{id}", app.Handlers.Product.UpdateSale)
 		r.Get("/sales/details/{sale_id}", app.Handlers.Product.GetSaleDetailsByID)
@@ -170,7 +167,7 @@ func (app *application) routes() http.Handler {
 	protected.Route("/api/v1/reports", func(r chi.Router) {
 		r.Get("/dashboard/orders/overview", app.Handlers.Report.GetOrderOverView)
 		r.Get("/employee/progress", app.Handlers.Report.GetEmployeeProgressReport)
-		r.Get("/employee/salaries", app.Handlers.Report.GetSalaryListHandler)
+		// r.Get("/employee/salaries", app.Handlers.Report.GetSalaryListHandler)
 		r.Get("/worker/progress", app.Handlers.Report.GetWorkerProgressReport)
 		r.Get("/branch", app.Handlers.Report.GetBranchReport)
 	})

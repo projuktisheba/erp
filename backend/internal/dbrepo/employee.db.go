@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -249,110 +248,6 @@ func (user *EmployeeRepo) SaveSalaryRecord(ctx context.Context, salaryDate time.
 	return tx.Commit(ctx)
 }
 
-func (user *EmployeeRepo) GetSalaryLogs(ctx context.Context, branchID int64, page, limit int, search string) ([]*models.SalaryLogDB, int, error) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	offset := (page - 1) * limit
-
-	// Base Query
-	query := `
-		SELECT ep.id, e.name, ep.sheet_date, ep.salary
-		FROM employees_progress ep
-		JOIN employees e ON ep.employee_id = e.id
-		WHERE ep.branch_id = $1 AND ep.salary > 0
-	`
-
-	// Add search filter if present
-	args := []interface{}{branchID}
-	if search != "" {
-		query += ` AND (LOWER(e.name) LIKE LOWER($` + strconv.Itoa(len(args)+1) + `))`
-		args = append(args, "%"+search+"%")
-	}
-
-	query += ` ORDER BY ep.sheet_date DESC`
-
-	// Add Pagination
-	if limit > 0 {
-		query += ` LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
-		args = append(args, limit, offset)
-	}
-
-	// Execute
-	rows, err := user.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-
-	var logs []*models.SalaryLogDB
-	for rows.Next() {
-		var l models.SalaryLogDB
-		if err := rows.Scan(&l.ID, &l.EmployeeName, &l.SheetDate, &l.Amount); err != nil {
-			return nil, 0, err
-		}
-		l.Note = "Salary Payment" // Static note as DB column doesn't exist yet
-		logs = append(logs, &l)
-	}
-
-	// Get Total Count (Simplification: ideally run a separate COUNT query with same WHERE clauses)
-	total := len(logs) // Replace with actual COUNT(*) query for accurate pagination
-
-	return logs, total, nil
-}
-
-func (user *EmployeeRepo) GetWorkerLogs(ctx context.Context, branchID int64, page, limit int, search string) ([]*models.WorkerLogDB, int, error) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	offset := (page - 1) * limit
-	
-	// Base Query: Filters where meaningful data exists for workers
-	query := `
-		SELECT ep.id, e.name, ep.sheet_date, ep.production_units, ep.overtime_hours, ep.advance_payment
-		FROM employees_progress ep
-		JOIN employees e ON ep.employee_id = e.id
-		WHERE ep.branch_id = $1 
-		AND (ep.production_units > 0 OR ep.overtime_hours > 0 OR ep.advance_payment > 0)
-	`
-	
-	// Add search filter
-	args := []interface{}{branchID}
-	if search != "" {
-		query += ` AND (LOWER(e.name) LIKE LOWER($` + strconv.Itoa(len(args)+1) + `))`
-		args = append(args, "%"+search+"%")
-	}
-
-	query += ` ORDER BY ep.sheet_date DESC`
-
-	// Add Pagination
-	if limit > 0 {
-		query += ` LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
-		args = append(args, limit, offset)
-	}
-
-	// Execute
-	rows, err := user.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-
-	var logs []*models.WorkerLogDB
-	for rows.Next() {
-		var l models.WorkerLogDB
-		if err := rows.Scan(&l.ID, &l.EmployeeName, &l.SheetDate, &l.ProductionUnits, &l.OvertimeHours, &l.AdvancePayment); err != nil {
-			return nil, 0, err
-		}
-		logs = append(logs, &l)
-	}
-
-    // Replace with actual count query
-	total := len(logs) 
-
-	return logs, total, nil
-}
-
 // UpdateEmployeeStatus updates employee role and status
 // Call this function if the role of the token user is Admin
 func (user *EmployeeRepo) UpdateEmployeeRole(ctx context.Context, e *models.Employee) error {
@@ -540,9 +435,9 @@ func (e *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, workerProgress 
 		transaction := &models.Transaction{
 			TransactionDate: workerProgress.SheetDate,
 			BranchID:        workerProgress.BranchID,
-			MemoNo:          models.SALARY_MEMO_PREFIX+utils.GenerateMemoNo(),
+			MemoNo:          models.SALARY_MEMO_PREFIX + utils.GenerateMemoNo(),
 			FromID:          workerProgress.BranchID,
-			FromType: models.ENTITY_ACCOUNT,
+			FromType:        models.ENTITY_ACCOUNT,
 			ToID:            workerProgress.EmployeeID,
 			ToType:          models.ENTITY_EMPLOYEE,
 			Amount:          workerProgress.AdvancePayment,

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -94,145 +95,84 @@ func (h *ProductHandler) RestockProducts(w http.ResponseWriter, r *http.Request)
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
 
-// GetProductStockHandler handles GET /api/product-stock requests
+// GetProductStockHandler handles GET /api/products/stock requests
 func (h *ProductHandler) GetProductStockReportHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters: start_date, end_date
-	startDateStr := r.URL.Query().Get("start_date")
-	endDateStr := r.URL.Query().Get("end_date")
-
-	if startDateStr == "" || endDateStr == "" {
-		h.errorLog.Println("ERROR_01_GetProductStockReportHandler:Missing required parameters: branch_id, start_date, end_date")
-		utils.BadRequest(w, errors.New("Missing required parameters: branch_id, start_date, end_date"))
-		return
-	}
-
+	// 1. Validate Branch ID
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {
-		h.errorLog.Println("ERROR_02_GetProductStockReportHandler: Branch id not found")
-		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
+		h.errorLog.Println("ERROR_01_GetProductStockReportHandler: Branch id not found")
+		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header"))
 		return
 	}
 
-	startDate, err := time.Parse("2006-01-02", startDateStr)
+	// 2. Parse Query Params
+	q := r.URL.Query()
+	startDateStr := strings.TrimSpace(q.Get("start_date"))
+	endDateStr := strings.TrimSpace(q.Get("end_date"))
+	reportType := strings.TrimSpace(q.Get("report_type"))
+	search := strings.TrimSpace(q.Get("search"))
+
+	// Pagination Params (Default: Page 1, Limit 10)
+	page, err := strconv.ParseInt(q.Get("page"),10,64)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	limit, err := strconv.ParseInt(q.Get("limit"),10,64)
+	if err != nil || limit < 1 {
+		limit = 10
+	}
+
+	if reportType == "" {
+		reportType = "daily" // default
+	}
+
+	// 3. Date Logic
+	var startDate, endDate time.Time
+	const dateLayout = "2006-01-02"
+
+	if startDateStr == "" || endDateStr == "" {
+		// DEFAULT: Current Month Range
+		now := time.Now()
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		endDate = startDate.AddDate(0, 1, -1)
+	} else {
+		startDate, err = time.Parse(dateLayout, startDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("invalid start_date format, expected YYYY-MM-DD"))
+			return
+		}
+		endDate, err = time.Parse(dateLayout, endDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("invalid end_date format, expected YYYY-MM-DD"))
+			return
+		}
+	}
+
+	// 4. Fetch Report (Data + Count + Totals)
+	branchReport, totalCount, totals, err := h.DB.GetProductStockReportByDateRange(r.Context(), branchID, startDate, endDate, search, page, limit)
 	if err != nil {
-		h.errorLog.Println("ERROR_03_GetProductStockReportHandler: Branch id not found")
-		utils.BadRequest(w, errors.New("Invalid start_date format (expected YYYY-MM-DD)"))
+		h.errorLog.Println("ERROR_03_GetBranchReport: ", err)
+		utils.BadRequest(w, err)
 		return
 	}
 
-	endDate, err := time.Parse("2006-01-02", endDateStr)
-	if err != nil {
-		h.errorLog.Println("ERROR_04_GetProductStockReportHandler: Branch id not found")
-		utils.BadRequest(w, errors.New("Invalid end_date format (expected YYYY-MM-DD)"))
-		return
+	// 5. Response
+	resp := struct {
+		Error      bool                 `json:"error"`
+		Message    string               `json:"message"`
+		Report     []*models.ProductStockRegistry `json:"report"`
+		TotalCount int64                `json:"total_count"`
+		Totals     interface{}          `json:"totals"` // Generic interface to hold the totals struct
+	}{
+		Error:      false,
+		Message:    "Branch report generated successfully",
+		Report:     branchReport,
+		TotalCount: totalCount,
+		Totals:     totals,
 	}
-
-	// Fetch data from database
-	records, err := h.DB.GetProductStockReportByDateRange(r.Context(), branchID, startDate, endDate)
-	if err != nil {
-		h.errorLog.Println("ERROR_05_GetProductStockReportHandler: Branch id not found")
-		utils.BadRequest(w, fmt.Errorf("Database error: %w", err))
-		return
-	}
-
-	var resp struct {
-		Error   bool                           `json:"error"`
-		Message string                         `json:"message"`
-		Report  []*models.ProductStockRegistry `json:"report"`
-	}
-
-	resp.Error = false
-	resp.Message = "Report fetched successfully"
-	resp.Report = records
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
-
-// func (h *ProductHandler) SaleProducts(w http.ResponseWriter, r *http.Request) {
-// 	branchID := utils.GetBranchID(r)
-// 	if branchID == 0 {
-// 		h.errorLog.Println("ERROR_01_SaleProducts: Branch id not found")
-// 		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
-// 		return
-// 	}
-
-// 	var requestBody models.Sale
-
-// 	err := utils.ReadJSON(w, r, &requestBody)
-// 	if err != nil {
-// 		h.errorLog.Println("ERROR_02_SaleProducts: Unable to unmarshal JSON =>", err)
-// 		utils.BadRequest(w, err)
-// 		return
-// 	}
-
-// 	h.infoLog.Printf("Received order data: %+v\n", requestBody)
-
-// 	memoNo, err := h.DB.SaleProducts(r.Context(), branchID, &requestBody)
-// 	if err != nil {
-
-// 		h.errorLog.Println("ERROR_03_SaleProducts: Unable to process sale =>", err)
-// 		if strings.Contains(err.Error(), `duplicate key value violates unique constraint "sales_history_memo_no_branch_id_key"`) {
-// 			err = errors.New("Duplicate memo number is not allowed")
-// 		}
-// 		utils.BadRequest(w, err)
-// 		return
-// 	}
-
-// 	var resp struct {
-// 		Error   bool   `json:"error"`
-// 		Message string `json:"message"`
-// 		MemoNo  string `json:"memo_no"`
-// 	}
-
-// 	resp.Error = false
-// 	resp.Message = "Products sold successfully"
-// 	resp.MemoNo = memoNo
-
-// 	utils.WriteJSON(w, http.StatusCreated, resp)
-// }
-// func (h *ProductHandler) UpdateSoldProducts(w http.ResponseWriter, r *http.Request) {
-// 	branchID := utils.GetBranchID(r)
-// 	if branchID == 0 {
-// 		h.errorLog.Println("ERROR_01_UpdateSoldProducts: Branch id not found")
-// 		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
-// 		return
-// 	}
-// 	memoNo := strings.TrimSpace(r.URL.Query().Get("memo_no"))
-// 	if memoNo == "" {
-// 		h.errorLog.Println("ERROR_02_UpdateSoldProducts: Memo not found in the payload")
-// 		utils.BadRequest(w, errors.New("Memo not found in the payload"))
-// 		return
-// 	}
-// 	var requestBody models.Sale
-// 	err := utils.ReadJSON(w, r, &requestBody)
-// 	if err != nil {
-// 		h.errorLog.Println("ERROR_03_UpdateSoldProducts: Unable to unmarshal JSON =>", err)
-// 		utils.BadRequest(w, err)
-// 		return
-// 	}
-// 	requestBody.MemoNo = memoNo
-// 	h.infoLog.Println(requestBody)
-// 	for _, v := range requestBody.Items {
-// 		fmt.Println(v.ID)
-// 	}
-
-// 	err = h.DB.UpdateSoldProducts(r.Context(), branchID, requestBody)
-// 	if err != nil {
-// 		h.errorLog.Println("ERROR_03_SaleProducts: Unable to process sale =>", err)
-// 		utils.BadRequest(w, err)
-// 		return
-// 	}
-
-// 	var resp struct {
-// 		Error   bool   `json:"error"`
-// 		Message string `json:"message"`
-// 	}
-
-// 	resp.Error = false
-// 	resp.Message = "Sold products updated successfully"
-
-// 	utils.WriteJSON(w, http.StatusCreated, resp)
-// }
 
 // AddSale handles POST /sales/new
 func (o *ProductHandler) AddSale(w http.ResponseWriter, r *http.Request) {
@@ -274,7 +214,7 @@ func (o *ProductHandler) AddSale(w http.ResponseWriter, r *http.Request) {
 
 // UpdateOder handles PATCH /sales/update/{id}
 func (o *ProductHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
-	id, err:= strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if id == 0 || err != nil {
 		utils.BadRequest(w, errors.New("Invalid sale id"))
 		return
@@ -296,13 +236,13 @@ func (o *ProductHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 	o.infoLog.Printf("Received sale data: %+v\n", saleDetails)
 
 	// load old data
-	oldSaleDetails, err := o.DB.GetSaleDetailsByID(r.Context(), saleDetails.ID);
+	oldSaleDetails, err := o.DB.GetSaleDetailsByID(r.Context(), saleDetails.ID)
 	if err != nil {
 		o.errorLog.Println("UpdateSale_DB:", err)
 		utils.ServerError(w, err)
 		return
 	}
-	err = o.DB.UpdateSale(r.Context(), &saleDetails, oldSaleDetails);
+	err = o.DB.UpdateSale(r.Context(), &saleDetails, oldSaleDetails)
 	if err != nil {
 		o.errorLog.Println("UpdateSale_DB:", err)
 		utils.ServerError(w, err)
@@ -310,9 +250,9 @@ func (o *ProductHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := map[string]any{
-		"error":    false,
-		"status":   "success",
-		"message":  "Sale updated successfully",
+		"error":   false,
+		"status":  "success",
+		"message": "Sale updated successfully",
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
@@ -342,7 +282,7 @@ func (o *ProductHandler) GetSaleDetailsByID(w http.ResponseWriter, r *http.Reque
 	resp := map[string]any{
 		"error":  false,
 		"status": "success",
-		"sale":  sale,
+		"sale":   sale,
 	}
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
@@ -370,7 +310,7 @@ func (o *ProductHandler) GetSalesHandler(w http.ResponseWriter, r *http.Request)
 
 	// 3. Return JSON
 	response := map[string]interface{}{
-		"sales":      sales,
+		"sales":       sales,
 		"total_count": totalCount,
 		"page":        page,
 	}
