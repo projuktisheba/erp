@@ -319,6 +319,7 @@ type EmployeeProgressDB struct {
 	OvertimeHours    float64   `json:"overtime_hours"`
 	AdvancePayment   float64   `json:"advance_payment"`
 	Salary           float64   `json:"salary"`
+	PaymentAccountID           float64   `json:"payment_account_id"`
 }
 
 type SalaryLogDB struct {

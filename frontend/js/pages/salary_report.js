@@ -1,7 +1,7 @@
 /* --- STATE --- */
 window.reportState = {
   data: [],
-  totals: { total_salary:0},
+  totals: { total_salary: 0 },
   // Pagination & Search State
   currentPage: 1,
   pageLength: 10,
@@ -9,42 +9,56 @@ window.reportState = {
   totalRecords: 0,
   searchDebounce: null,
 };
+window.employeePaymentState = {
+  list: [], // Holds the raw data from API
+  filtered: [], // Holds data currently shown in the table
+  paymentAccounts: [], // Holds payment accounts
+};
 
 /* --- INITIALIZATION --- */
 window.initSalaryReportPage = async function () {
-  
-  // 1. Grab Elements
-  const searchInput = document.getElementById("searchReportInput"); // Assumed ID
+  // 1. Existing Setup (Search, Pagination, etc.)
+  const searchInput = document.getElementById("searchReportInput");
   const pageLengthSelect = document.getElementById("pageLengthSelector");
 
-  // 2. Search Listener (Debounced)
   if (searchInput) {
     searchInput.value = reportState.searchQuery;
     searchInput.addEventListener("input", (e) => {
       clearTimeout(reportState.searchDebounce);
       reportState.searchDebounce = setTimeout(() => {
-        const newVal = e.target.value.trim();
-        if (reportState.searchQuery !== newVal) {
-          reportState.searchQuery = newVal;
-          reportState.currentPage = 1; // Reset to page 1 on search
-          fetchReport();
-        }
+        reportState.searchQuery = e.target.value.trim();
+        reportState.currentPage = 1;
+        fetchReport();
       }, 400);
     });
   }
 
-  // 3. Page Length Listener
   if (pageLengthSelect) {
-    pageLengthSelect.value = reportState.pageLength.toString();
     pageLengthSelect.addEventListener("change", (e) => {
       reportState.pageLength = parseInt(e.target.value);
-      reportState.currentPage = 1; // Reset to page 1 on change
+      reportState.currentPage = 1;
       fetchReport();
     });
   }
 
-  // 4. Default Date Preset (Triggers Initial Fetch)
+  // 2. Load Dependencies
+  await fetchEmployees();
+  await fetchPaymentAccounts();
+  
+  // 3. Default Date Preset
   applyPreset("this_month");
+
+  // 4. SETUP AUTOCOMPLETE (Using the reusable function)
+  window.initAutocomplete({
+    prefix: "salary",
+    data: window.employeePaymentState.list, // Use all employees (or filter if needed)
+    searchKeys: ["name", "mobile"],
+    hiddenId: "salaryEmpId", // Matches the HTML hidden input for Employee ID
+    onSelect: (emp) => {
+      // Manually populate the card details when user selects from dropdown
+      updateSalaryCardUI(emp);
+    },
+  });
 };
 
 /* --- 1. DATE PRESETS --- */
@@ -55,20 +69,20 @@ window.applyPreset = function (type) {
 
   // Define styles for Active vs Inactive states
   const activeClasses = [
-    "bg-white",        // White background
-    "text-brand-700",  // Darker brand color for contrast
-    "shadow",          // Slightly stronger shadow than shadow-sm
-    "ring-1",          // Adds a subtle border...
-    "ring-slate-200",  // ...that matches the theme
+    "bg-white", // White background
+    "text-brand-700", // Darker brand color for contrast
+    "shadow", // Slightly stronger shadow than shadow-sm
+    "ring-1", // Adds a subtle border...
+    "ring-slate-200", // ...that matches the theme
     "font-bold",
-    "active-preset"    // Keep identifier class
+    "active-preset", // Keep identifier class
   ];
 
   const inactiveClasses = [
     "text-slate-600",
     "font-medium",
     "hover:bg-white/50", // Adds a subtle hover effect to inactive buttons
-    "hover:text-slate-800"
+    "hover:text-slate-800",
   ];
 
   // Reset UI buttons
@@ -79,7 +93,7 @@ window.applyPreset = function (type) {
     // 2. logic to match the button text to the type (e.g. "This Month" -> "this_month")
     const btnKey = btn.textContent.trim().toLowerCase().replace(" ", "_");
 
-    if (btnKey === type || (type === 'today' && btnKey === 'today')) {
+    if (btnKey === type || (type === "today" && btnKey === "today")) {
       // Apply Active Styles
       btn.classList.add(...activeClasses);
     } else {
@@ -137,7 +151,7 @@ async function fetchReport() {
   params.append("start_date", start);
   params.append("end_date", end);
   params.append("report_type", "daily");
-  
+
   // Pagination & Search Params
   params.append("page", reportState.currentPage);
   params.append("limit", reportState.pageLength);
@@ -151,34 +165,35 @@ async function fetchReport() {
       {
         method: "GET",
         headers: window.getAuthHeaders(),
-      }
+      },
     );
 
     if (!response.ok) throw new Error("Failed to fetch report");
 
     const resData = await response.json();
-    
+
     // Update State
     reportState.data = resData.report || [];
-    reportState.totalRecords = parseInt(resData.total_count || resData.totalRecords || 0);
+    reportState.totalRecords = parseInt(
+      resData.total_count || resData.totalRecords || 0,
+    );
 
     // Handle Totals
     // If backend provides pre-calculated totals for the whole range, use them.
     // Otherwise, calculateTotals() will sum the current page (fallback).
     if (resData.totals) {
-        reportState.totals = resData.totals;
-        
+      reportState.totals = resData.totals;
     } else {
-        calculateTotals();
+      calculateTotals();
     }
 
     renderReportTable();
-    
+
     // Render Pagination Controls
     if (window.renderPagination) {
       window.renderPagination(
         "paginationContainer", // ID of button container
-        "paginationInfo",      // ID of text info
+        "paginationInfo", // ID of text info
         {
           currentPage: reportState.currentPage,
           totalRecords: reportState.totalRecords,
@@ -187,21 +202,90 @@ async function fetchReport() {
         (newPage) => {
           reportState.currentPage = newPage;
           fetchReport();
-        }
+        },
       );
     }
-
   } catch (error) {
     console.error("Report Error:", error);
     if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-red-500">Error loading report</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-red-500">Error loading report</td></tr>`;
     }
   }
 }
+/* ==========================================================================
+   1. DATA FETCHING
+   ========================================================================== */
+async function fetchEmployees() {
+  const container = document.getElementById("employeeGrid");
 
+  // Show Loading Spinner in Table Area
+  if (container) {
+    container.innerHTML =
+      '<div class="w-full text-center py-10"><i class="ph ph-spinner animate-spin text-3xl text-brand-600"></i></div>';
+  }
+
+  try {
+    const response = await fetch(`${window.globalState.apiBase}/hr/employees`, {
+      headers: window.getAuthHeaders(),
+    });
+
+    if (!response.ok) throw new Error("Failed to fetch employees");
+
+    const data = await response.json();
+
+    // Store Data
+    employeePaymentState.list = data.employees || data || [];
+    employeePaymentState.filtered = employeePaymentState.list;
+
+    // Note: We don't need to manually update the top forms here because
+    // the autocomplete functions always read directly from `employeePaymentState.list`
+  } catch (error) {
+    console.error(error);
+    if (container)
+      container.innerHTML = `<div class="w-full text-center text-red-500 font-bold py-4">Failed to load employee data</div>`;
+    showNotification("error", "Could not load employees.");
+  }
+}
+async function fetchPaymentAccounts() {
+  try {
+    const response = await fetch(`${window.globalState.apiBase}/accounts`, {
+      headers: window.getAuthHeaders(),
+    });
+
+    if (!response.ok) throw new Error("Failed to fetch payment accounts");
+
+    const data = await response.json();
+
+    // Store Data
+    employeePaymentState.paymentAccounts = data.accounts || [];
+
+    // Render dropdown
+    renderPaymentAccounts(
+      "salaryPaymentAccountSelect",
+      employeePaymentState.paymentAccounts || []
+    );
+  } catch (error) {
+    console.error(error);
+    if (container)
+      container.innerHTML = `<div class="w-full text-center text-red-500 font-bold py-4">Failed to load employee data</div>`;
+    showNotification("error", "Could not load employees.");
+  }
+}
+function renderPaymentAccounts(elementId, list) {
+  const select = document.getElementById(elementId);
+  if (!select) return;
+  select.innerHTML = `<option value="" disabled>Select Payment Method</option>`;
+  if (!list || list.length === 0) {
+    select.innerHTML = `<option value="" disabled>No Payment Method Found</option>`;
+  } else {
+    list.forEach((item) => {
+      select.innerHTML += `<option value="${item.id}">${item.name}(${item.type})</option>`;
+    });
+  }
+}
 /* --- 3. CALCULATE TOTALS --- */
 function calculateTotals() {
-  let t = { total_salary:0 };
+  let t = { total_salary: 0 };
 
   // Note: If paginated, this only sums the visible page unless backend sends aggregate totals
   reportState.data.forEach((row) => {
@@ -224,16 +308,16 @@ function renderReportTable() {
   tfoot.innerHTML = "";
 
   if (reportState.data.length === 0) {
-    if(table) table.classList.add("hidden");
-    if(emptyState) emptyState.classList.remove("hidden");
+    if (table) table.classList.add("hidden");
+    if (emptyState) emptyState.classList.remove("hidden");
     // Clear pagination info if empty
     const pageInfo = document.getElementById("paginationInfo");
-    if(pageInfo) pageInfo.innerHTML = "";
+    if (pageInfo) pageInfo.innerHTML = "";
     return;
   }
 
-  if(table) table.classList.remove("hidden");
-  if(emptyState) emptyState.classList.add("hidden");
+  if (table) table.classList.remove("hidden");
+  if (emptyState) emptyState.classList.add("hidden");
 
   // -- BODY ROWS --
   reportState.data.forEach((row) => {
@@ -245,7 +329,7 @@ function renderReportTable() {
             <td class="px-4 py-3 text-left border-r border-slate-100">${row.employee_mobile || "-"}</td>               
             <td class="px-4 py-3 text-right border-r border-slate-100"> ${row.total_salary}</td>
             <td class="px-4 py-2 whitespace-nowrap text-right text-sm font-medium">
-              <button onclick='editSalary(${row.id})' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
+              <button onclick='openSalaryModal(${row.id})' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
                   <i class="ph ph-pencil-simple text-lg"></i>
               </button>
             </td>
@@ -271,20 +355,20 @@ window.printReport = function () {
   const branchName = GetBranchName(); // Ensure this function exists globally
 
   const columns = [
-    { label: "Date", key: "sheet_date", align: "left", action:"date" },
+    { label: "Date", key: "sheet_date", align: "left", action: "date" },
     { label: "Name", key: "employee_name", align: "left" },
     { label: "Role", key: "role", align: "left" },
     { label: "Mobile", key: "employee_mobile", align: "left" },
     { label: "Salary", key: "total_salary", align: "right" },
   ];
-  
+
   // Create a copy of data to format dates for print without mutating state
-  const printData = reportState.data.map(row => {
-      const dateObj = row.sheet_date;
-      return {
-          ...row,
-          sheet_date: formatDate(dateObj),
-      };
+  const printData = reportState.data.map((row) => {
+    const dateObj = row.sheet_date;
+    return {
+      ...row,
+      sheet_date: formatDate(dateObj),
+    };
   });
 
   printReportGeneric({
@@ -301,109 +385,99 @@ window.printReport = function () {
   });
 };
 
+/* --- HELPER: UPDATE CARD UI --- */
+function updateSalaryCardUI(emp) {
+    if (!emp) return;
+    document.getElementById("salaryCardInitials").textContent = emp.name.substring(0, 2).toUpperCase();
+    document.getElementById("salaryCardName").textContent = emp.name;
+    document.getElementById("salaryCardMobile").textContent = emp.mobile || '--';
+    document.getElementById("salaryCardRole").textContent = emp.role || '--';
+}
 
+/* --- MODAL ACTIONS --- */
 
-/* --- 6. MODAL & FORM --- */
+// 1. OPEN MODAL & PRE-SELECT EMPLOYEE
+window.openSalaryModal = function (salaryRecordId) {
+  // A. Find the Salary Record
+  const salaryInfo = reportState.data.find((item) => item.id === salaryRecordId);
+  if (!salaryInfo) return;
 
-window.editEmployee = function (emp) {
-  document.getElementById("modalTitle").textContent = "Edit Employee Details";
-  document.getElementById("empId").value = emp.id;
-  document.getElementById("empName").value = emp.name;
-  document.getElementById("empRole").value = emp.role;
-  document.getElementById("empMobile").value = emp.mobile;
-  document.getElementById("empMobileAlt").value = emp.mobile_alt || "";
-  document.getElementById("empEmail").value = emp.email || "";
-  document.getElementById("empStatus").value = emp.status;
-  document.getElementById("empSalary").value = emp.base_salary;
-  document.getElementById("empOvertime").value = emp.overtime_rate;
-  document.getElementById("empPassport").value = emp.passport_no || "";
-  document.getElementById("empAddress").value = emp.address || "";
-  document.getElementById("empPassword").value = "";
+  // B. Find the Associated Employee
+  const employeeInfo = window.employeePaymentState.list.find(e => e.id === salaryInfo.employee_id);
 
-  // --- DATE DISPLAY LOGIC (UTC -> Local Input) ---
-  if (emp.joining_date) {
-    const dateObj = new Date(emp.joining_date);
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-    const day = String(dateObj.getDate()).padStart(2, "0");
-    document.getElementById("empJoinDate").value = `${year}-${month}-${day}`;
+  // C. Reset & Populate Form
+  document.getElementById("salaryId").value = salaryRecordId; // The ID of the row to update
+  document.getElementById("salaryEmpId").value = salaryInfo.employee_id; // The Employee ID
+  document.getElementById("salaryDate").value = formatDateVal(new Date(salaryInfo.sheet_date)); 
+  document.getElementById("salaryAmount").value = salaryInfo.total_salary; 
+  document.getElementById("salaryPaymentAccountSelect").value = salaryInfo.payment_account_id || "";
+
+  // D. PRE-SELECT EMPLOYEE UI
+  if (employeeInfo) {
+      // 1. Fill Card Data
+      updateSalaryCardUI(employeeInfo);
+      
+      // 2. Toggle UI: Hide Search, Show Card
+      document.getElementById("salarySearchContainer").classList.add("hidden");
+      document.getElementById("salarySelectedCard").classList.remove("hidden");
+      document.getElementById("salarySearchInput").value = ""; // Clear search text
+  } else {
+      // Fallback if employee not found in list (shouldn't happen)
+      window.resetUniversalSearch ? window.resetUniversalSearch('salary') : null;
   }
 
-  document.getElementById("employeeModal").classList.remove("hidden");
+  // E. Show Modal
+  document.getElementById("modalTitle").textContent = "Update Salary Payment";
+  document.getElementById("salaryModal").classList.remove("hidden");
 };
 
-function closeEmployeeModal() {
-  document.getElementById("employeeModal").classList.add("hidden");
-}
+// 2. CLOSE MODAL
+window.closeSalaryModal = function () {
+  document.getElementById("salaryModal").classList.add("hidden");
+  // Optional: Reset form 
+  document.getElementById("salarySearchContainer").classList.remove("hidden");
+  document.getElementById("salarySelectedCard").classList.add("hidden");
+};
 
-/* --- 5. SAVE (CREATE / UPDATE) --- */
-async function saveEmployee() {
-  const id = document.getElementById("empId").value;
-  const branch_id = window.globalState.user.branch_id;
+// 3. HANDLE SAVE (UPDATE)
+window.handleSaveSalary = async function(e) {
+    e.preventDefault();
+    
+    const salaryId = document.getElementById("salaryId").value;
+    const empId = document.getElementById("salaryEmpId").value;
+    const amount = document.getElementById("salaryAmount").value;
+    const date = document.getElementById("salaryDate").value;
+    const accountId = document.getElementById("salaryPaymentAccountSelect").value;
 
-  // Required Fields Check
-  const name = document.getElementById("empName").value;
-  const role = document.getElementById("empRole").value;
-  const mobile = document.getElementById("empMobile").value;
-
-  if (!name || !role || !mobile) {
-    showNotification("warning", "Please fill in Name, Role, and Mobile.");
-    return;
-  }
-
-  // --- DATE SAVE LOGIC (Local Input -> ISO String) ---
-  const rawDate = document.getElementById("empJoinDate").value;
-  let datePayload = null;
-
-  if (rawDate) {
-    datePayload = new Date(rawDate).toISOString();
-  } else {
-    datePayload = new Date().toISOString();
-  }
-
-  const payload = {
-    name,
-    role,
-    mobile,
-    mobile_alt: document.getElementById("empMobileAlt").value,
-    email: document.getElementById("empEmail").value,
-    password: document.getElementById("empPassword").value,
-    status: document.getElementById("empStatus").value,
-    base_salary: parseFloat(document.getElementById("empSalary").value) || 0,
-    overtime_rate: parseFloat(document.getElementById("empOvertime").value) || 0,
-    passport_no: document.getElementById("empPassport").value,
-    address: document.getElementById("empAddress").value,
-    joining_date: datePayload,
-    branch_id: branch_id,
-  };
-
-  const url = id
-    ? `${window.globalState.apiBase}/hr/employee/update/${id}`
-    : `${window.globalState.apiBase}/hr/employee/new`;
-
-  const method = id ? "PUT" : "POST";
-
-  try {
-    const response = await fetch(url, {
-      method: method,
-      headers: window.getAuthHeaders(),
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      showNotification(
-        "success",
-        id ? "Employee updated!" : "New employee added!"
-      );
-      closeEmployeeModal();
-      fetchEmployees();
-    } else {
-      throw new Error(data.message || "Operation failed");
+    if(!salaryId || !empId || !amount || !date || !accountId) {
+        showNotification("error", "Please fill all required fields");
+        return;
     }
-  } catch (error) {
-    console.error(error);
-    showNotification("error", error.message);
-  }
-}
+
+    try {
+        const payload = {
+            id: parseInt(salaryId),
+            employee_id: parseInt(empId),
+            amount: parseFloat(amount),
+            payment_date: new Date(date).toISOString(),
+            payment_account_id: parseInt(accountId)
+        };
+
+        const response = await fetch(`${window.globalState.apiBase}/hr/employee/salary/update/${salaryId}`, {
+            method: "PATCH", // or POST depending on your API
+            headers: window.getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            showNotification("success", "Salary updated successfully");
+            closeSalaryModal();
+            fetchReport(); // Refresh table
+        } else {
+            const err = await response.json();
+            throw new Error(err.message || "Update failed");
+        }
+    } catch (error) {
+        showNotification("error", error.message);
+    }
+};

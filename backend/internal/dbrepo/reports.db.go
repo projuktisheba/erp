@@ -422,6 +422,7 @@ func (r *ReportRepo) GetEmployeeSalaryReport(ctx context.Context, branchID int64
 	dataQuery := `
         SELECT
 			ep.id,
+			ep.branch_id,
             ep.employee_id,
 			e.name,
 			e.role,
@@ -444,6 +445,7 @@ func (r *ReportRepo) GetEmployeeSalaryReport(ctx context.Context, branchID int64
 		ts := &models.SalaryRecord{}
 		err := rows.Scan(
 			&ts.ID,
+			&ts.BranchID,
 			&ts.EmployeeID,
 			&ts.EmployeeName,
 			&ts.Role,

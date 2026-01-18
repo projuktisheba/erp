@@ -266,11 +266,11 @@ func (user *EmployeeRepo) UpdateSalaryRecord(ctx context.Context, salaryDate tim
 
 	var oldSalaryInfo models.SalaryRecord
 	err = tx.QueryRow(ctx, `SELECT id, sheet_date, branch_id, employee_id, salary FROM employees_progress WHERE id=$1`, salaryID).Scan(
-		oldSalaryInfo.ID,
-		oldSalaryInfo.SheetDate,
-		oldSalaryInfo.BranchID,
-		oldSalaryInfo.EmployeeID,
-		oldSalaryInfo.TotalSalary,
+		&oldSalaryInfo.ID,
+		&oldSalaryInfo.SheetDate,
+		&oldSalaryInfo.BranchID,
+		&oldSalaryInfo.EmployeeID,
+		&oldSalaryInfo.TotalSalary,
 	)
 	//-------------------------------------
 	// 2. Employee Progress Table
@@ -282,10 +282,12 @@ func (user *EmployeeRepo) UpdateSalaryRecord(ctx context.Context, salaryDate tim
 		EmployeeID: oldSalaryInfo.EmployeeID,
 		Salary:     -oldSalaryInfo.TotalSalary,
 	}
+ 
+	fmt.Printf("OldInfo: %+v\n\n", oldEmployeeSalary)
 	// update employee_progress
 	_,err = UpdateEmployeeProgressReportTx(tx, ctx, oldEmployeeSalary)
 	if err != nil {
-		return fmt.Errorf("update salary: %w", err)
+		return fmt.Errorf("revert salary: %w", err)
 	}
 	newEmployeeSalary := &models.EmployeeProgressDB{
 		SheetDate:  salaryDate,

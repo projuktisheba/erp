@@ -2,6 +2,7 @@ package dbrepo
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,51 +63,51 @@ func SaveTopSheetTx(tx pgx.Tx, ctx context.Context, ts *models.TopSheetDB) error
 // EMPLOYEE / SALESPERSON PROGRESS UPSERT
 // -------------------------------
 
-// UpdateSalespersonProgressReportTx inserts or updates salesperson progress
+// UpdateEmployeeProgressReportTx inserts or updates employee progress
 func UpdateEmployeeProgressReportTx(
-	tx pgx.Tx,
-	ctx context.Context,
-	ts *models.EmployeeProgressDB,
+    tx pgx.Tx,
+    ctx context.Context,
+    ts *models.EmployeeProgressDB,
 ) (int64, error) {
+fmt.Printf("%+v", ts)
+    query := `
+    INSERT INTO employees_progress (
+        sheet_date,
+        branch_id,
+        employee_id,
+        sale_amount,
+        sale_return_amount,
+        order_count,
+        production_units,
+        overtime_hours,
+        advance_payment,
+        salary
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    ON CONFLICT (sheet_date, employee_id) DO UPDATE SET
+        sale_amount        = employees_progress.sale_amount + EXCLUDED.sale_amount,
+        sale_return_amount = employees_progress.sale_return_amount + EXCLUDED.sale_return_amount,
+        order_count        = employees_progress.order_count + EXCLUDED.order_count,
+        production_units   = employees_progress.production_units + EXCLUDED.production_units,
+        overtime_hours     = employees_progress.overtime_hours + EXCLUDED.overtime_hours,
+        advance_payment    = employees_progress.advance_payment + EXCLUDED.advance_payment,
+        salary             = employees_progress.salary + EXCLUDED.salary
+    RETURNING id
+    `
 
-	query := `
-	INSERT INTO employees_progress (
-		sheet_date,
-		branch_id,
-		employee_id,
-		sale_amount,
-		sale_return_amount,
-		order_count,
-		production_units,
-		overtime_hours,
-		advance_payment,
-		salary
-	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	ON CONFLICT (sheet_date, employee_id) DO UPDATE SET
-		sale_amount        = employees_progress.sale_amount + EXCLUDED.sale_amount,
-		sale_return_amount = employees_progress.sale_return_amount + EXCLUDED.sale_return_amount,
-		order_count        = employees_progress.order_count + EXCLUDED.order_count,
-		production_units   = employees_progress.production_units + EXCLUDED.production_units,
-		overtime_hours     = employees_progress.overtime_hours + EXCLUDED.overtime_hours,
-		advance_payment    = employees_progress.advance_payment + EXCLUDED.advance_payment,
-		salary             = employees_progress.salary + EXCLUDED.salary
-	RETURNING id
-	`
+    var id int64
+    err := tx.QueryRow(ctx, query,
+        ts.SheetDate,
+        ts.BranchID,         // $2: Uses the BranchID provided in your struct
+        ts.EmployeeID,
+        ts.SaleAmount,
+        ts.SaleReturnAmount,
+        ts.OrderCount,
+        ts.ProductionUnits,
+        ts.OvertimeHours,
+        ts.AdvancePayment,
+        ts.Salary,
+    ).Scan(&id)
 
-	var id int64
-	err := tx.QueryRow(ctx, query,
-		ts.SheetDate,
-		ts.BranchID,
-		ts.EmployeeID,
-		ts.SaleAmount,
-		ts.SaleReturnAmount,
-		ts.OrderCount,
-		ts.ProductionUnits,
-		ts.OvertimeHours,
-		ts.AdvancePayment,
-		ts.Salary,
-	).Scan(&id)
-
-	return id, err
+    return id, err
 }
 

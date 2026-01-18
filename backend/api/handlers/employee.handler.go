@@ -270,32 +270,32 @@ func (e *EmployeeHandler) UpdateSalaryRecord(w http.ResponseWriter, r *http.Requ
 	}
 	var salary struct {
 		EmployeeID       int64     `json:"employee_id"`
-		PaymentAccountID int64     `json:"payment_account_id"`
 		Amount           float64   `json:"amount"`
+		PaymentAccountID int64     `json:"payment_account_id"`
 		PaymentDate      time.Time `json:"payment_date"`
 	}
 	err = utils.ReadJSON(w, r, &salary)
 	if err != nil {
-		e.errorLog.Println("ERROR_01_SaveSalaryRecord", err)
+		e.errorLog.Println("ERROR_01_UpdateSalaryRecord", err)
 		utils.BadRequest(w, err)
 		return
 	}
 	if salary.EmployeeID == 0 {
-		e.errorLog.Println("ERROR_02_SaveSalaryRecord: Missing employee ID")
+		e.errorLog.Println("ERROR_02_UpdateSalaryRecord: Missing employee ID")
 		utils.BadRequest(w, errors.New("missing employee ID"))
 		return
 	}
 
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {
-		e.errorLog.Println("ERROR_03_SaveSalaryRecord: Missing branch ID")
+		e.errorLog.Println("ERROR_03_UpdateSalaryRecord: Missing branch ID")
 		utils.BadRequest(w, errors.New("missing branch ID"))
 		return
 	}
 	e.infoLog.Printf("%+v", salary)
 	err = e.DB.UpdateSalaryRecord(r.Context(), salary.PaymentDate, id, salary.EmployeeID, branchID, salary.PaymentAccountID, salary.Amount)
 	if err != nil {
-		e.errorLog.Println("ERROR_04_SaveSalaryRecord: ", err)
+		e.errorLog.Println("ERROR_04_UpdateSalaryRecord: ", err)
 		if errors.Is(err, pgx.ErrNoRows) {
 			utils.BadRequest(w, errors.New("Invalid user id"))
 		} else {
