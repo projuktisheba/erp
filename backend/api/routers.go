@@ -89,8 +89,8 @@ func (app *application) routes() http.Handler {
 		// 	r.Put("/employee/role", app.Handlers.Employee.UpdateEmployeeRole)
 
 		// 	// Update employee progress record
-		r.Post("/employee/worker/progress", app.Handlers.Employee.RecordWorkerDailyProgress)
-		// 	r.Patch("/worker/progress", app.Handlers.Employee.UpdateWorkerDailyProgress)
+		r.Post("/employee/worker/progress/create", app.Handlers.Employee.RecordWorkerDailyProgress)
+		r.Patch("/employee/worker/progress/update/{id}", app.Handlers.Employee.UpdateWorkerDailyProgress)
 	})
 
 	// -------------------- Customer Routes --------------------

@@ -172,7 +172,7 @@ func (r *ReportRepo) GetSalesPersonProgressReport(
 			&rp.OrderCount,
 		)
 		if err != nil {
-			return nil,nil, err
+			return nil, nil, err
 		}
 		reports = append(reports, rp)
 	}
@@ -183,7 +183,6 @@ func (r *ReportRepo) GetSalesPersonProgressReport(
 
 	return reports, totals, nil
 }
-
 
 // GetWorkerProgressReport gives production progress summary for all salespersons in a branch
 // grouped by day, week, month, or year — based on data from employees_progress table.
@@ -226,6 +225,9 @@ func (r *ReportRepo) GetWorkerProgressReport(
         WHERE ep.branch_id = $1
           AND ep.sheet_date BETWEEN $2 AND $3
           AND e.role = 'worker'
+		  AND (COALESCE(ep.advance_payment, 0) + 
+           COALESCE(ep.overtime_hours, 0) + 
+           COALESCE(ep.production_units, 0)) > 0
     `
 
 	// 4. Append Search Condition if provided
@@ -238,6 +240,7 @@ func (r *ReportRepo) GetWorkerProgressReport(
 	// MAIN TABLE: employees_progress
 	query := fmt.Sprintf(`
         SELECT
+			ep.id,
             e.id AS employee_id,
             e.name,
             e.mobile,
@@ -264,6 +267,7 @@ func (r *ReportRepo) GetWorkerProgressReport(
 	for rows.Next() {
 		var rp models.WorkerProgressReportDB
 		if err := rows.Scan(
+			&rp.ID,
 			&rp.WorkerID,
 			&rp.WorkerName,
 			&rp.Mobile,
@@ -415,7 +419,6 @@ func (r *ReportRepo) GetEmployeeSalaryReport(ctx context.Context, branchID int64
 		argCounter++
 	}
 
-
 	// --- 3. QUERY DATA (Paginated) ---
 	offset := (page - 1) * limit
 
@@ -462,4 +465,3 @@ func (r *ReportRepo) GetEmployeeSalaryReport(ctx context.Context, branchID int64
 
 	return sheets, nil
 }
-

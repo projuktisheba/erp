@@ -9,3 +9,6 @@ import (
 func GetSalaryMemo(salaryID int64) string {
 	return fmt.Sprintf("%s-%d",models.SALARY_MEMO_PREFIX, salaryID)
 }
+func GetAdvanceSalaryMemo(salaryID int64) string {
+	return fmt.Sprintf("%s-%d",models.ADVANCE_SALARY_MEMO_PREFIX, salaryID)
+}

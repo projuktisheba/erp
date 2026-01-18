@@ -2,7 +2,6 @@ package dbrepo
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -65,12 +64,11 @@ func SaveTopSheetTx(tx pgx.Tx, ctx context.Context, ts *models.TopSheetDB) error
 
 // UpdateEmployeeProgressReportTx inserts or updates employee progress
 func UpdateEmployeeProgressReportTx(
-    tx pgx.Tx,
-    ctx context.Context,
-    ts *models.EmployeeProgressDB,
+	tx pgx.Tx,
+	ctx context.Context,
+	ts *models.EmployeeProgressDB,
 ) (int64, error) {
-fmt.Printf("%+v", ts)
-    query := `
+	query := `
     INSERT INTO employees_progress (
         sheet_date,
         branch_id,
@@ -94,20 +92,19 @@ fmt.Printf("%+v", ts)
     RETURNING id
     `
 
-    var id int64
-    err := tx.QueryRow(ctx, query,
-        ts.SheetDate,
-        ts.BranchID,         // $2: Uses the BranchID provided in your struct
-        ts.EmployeeID,
-        ts.SaleAmount,
-        ts.SaleReturnAmount,
-        ts.OrderCount,
-        ts.ProductionUnits,
-        ts.OvertimeHours,
-        ts.AdvancePayment,
-        ts.Salary,
-    ).Scan(&id)
+	var id int64
+	err := tx.QueryRow(ctx, query,
+		ts.SheetDate,
+		ts.BranchID, // $2: Uses the BranchID provided in your struct
+		ts.EmployeeID,
+		ts.SaleAmount,
+		ts.SaleReturnAmount,
+		ts.OrderCount,
+		ts.ProductionUnits,
+		ts.OvertimeHours,
+		ts.AdvancePayment,
+		ts.Salary,
+	).Scan(&id)
 
-    return id, err
+	return id, err
 }
-

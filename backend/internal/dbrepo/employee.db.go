@@ -115,7 +115,7 @@ func (r *EmployeeRepo) UpdateEmployeePassword(ctx context.Context, employeeId in
 		UPDATE employees SET password = $2, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1
 	`
-	_, err := r.db.Exec(ctx, query,employeeId, newPassword)
+	_, err := r.db.Exec(ctx, query, employeeId, newPassword)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return errors.New("no employee found with the given id")
@@ -126,6 +126,7 @@ func (r *EmployeeRepo) UpdateEmployeePassword(ctx context.Context, employeeId in
 
 	return nil
 }
+
 // (V2)
 // UpdateEmployee updates employee details
 func (r *EmployeeRepo) UpdateEmployee(ctx context.Context, e *models.Employee) error {
@@ -282,10 +283,9 @@ func (user *EmployeeRepo) UpdateSalaryRecord(ctx context.Context, salaryDate tim
 		EmployeeID: oldSalaryInfo.EmployeeID,
 		Salary:     -oldSalaryInfo.TotalSalary,
 	}
- 
-	fmt.Printf("OldInfo: %+v\n\n", oldEmployeeSalary)
+
 	// update employee_progress
-	_,err = UpdateEmployeeProgressReportTx(tx, ctx, oldEmployeeSalary)
+	_, err = UpdateEmployeeProgressReportTx(tx, ctx, oldEmployeeSalary)
 	if err != nil {
 		return fmt.Errorf("revert salary: %w", err)
 	}
@@ -296,7 +296,7 @@ func (user *EmployeeRepo) UpdateSalaryRecord(ctx context.Context, salaryDate tim
 		Salary:     amount,
 	}
 	// update employee_progress
-	_,err = UpdateEmployeeProgressReportTx(tx, ctx, newEmployeeSalary)
+	_, err = UpdateEmployeeProgressReportTx(tx, ctx, newEmployeeSalary)
 	if err != nil {
 		return fmt.Errorf("update salary: %w", err)
 	}
@@ -340,6 +340,163 @@ func (user *EmployeeRepo) UpdateSalaryRecord(ctx context.Context, salaryDate tim
 			Amount:          amount,
 			TransactionType: models.SALARY,
 			Notes:           "Employee Salary",
+		}
+		_, err = CreateTransactionTx(ctx, tx, transaction) // silently add transaction
+	}
+
+	// Commit if all succeeded
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (e *EmployeeRepo) SaveWorkerProgress(ctx context.Context, workerProgress models.EmployeeProgressDB) error {
+	tx, err := e.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	workerProgressDB := &models.EmployeeProgressDB{
+		SheetDate:       workerProgress.SheetDate,
+		BranchID:        workerProgress.BranchID,
+		EmployeeID:      workerProgress.EmployeeID,
+		AdvancePayment:  workerProgress.AdvancePayment,
+		ProductionUnits: workerProgress.ProductionUnits,
+		OvertimeHours:   workerProgress.OvertimeHours,
+	}
+	//update employee_progress_table
+	id, err := UpdateEmployeeProgressReportTx(tx, ctx, workerProgressDB)
+	if err != nil {
+		return err
+	}
+	//update top_sheet if AdvancePayment > 0
+	if workerProgressDB.AdvancePayment > 0 {
+		err := SaveTopSheetTx(tx, ctx, &models.TopSheetDB{
+			SheetDate: workerProgressDB.SheetDate,
+			BranchID:  workerProgressDB.BranchID,
+			Expense:   workerProgressDB.AdvancePayment,
+		})
+		if err != nil {
+			return err
+		}
+
+		//insert transaction
+		transaction := &models.Transaction{
+			TransactionDate: workerProgress.SheetDate,
+			BranchID:        workerProgress.BranchID,
+			MemoNo:          utils.GetAdvanceSalaryMemo(id),
+			FromID:          workerProgress.BranchID,
+			FromType:        models.ENTITY_ACCOUNT,
+			ToID:            workerProgress.EmployeeID,
+			ToType:          models.ENTITY_EMPLOYEE,
+			Amount:          workerProgress.AdvancePayment,
+			TransactionType: models.ADVANCE_PAYMENT,
+			CreatedAt:       workerProgress.SheetDate,
+			Notes:           "Worker advance payment",
+		}
+		CreateTransactionTx(ctx, tx, transaction) // silently add transaction
+	}
+	return tx.Commit(ctx)
+}
+
+// UpdateSalaryRecord generates and give employee salary
+// Call this function if the role of the token user is Admin
+func (user *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, progressID int64, newProgressRecord *models.EmployeeProgressDB) error {
+	//using pgxpool begin a transaction
+	tx, err := user.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	//-------------------------------------
+	// 1. Retrieve old info
+	//-------------------------------------
+
+	var oldProgressRecord models.EmployeeProgressDB
+	err = tx.QueryRow(ctx, `SELECT id, sheet_date, branch_id, employee_id, advance_payment, overtime_hours, production_units FROM employees_progress WHERE id=$1`, progressID).Scan(
+		&oldProgressRecord.ID,
+		&oldProgressRecord.SheetDate,
+		&oldProgressRecord.BranchID,
+		&oldProgressRecord.EmployeeID,
+		&oldProgressRecord.AdvancePayment,
+		&oldProgressRecord.OvertimeHours,
+		&oldProgressRecord.ProductionUnits,
+	)
+	//-------------------------------------
+	// 2. Employee Progress Table
+	//-------------------------------------
+	//Revert last entry
+	reverseRecord := &models.EmployeeProgressDB{
+		SheetDate:       oldProgressRecord.SheetDate,
+		BranchID:        oldProgressRecord.BranchID,
+		EmployeeID:      oldProgressRecord.EmployeeID,
+		AdvancePayment:  -oldProgressRecord.AdvancePayment,
+		OvertimeHours:   -oldProgressRecord.OvertimeHours,
+		ProductionUnits: -oldProgressRecord.ProductionUnits,
+	}
+	// update employee_progress
+	_, err = UpdateEmployeeProgressReportTx(tx, ctx, reverseRecord)
+	if err != nil {
+		return fmt.Errorf("revert old progress record: %w", err)
+	}
+	// update employee_progress
+	_, err = UpdateEmployeeProgressReportTx(tx, ctx, newProgressRecord)
+	if err != nil {
+		return fmt.Errorf("update salary: %w", err)
+	}
+
+	//-------------------------
+	// Top Sheet
+	//-------------------------
+	// Revert top_sheet
+	if oldProgressRecord.AdvancePayment > 0 {
+		oldTopSheet := &models.TopSheetDB{
+			SheetDate: oldProgressRecord.SheetDate,
+			BranchID:  oldProgressRecord.BranchID,
+			Expense:   -oldProgressRecord.AdvancePayment,
+		}
+		err = SaveTopSheetTx(tx, ctx, oldTopSheet)
+		if err != nil {
+			return fmt.Errorf("revert topsheet: %w", err)
+		}
+	}
+
+	// Update top_sheet inside the same tx
+	if newProgressRecord.AdvancePayment > 0 {
+		if oldProgressRecord.AdvancePayment > 0 {
+			newTopSheet := &models.TopSheetDB{
+				SheetDate: newProgressRecord.SheetDate,
+				BranchID:  newProgressRecord.BranchID,
+				Expense:   newProgressRecord.AdvancePayment,
+			}
+			err = SaveTopSheetTx(tx, ctx, newTopSheet)
+			if err != nil {
+				return fmt.Errorf("revert topsheet: %w", err)
+			}
+		}
+	}
+
+	//delete old transaction
+	if oldProgressRecord.AdvancePayment > 0 {
+		err = DeleteTransactionByBranchMemoTx(ctx, tx, utils.GetAdvanceSalaryMemo(oldProgressRecord.ID), oldProgressRecord.BranchID)
+	}
+
+	//insert new transaction if amount > 0
+	if newProgressRecord.AdvancePayment > 0 {
+		transaction := &models.Transaction{
+			TransactionDate: newProgressRecord.SheetDate,
+			MemoNo:          utils.GetAdvanceSalaryMemo(oldProgressRecord.ID),
+			BranchID:        newProgressRecord.BranchID,
+			FromID:          newProgressRecord.PaymentAccountID,
+			FromType:        models.ENTITY_ACCOUNT,
+			ToID:            newProgressRecord.EmployeeID,
+			ToType:          models.ENTITY_EMPLOYEE,
+			Amount:          newProgressRecord.AdvancePayment,
+			TransactionType: models.ADVANCE_PAYMENT,
+			Notes:           "Employee Advance Salary",
 		}
 		_, err = CreateTransactionTx(ctx, tx, transaction) // silently add transaction
 	}
@@ -512,44 +669,4 @@ func (e *EmployeeRepo) PaginatedEmployeeList(ctx context.Context, page, limit in
 	}
 
 	return employees, total, nil
-}
-
-func (e *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, workerProgress models.EmployeeProgressDB) error {
-	tx, err := e.db.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	//update employee_progress_table
-	id ,err := UpdateEmployeeProgressReportTx(tx, ctx, &workerProgress)
-	if err != nil {
-		return err
-	}
-	//update top_sheet if AdvancePayment > 0
-	if workerProgress.AdvancePayment > 0 {
-		err := SaveTopSheetTx(tx, ctx, &models.TopSheetDB{
-			SheetDate: workerProgress.SheetDate,
-			BranchID:  workerProgress.BranchID,
-			Expense:   workerProgress.AdvancePayment,
-		})
-		if err != nil {
-			return err
-		}
-
-		//insert transaction
-		transaction := &models.Transaction{
-			TransactionDate: workerProgress.SheetDate,
-			BranchID:        workerProgress.BranchID,
-			MemoNo:          utils.GetSalaryMemo(id),
-			FromID:          workerProgress.BranchID,
-			FromType:        models.ENTITY_ACCOUNT,
-			ToID:            workerProgress.EmployeeID,
-			ToType:          models.ENTITY_EMPLOYEE,
-			Amount:          workerProgress.AdvancePayment,
-			TransactionType: models.ADVANCE_PAYMENT,
-			CreatedAt:       workerProgress.SheetDate,
-			Notes:           "Worker advance payment",
-		}
-		CreateTransactionTx(ctx, tx, transaction) // silently add transaction
-	}
-	return tx.Commit(ctx)
 }
