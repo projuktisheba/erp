@@ -182,6 +182,12 @@ func (e *EmployeeHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request)
 
 	employeeDetails.ID = employeeID
 	fmt.Println(employeeDetails.Role)
+	//make password hash
+	if strings.TrimSpace(employeeDetails.Password) != "" {
+		hashedPassword, _ := utils.HashPassword(employeeDetails.Password)
+		e.DB.UpdateEmployeePassword(r.Context(), employeeID, hashedPassword)
+	}
+
 	err = e.DB.UpdateEmployee(r.Context(), &employeeDetails)
 	if err != nil {
 		e.errorLog.Println("ERROR_03_UpdateEmployee: ", err)
@@ -198,47 +204,6 @@ func (e *EmployeeHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request)
 	resp.Error = false
 	resp.Status = "success"
 	resp.Message = "Employee details updated successfully"
-	resp.Employee = &employeeDetails
-
-	utils.WriteJSON(w, http.StatusOK, resp)
-}
-
-// UpdateEmployeeSalary updates employee salary and overtime rate
-func (e *EmployeeHandler) UpdateEmployeeSalary(w http.ResponseWriter, r *http.Request) {
-	var employeeDetails models.Employee
-	err := utils.ReadJSON(w, r, &employeeDetails)
-	if err != nil {
-		e.errorLog.Println("ERROR_01_UpdateEmployeeSalary", err)
-		utils.BadRequest(w, err)
-		return
-	}
-	e.infoLog.Println(employeeDetails)
-	if employeeDetails.ID == 0 {
-		e.errorLog.Println("ERROR_02_UpdateEmployeeSalary: Missing employee ID")
-		utils.BadRequest(w, errors.New("missing employee ID"))
-		return
-	}
-
-	err = e.DB.UpdateEmployeeSalary(r.Context(), &employeeDetails)
-	if err != nil {
-		e.errorLog.Println("ERROR_03_UpdateEmployeeSalary: ", err)
-		if errors.Is(err, pgx.ErrNoRows) {
-			utils.BadRequest(w, errors.New("Invalid user id"))
-		} else {
-			utils.BadRequest(w, err)
-		}
-		return
-	}
-
-	var resp struct {
-		Error    bool             `json:"error"`
-		Status   string           `json:"status"`
-		Message  string           `json:"message"`
-		Employee *models.Employee `json:"employee"`
-	}
-	resp.Error = false
-	resp.Status = "success"
-	resp.Message = "Employee salary updated successfully"
 	resp.Employee = &employeeDetails
 
 	utils.WriteJSON(w, http.StatusOK, resp)
@@ -294,7 +259,61 @@ func (e *EmployeeHandler) SaveSalaryRecord(w http.ResponseWriter, r *http.Reques
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
+// (V2)
+// UpdateSalaryRecord record employee salary
+func (e *EmployeeHandler) UpdateSalaryRecord(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if id == 0 || err != nil {
+		e.errorLog.Println("ERROR_01_UpdateSalaryRecord", err)
+		utils.BadRequest(w, errors.New("invalid salary id"))
+		return
+	}
+	var salary struct {
+		EmployeeID       int64     `json:"employee_id"`
+		PaymentAccountID int64     `json:"payment_account_id"`
+		Amount           float64   `json:"amount"`
+		PaymentDate      time.Time `json:"payment_date"`
+	}
+	err = utils.ReadJSON(w, r, &salary)
+	if err != nil {
+		e.errorLog.Println("ERROR_01_SaveSalaryRecord", err)
+		utils.BadRequest(w, err)
+		return
+	}
+	if salary.EmployeeID == 0 {
+		e.errorLog.Println("ERROR_02_SaveSalaryRecord: Missing employee ID")
+		utils.BadRequest(w, errors.New("missing employee ID"))
+		return
+	}
 
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		e.errorLog.Println("ERROR_03_SaveSalaryRecord: Missing branch ID")
+		utils.BadRequest(w, errors.New("missing branch ID"))
+		return
+	}
+	e.infoLog.Printf("%+v", salary)
+	err = e.DB.UpdateSalaryRecord(r.Context(), salary.PaymentDate, id, salary.EmployeeID, branchID, salary.PaymentAccountID, salary.Amount)
+	if err != nil {
+		e.errorLog.Println("ERROR_04_SaveSalaryRecord: ", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			utils.BadRequest(w, errors.New("Invalid user id"))
+		} else {
+			utils.BadRequest(w, err)
+		}
+		return
+	}
+
+	var resp struct {
+		Error   bool   `json:"error"`
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	resp.Error = false
+	resp.Status = "success"
+	resp.Message = "Employee salary updated"
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
 
 // UpdateEmployeeRole updates employee role and status
 func (e *EmployeeHandler) UpdateEmployeeRole(w http.ResponseWriter, r *http.Request) {

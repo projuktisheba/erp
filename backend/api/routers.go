@@ -82,6 +82,7 @@ func (app *application) routes() http.Handler {
 		// 	// Generate and give employee salary
 		// 	// Example: POST /api/v1/hr/employee/salary/new
 		r.Post("/employee/salary/create", app.Handlers.Employee.SaveSalaryRecord)
+		r.Patch("/employee/salary/update/{id}", app.Handlers.Employee.UpdateSalaryRecord)
 
 		// 	// Update employee role and status
 		// 	// Example: PUT /api/v1/hr/employee/role
@@ -147,9 +148,9 @@ func (app *application) routes() http.Handler {
 
 	// -------------------- Inventory Routes --------------------
 	protected.Route("/api/v1/purchase", func(r chi.Router) {
-		r.Post("/", app.Handlers.Purchase.AddPurchase)
-		r.Patch("/", app.Handlers.Purchase.UpdatePurchase)
-		r.Get("/list", app.Handlers.Purchase.ListPurchases)
+		r.Post("/new", app.Handlers.Purchase.AddPurchase)
+		r.Patch("/update", app.Handlers.Purchase.UpdatePurchase)
+		r.Get("/list", app.Handlers.Purchase.GetPurchaseReport)
 	})
 
 	// -------------------- Account & Transaction Routes --------------------
@@ -167,7 +168,7 @@ func (app *application) routes() http.Handler {
 	protected.Route("/api/v1/reports", func(r chi.Router) {
 		r.Get("/dashboard/orders/overview", app.Handlers.Report.GetOrderOverView)
 		r.Get("/employee/progress", app.Handlers.Report.GetEmployeeProgressReport)
-		// r.Get("/employee/salaries", app.Handlers.Report.GetSalaryListHandler)
+		r.Get("/employee/salary", app.Handlers.Report.GetEmployeeSalaryReport)
 		r.Get("/worker/progress", app.Handlers.Report.GetWorkerProgressReport)
 		r.Get("/branch", app.Handlers.Report.GetBranchReport)
 	})

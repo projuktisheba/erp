@@ -269,7 +269,7 @@ func (r *ReportRepo) GetWorkerProgressReport(
 			&rp.Mobile,
 			&rp.Email,
 			&rp.BaseSalary,
-			&rp.Date,
+			&rp.SheetDate,
 			&rp.TotalAdvancePayment,
 			&rp.TotalOvertimeHours,
 			&rp.TotalProductionUnits,
@@ -392,58 +392,72 @@ func (r *ReportRepo) GetBranchReport(ctx context.Context, branchID int64, startD
 	return sheets, totalCount, totals, nil
 }
 
-// V2
-func (r *ReportRepo) GetSalaryReport(ctx context.Context, branchID, employeeID int64, startDate, endDate string) ([]*models.SalaryRecord, error) {
-	query := `
-		SELECT 
-			ep.employee_id,
+// GetBranchReport gives the report of a particular employee for a given year
+// v2
+func (r *ReportRepo) GetEmployeeSalaryReport(ctx context.Context, branchID int64, startDate, endDate time.Time, reportType string, page, limit int, search string) ([]*models.SalaryRecord, error) {
+	var sheets []*models.SalaryRecord
+	// --- 1. BUILD BASE QUERY & ARGS ---
+	// We cast sheet_date to text to allow searching by date string (e.g., "2024-01")
+	baseQuery := `
+        FROM employees_progress ep
+		LEFT JOIN employees e ON e.id = ep.employee_id
+		WHERE ep.branch_id = $1 AND ep.salary > 0 AND sheet_date BETWEEN $2::date AND $3::date
+    `
+	args := []interface{}{branchID, startDate, endDate}
+	argCounter := 4
+
+	if search != "" {
+		baseQuery += fmt.Sprintf(
+			" AND (e.name ILIKE $%d OR e.mobile ILIKE $%d)",
+			argCounter, argCounter,
+		)
+		args = append(args, "%"+search+"%")
+		argCounter++
+	}
+
+
+	// --- 3. QUERY DATA (Paginated) ---
+	offset := (page - 1) * limit
+
+	dataQuery := `
+        SELECT
+			ep.id,
+            ep.employee_id,
 			e.name,
 			e.role,
+			e.mobile,
 			e.base_salary,
 			ep.salary,
-			ep.advance_payment,
 			ep.sheet_date
-		FROM employees_progress ep
-		LEFT JOIN employees e ON e.id = ep.employee_id
-		WHERE ep.branch_id = $1 and ep.salary > 0
-	`
-	args := []any{branchID}
-	argPos := 2 // next placeholder index
+    ` + baseQuery + fmt.Sprintf(" ORDER BY sheet_date ASC LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
 
-	if employeeID != 0 {
-		query += fmt.Sprintf(" AND ep.employee_id = $%d", argPos)
-		args = append(args, employeeID)
-		argPos++
-	}
+	// Add limit and offset to args
+	args = append(args, limit, offset)
 
-	if startDate != "" && endDate != "" {
-		query += fmt.Sprintf(" AND ep.sheet_date BETWEEN $%d AND $%d", argPos, argPos+1)
-		args = append(args, startDate, endDate)
-		argPos += 2
-	}
-
-	query += " ORDER BY ep.sheet_date ASC"
-
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.db.Query(ctx, dataQuery, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var salaries []*models.SalaryRecord
 	for rows.Next() {
-		var s models.SalaryRecord
-		if err := rows.Scan(
-			&s.EmployeeID,
-			&s.EmployeeName,
-			&s.Role,
-			&s.BaseSalary,
-			&s.TotalSalary,
-			&s.SheetDate,
-		); err != nil {
+		ts := &models.SalaryRecord{}
+		err := rows.Scan(
+			&ts.ID,
+			&ts.EmployeeID,
+			&ts.EmployeeName,
+			&ts.Role,
+			&ts.EmployeeMobile,
+			&ts.BaseSalary,
+			&ts.TotalSalary,
+			&ts.SheetDate,
+		)
+		if err != nil {
 			return nil, err
 		}
-		salaries = append(salaries, &s)
+		sheets = append(sheets, ts)
 	}
-	return salaries, nil
+
+	return sheets, nil
 }
+

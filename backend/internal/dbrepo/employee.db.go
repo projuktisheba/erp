@@ -26,13 +26,13 @@ func NewEmployeeRepo(db *pgxpool.Pool) *EmployeeRepo {
 func (r *EmployeeRepo) CreateEmployee(ctx context.Context, e *models.Employee) error {
 	query := `
 		INSERT INTO employees 
-		(name, role, mobile, email, password, passport_no, joining_date, address, base_salary, overtime_rate, branch_id, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+		(name, role, mobile, mobile_alt, email, password, passport_no, joining_date, address, base_salary, overtime_rate, branch_id, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
 		RETURNING id, created_at, updated_at
 	`
 
 	row := r.db.QueryRow(ctx, query,
-		e.Name, e.Role, e.Mobile, e.Email, e.Password, e.PassportNo,
+		e.Name, e.Role, e.Mobile, e.MobileAlt, e.Email, e.Password, e.PassportNo,
 		e.JoiningDate, e.Address, e.BaseSalary, e.OvertimeRate, e.BranchID,
 	)
 
@@ -61,14 +61,14 @@ func (r *EmployeeRepo) CreateEmployee(ctx context.Context, e *models.Employee) e
 func (user *EmployeeRepo) GetEmployeeByID(ctx context.Context, id int64) (*models.Employee, error) {
 	query := `
 		SELECT 
-			id, name, role, mobile, email, password, passport_no, joining_date, address, 
+			id, name, role, mobile, mobile_alt, email, password, passport_no, joining_date, address, 
 			base_salary, overtime_rate, branch_id, created_at, updated_at
 		FROM employees 
 		WHERE id = $1
 	`
 	e := &models.Employee{}
 	err := user.db.QueryRow(ctx, query, id).Scan(
-		&e.ID, &e.Name, &e.Role, &e.Mobile, &e.Email, &e.Password,
+		&e.ID, &e.Name, &e.Role, &e.Mobile, &e.MobileAlt, &e.Email, &e.Password,
 		&e.PassportNo, &e.JoiningDate, &e.Address,
 		&e.BaseSalary, &e.OvertimeRate, &e.BranchID,
 		&e.CreatedAt, &e.UpdatedAt,
@@ -86,7 +86,7 @@ func (user *EmployeeRepo) GetEmployeeByID(ctx context.Context, id int64) (*model
 func (user *EmployeeRepo) GetEmployeeByUsernameOrMobile(ctx context.Context, username string) (*models.Employee, error) {
 	query := `
 		SELECT 
-			id, name, role, mobile, email, password, passport_no, joining_date, address, 
+			id, name, role, mobile, mobile_alt, email, password, passport_no, joining_date, address, 
 			base_salary, overtime_rate, branch_id, created_at, updated_at
 		FROM employees 
 		WHERE mobile = $1 OR email = $1
@@ -94,7 +94,7 @@ func (user *EmployeeRepo) GetEmployeeByUsernameOrMobile(ctx context.Context, use
 	`
 	e := &models.Employee{}
 	err := user.db.QueryRow(ctx, query, username).Scan(
-		&e.ID, &e.Name, &e.Role, &e.Mobile, &e.Email, &e.Password,
+		&e.ID, &e.Name, &e.Role, &e.Mobile, &e.MobileAlt, &e.Email, &e.Password,
 		&e.PassportNo, &e.JoiningDate, &e.Address,
 		&e.BaseSalary, &e.OvertimeRate, &e.BranchID,
 		&e.CreatedAt, &e.UpdatedAt,
@@ -109,6 +109,24 @@ func (user *EmployeeRepo) GetEmployeeByUsernameOrMobile(ctx context.Context, use
 }
 
 // (V2)
+// UpdateEmployeePassword updates the password only
+func (r *EmployeeRepo) UpdateEmployeePassword(ctx context.Context, employeeId int64, newPassword string) error {
+	query := `
+		UPDATE employees SET password = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+	`
+	_, err := r.db.Exec(ctx, query,employeeId, newPassword)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return errors.New("no employee found with the given id")
+		}
+
+		return err
+	}
+
+	return nil
+}
+// (V2)
 // UpdateEmployee updates employee details
 func (r *EmployeeRepo) UpdateEmployee(ctx context.Context, e *models.Employee) error {
 	query := `
@@ -116,8 +134,8 @@ func (r *EmployeeRepo) UpdateEmployee(ctx context.Context, e *models.Employee) e
 		SET 
 			name = $2,
 			mobile = $3,
-			email = $4,
-			password = $5,
+			mobile_alt = $4,
+			email = $5,
 			passport_no = $6,
 			joining_date = $7,
 			address = $8,
@@ -131,7 +149,7 @@ func (r *EmployeeRepo) UpdateEmployee(ctx context.Context, e *models.Employee) e
 	`
 
 	row := r.db.QueryRow(ctx, query,
-		e.ID, e.Name, e.Mobile, e.Email, e.Password, e.PassportNo,
+		e.ID, e.Name, e.Mobile, e.MobileAlt, e.Email, e.PassportNo,
 		e.JoiningDate, e.Address, e.BaseSalary, e.OvertimeRate, e.Status, e.Role,
 	)
 
@@ -175,24 +193,8 @@ func (user *EmployeeRepo) UpdateEmployeeAvatarLink(ctx context.Context, id int, 
 	return err
 }
 
-// UpdateEmployeeSalary updates employee salary and overtime rate
-// Call this function if the role of the token user is Admin
-func (user *EmployeeRepo) UpdateEmployeeSalary(ctx context.Context, e *models.Employee) error {
-	query := `
-		UPDATE employees
-		SET base_salary=$1, overtime_rate=$2, updated_at= CURRENT_TIMESTAMP
-		WHERE id=$3
-		RETURNING updated_at;
-	`
-	return user.db.QueryRow(ctx, query,
-		e.BaseSalary,
-		e.OvertimeRate,
-		e.ID,
-	).Scan(&e.UpdatedAt)
-}
-
 // (V2)
-// SubmitSalary generates and give employee salary
+// SaveSalaryRecord generates and give employee salary
 // Call this function if the role of the token user is Admin
 func (user *EmployeeRepo) SaveSalaryRecord(ctx context.Context, salaryDate time.Time, employeeID, branchID, accountID int64, amount float64) error {
 	//using pgxpool begin a transaction
@@ -209,7 +211,7 @@ func (user *EmployeeRepo) SaveSalaryRecord(ctx context.Context, salaryDate time.
 		Salary:     amount,
 	}
 	// update employee_progress
-	err = UpdateEmployeeProgressReportTx(tx, ctx, employeeSalary)
+	id, err := UpdateEmployeeProgressReportTx(tx, ctx, employeeSalary)
 	if err != nil {
 		return fmt.Errorf("insert salary: %w", err)
 	}
@@ -228,7 +230,7 @@ func (user *EmployeeRepo) SaveSalaryRecord(ctx context.Context, salaryDate time.
 	//insert transaction
 	transaction := &models.Transaction{
 		TransactionDate: salaryDate,
-		MemoNo:          models.SALARY_MEMO_PREFIX + utils.GenerateMemoNo(),
+		MemoNo:          utils.GetSalaryMemo(id),
 		BranchID:        branchID,
 		FromID:          accountID,
 		FromType:        models.ENTITY_ACCOUNT,
@@ -239,6 +241,106 @@ func (user *EmployeeRepo) SaveSalaryRecord(ctx context.Context, salaryDate time.
 		Notes:           "Employee Salary",
 	}
 	_, err = CreateTransactionTx(ctx, tx, transaction) // silently add transaction
+
+	// Commit if all succeeded
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+// (V2)
+// UpdateSalaryRecord generates and give employee salary
+// Call this function if the role of the token user is Admin
+func (user *EmployeeRepo) UpdateSalaryRecord(ctx context.Context, salaryDate time.Time, salaryID, employeeID, branchID, accountID int64, amount float64) error {
+	//using pgxpool begin a transaction
+	tx, err := user.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	//-------------------------------------
+	// 1. Retrieve old info
+	//-------------------------------------
+
+	var oldSalaryInfo models.SalaryRecord
+	err = tx.QueryRow(ctx, `SELECT id, sheet_date, branch_id, employee_id, salary FROM employees_progress WHERE id=$1`, salaryID).Scan(
+		oldSalaryInfo.ID,
+		oldSalaryInfo.SheetDate,
+		oldSalaryInfo.BranchID,
+		oldSalaryInfo.EmployeeID,
+		oldSalaryInfo.TotalSalary,
+	)
+	//-------------------------------------
+	// 2. Employee Progress Table
+	//-------------------------------------
+	//Revert last entry
+	oldEmployeeSalary := &models.EmployeeProgressDB{
+		SheetDate:  oldSalaryInfo.SheetDate,
+		BranchID:   oldSalaryInfo.BranchID,
+		EmployeeID: oldSalaryInfo.EmployeeID,
+		Salary:     -oldSalaryInfo.TotalSalary,
+	}
+	// update employee_progress
+	_,err = UpdateEmployeeProgressReportTx(tx, ctx, oldEmployeeSalary)
+	if err != nil {
+		return fmt.Errorf("update salary: %w", err)
+	}
+	newEmployeeSalary := &models.EmployeeProgressDB{
+		SheetDate:  salaryDate,
+		BranchID:   branchID,
+		EmployeeID: employeeID,
+		Salary:     amount,
+	}
+	// update employee_progress
+	_,err = UpdateEmployeeProgressReportTx(tx, ctx, newEmployeeSalary)
+	if err != nil {
+		return fmt.Errorf("update salary: %w", err)
+	}
+
+	//-------------------------
+	// Top Sheet
+	//-------------------------
+	// Revert top_sheet
+	oldTopSheet := &models.TopSheetDB{
+		SheetDate: oldSalaryInfo.SheetDate,
+		BranchID:  oldEmployeeSalary.BranchID,
+		Expense:   -oldSalaryInfo.TotalSalary,
+	}
+	err = SaveTopSheetTx(tx, ctx, oldTopSheet)
+	if err != nil {
+		return fmt.Errorf("save topsheet: %w", err)
+	}
+	// Update top_sheet inside the same tx
+	newTopSheet := &models.TopSheetDB{
+		SheetDate: salaryDate,
+		BranchID:  branchID,
+		Expense:   amount,
+	}
+	err = SaveTopSheetTx(tx, ctx, newTopSheet)
+	if err != nil {
+		return fmt.Errorf("save topsheet: %w", err)
+	}
+
+	//delete old transaction
+	err = DeleteTransactionByBranchMemoTx(ctx, tx, utils.GetSalaryMemo(oldSalaryInfo.ID), oldSalaryInfo.BranchID)
+	//insert new transaction if amount > 0
+	if amount > 0 {
+		transaction := &models.Transaction{
+			TransactionDate: salaryDate,
+			MemoNo:          utils.GetSalaryMemo(oldSalaryInfo.ID),
+			BranchID:        branchID,
+			FromID:          accountID,
+			FromType:        models.ENTITY_ACCOUNT,
+			ToID:            employeeID,
+			ToType:          models.ENTITY_EMPLOYEE,
+			Amount:          amount,
+			TransactionType: models.SALARY,
+			Notes:           "Employee Salary",
+		}
+		_, err = CreateTransactionTx(ctx, tx, transaction) // silently add transaction
+	}
 
 	// Commit if all succeeded
 	if err != nil {
@@ -319,7 +421,7 @@ func (e *EmployeeRepo) PaginatedEmployeeList(ctx context.Context, page, limit in
 ) ([]*models.Employee, int, error) {
 
 	// Base queries
-	query := `SELECT id, name, role, status, mobile, email, password, passport_no, joining_date, address,
+	query := `SELECT id, name, role, status, mobile, mobile_alt, email, password, passport_no, joining_date, address,
 	                 base_salary, overtime_rate, branch_id, created_at, updated_at
 	          FROM employees
 	          WHERE role <> 'chairman'`
@@ -397,7 +499,7 @@ func (e *EmployeeRepo) PaginatedEmployeeList(ctx context.Context, page, limit in
 		var emp models.Employee
 		err := rows.Scan(
 			&emp.ID, &emp.Name, &emp.Role, &emp.Status,
-			&emp.Mobile, &emp.Email, &emp.Password, &emp.PassportNo,
+			&emp.Mobile, &emp.MobileAlt, &emp.Email, &emp.Password, &emp.PassportNo,
 			&emp.JoiningDate, &emp.Address, &emp.BaseSalary, &emp.OvertimeRate,
 			&emp.BranchID, &emp.CreatedAt, &emp.UpdatedAt,
 		)
@@ -416,7 +518,7 @@ func (e *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, workerProgress 
 		return err
 	}
 	//update employee_progress_table
-	err = UpdateEmployeeProgressReportTx(tx, ctx, &workerProgress)
+	id ,err := UpdateEmployeeProgressReportTx(tx, ctx, &workerProgress)
 	if err != nil {
 		return err
 	}
@@ -435,7 +537,7 @@ func (e *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, workerProgress 
 		transaction := &models.Transaction{
 			TransactionDate: workerProgress.SheetDate,
 			BranchID:        workerProgress.BranchID,
-			MemoNo:          models.SALARY_MEMO_PREFIX + utils.GenerateMemoNo(),
+			MemoNo:          utils.GetSalaryMemo(id),
 			FromID:          workerProgress.BranchID,
 			FromType:        models.ENTITY_ACCOUNT,
 			ToID:            workerProgress.EmployeeID,

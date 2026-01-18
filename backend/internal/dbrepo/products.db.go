@@ -453,7 +453,7 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 		SaleAmount: sale.TotalAmount,
 	}
 
-	if err := UpdateEmployeeProgressReportTx(tx, ctx, salespersonProgress); err != nil {
+	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, salespersonProgress); err != nil {
 		return 0, fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 
@@ -697,7 +697,7 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 		SaleAmount: -oldSale.TotalAmount,
 	}
 
-	if err := UpdateEmployeeProgressReportTx(tx, ctx, oldSalespersonProgress); err != nil {
+	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, oldSalespersonProgress); err != nil {
 		return fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 	newSalespersonProgress := &models.EmployeeProgressDB{
@@ -707,7 +707,7 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 		SaleAmount: sale.TotalAmount,
 	}
 
-	if err := UpdateEmployeeProgressReportTx(tx, ctx, newSalespersonProgress); err != nil {
+	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, newSalespersonProgress); err != nil {
 		return fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 
@@ -1106,7 +1106,7 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 		EmployeeID: prevSale.SalespersonID,
 		SaleAmount: -prevSale.TotalPayableAmount,
 	}
-	if err := UpdateEmployeeProgressReportTx(tx, ctx, &prevProgress); err != nil {
+	if _,err := UpdateEmployeeProgressReportTx(tx, ctx, &prevProgress); err != nil {
 		return fmt.Errorf("reverse salesperson progress: %w", err)
 	}
 
@@ -1235,7 +1235,7 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 		EmployeeID: sale.SalespersonID,
 		SaleAmount: sale.TotalPayableAmount,
 	}
-	if err := UpdateEmployeeProgressReportTx(tx, ctx, &newProgress); err != nil {
+	if _,err := UpdateEmployeeProgressReportTx(tx, ctx, &newProgress); err != nil {
 		return fmt.Errorf("update salesperson progress: %w", err)
 	}
 

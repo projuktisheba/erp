@@ -240,7 +240,7 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 		SaleAmount: order.TotalAmount,
 	}
 
-	if err := UpdateEmployeeProgressReportTx(tx, ctx, salespersonProgress); err != nil {
+	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, salespersonProgress); err != nil {
 		return 0, fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 
@@ -388,7 +388,7 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		OrderCount: -oldOrder.TotalItems,
 		SaleAmount: -oldOrder.TotalAmount,
 	}
-	if err := UpdateEmployeeProgressReportTx(tx, ctx, oldProgress); err != nil {
+	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, oldProgress); err != nil {
 		return fmt.Errorf("revert old salesperson progress failed: %w", err)
 	}
 
@@ -401,7 +401,7 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		OrderCount: order.TotalItems,
 		SaleAmount: order.TotalAmount,
 	}
-	if err := UpdateEmployeeProgressReportTx(tx, ctx, newProgress); err != nil {
+	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, newProgress); err != nil {
 		return fmt.Errorf("apply new salesperson progress failed: %w", err)
 	}
 

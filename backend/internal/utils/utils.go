@@ -143,6 +143,8 @@ func GenerateMemoNo() string {
 	return fmt.Sprintf("%s%s", datePart, string(randomPart))
 }
 
+
+
 // IsUniqueViolation checks if an error contains a unique constraint violation
 // for the specified database constraint name.
 func IsUniqueViolation(err error, constraintName string) bool {

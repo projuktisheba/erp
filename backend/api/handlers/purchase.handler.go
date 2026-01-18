@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/projuktisheba/erp-mini-api/internal/dbrepo"
@@ -31,7 +32,7 @@ func NewPurchaseHandler(db *dbrepo.PurchaseRepo, infoLog, errorLog *log.Logger) 
 // AddPurchase
 // =========================
 func (h *PurchaseHandler) AddPurchase(w http.ResponseWriter, r *http.Request) {
-	var purchase models.Purchase
+	var purchase models.PurchaseDB
 	err := utils.ReadJSON(w, r, &purchase)
 	if err != nil {
 		h.errorLog.Println("ERROR_01_AddPurchase:", err)
@@ -57,10 +58,10 @@ func (h *PurchaseHandler) AddPurchase(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var resp struct {
-		Error    bool             `json:"error"`
-		Status   string           `json:"status"`
-		Message  string           `json:"message"`
-		Purchase *models.Purchase `json:"purchase"`
+		Error    bool               `json:"error"`
+		Status   string             `json:"status"`
+		Message  string             `json:"message"`
+		Purchase *models.PurchaseDB `json:"purchase"`
 	}
 	resp.Error = false
 	resp.Status = "success"
@@ -74,7 +75,7 @@ func (h *PurchaseHandler) AddPurchase(w http.ResponseWriter, r *http.Request) {
 // UpdatePurchase
 // =========================
 func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
-	var purchase models.Purchase
+	var purchase models.PurchaseDB
 	err := utils.ReadJSON(w, r, &purchase)
 	if err != nil {
 		h.errorLog.Println("ERROR_01_UpdatePurchase:", err)
@@ -109,10 +110,10 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 	}
 
 	var resp struct {
-		Error    bool             `json:"error"`
-		Status   string           `json:"status"`
-		Message  string           `json:"message"`
-		Purchase *models.Purchase `json:"purchase"`
+		Error    bool               `json:"error"`
+		Status   string             `json:"status"`
+		Message  string             `json:"message"`
+		Purchase *models.PurchaseDB `json:"purchase"`
 	}
 	resp.Error = false
 	resp.Status = "success"
@@ -122,102 +123,79 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
 
-// ListPurchases handles GET /purchases
-func (h *PurchaseHandler) ListPurchases(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// -------------------------
-	// Get branch ID from header
-	// -------------------------
+func (h *PurchaseHandler) GetPurchaseReport(w http.ResponseWriter, r *http.Request) {
+	// 1. Validate Branch ID
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {
-		h.errorLog.Println("ERROR_ListPurchases: Branch ID not found")
-		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
+		h.errorLog.Println("ERROR_01_GetBranchReport: Branch id not found")
+		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header"))
 		return
 	}
 
-	// -------------------------
-	// Query parameters
-	// -------------------------
-	memoNo := r.URL.Query().Get("memo_no")
-	supplierID := int64(0)
-	if sID := r.URL.Query().Get("supplier_id"); sID != "" {
-		id, err := strconv.ParseInt(sID, 10, 64)
-		if err != nil {
-			utils.BadRequest(w, errors.New("invalid supplier_id"))
-			return
-		}
-		supplierID = id
+	// 2. Parse Query Params
+	q := r.URL.Query()
+	startDateStr := strings.TrimSpace(q.Get("start_date"))
+	endDateStr := strings.TrimSpace(q.Get("end_date"))
+	reportType := strings.TrimSpace(q.Get("report_type"))
+	search := strings.TrimSpace(q.Get("search"))
+
+	// Pagination Params (Default: Page 1, Limit 10)
+	page, err := strconv.Atoi(q.Get("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+	limit, err := strconv.Atoi(q.Get("limit"))
+	if err != nil || limit < 1 {
+		limit = 10
 	}
 
-	// -------------------------
-	// Pagination
-	// -------------------------
-	page := 0
-	limit := 0
-	if p := r.URL.Query().Get("page"); p != "" {
-		if pi, err := strconv.Atoi(p); err == nil && pi > 0 {
-			page = pi
-		}
+	if reportType == "" {
+		reportType = "daily" // default
 	}
-	if l := r.URL.Query().Get("limit"); l != "" {
-		if li, err := strconv.Atoi(l); err == nil && li > 0 {
-			limit = li
+
+	// 3. Date Logic
+	var startDate, endDate time.Time
+	const dateLayout = "2006-01-02"
+
+	if startDateStr == "" || endDateStr == "" {
+		// DEFAULT: Current Month Range
+		now := time.Now()
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		endDate = startDate.AddDate(0, 1, -1)
+	} else {
+		startDate, err = time.Parse(dateLayout, startDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("invalid start_date format, expected YYYY-MM-DD"))
+			return
+		}
+		endDate, err = time.Parse(dateLayout, endDateStr)
+		if err != nil {
+			utils.BadRequest(w, fmt.Errorf("invalid end_date format, expected YYYY-MM-DD"))
+			return
 		}
 	}
 
-	// -------------------------
-	// Optional date filters
-	// -------------------------
-	var fromDate, toDate *time.Time
-	if f := r.URL.Query().Get("start_date"); f != "" {
-		t, err := time.Parse("2006-01-02", f)
-		if err != nil {
-			utils.BadRequest(w, errors.New("invalid start_date format, expected YYYY-MM-DD"))
-			return
-		}
-		fromDate = &t
-	}
-	if t := r.URL.Query().Get("end_date"); t != "" {
-		tt, err := time.Parse("2006-01-02", t)
-		if err != nil {
-			utils.BadRequest(w, errors.New("invalid end_date format, expected YYYY-MM-DD"))
-			return
-		}
-		toDate = &tt
-	}
-
-	// -------------------------
-	// Fetch purchases from DB
-	// -------------------------
-	purchases, total, err := h.DB.ListPurchasesPaginated(ctx, memoNo, supplierID, branchID, fromDate, toDate, page, limit)
+	// 4. Fetch Report (Data + Count + Totals)
+	branchReport, totalCount, totals, err := h.DB.GetPurchaseReport(r.Context(), branchID, startDate, endDate, page, limit, search)
 	if err != nil {
-		h.errorLog.Println("ERROR_ListPurchases: failed to list purchases:", err)
-		utils.ServerError(w, err)
+		h.errorLog.Println("ERROR_03_GetBranchReport: ", err)
+		utils.BadRequest(w, err)
 		return
 	}
 
-	// -------------------------
-	// Response
-	// -------------------------
-	type PurchaseListResponse struct {
-		Error     bool               `json:"error"`
-		Status    string             `json:"status"`
-		Message   string             `json:"message"`
-		Total     int                `json:"total"`
-		Page      int                `json:"page"`
-		Limit     int                `json:"limit"`
-		Purchases []*models.Purchase `json:"report"`
-	}
-
-	resp := PurchaseListResponse{
-		Error:     false,
-		Status:    "success",
-		Message:   "Purchases retrieved successfully",
-		Total:     total,
-		Page:      page,
-		Limit:     limit,
-		Purchases: purchases,
+	// 5. Response
+	resp := struct {
+		Error      bool                 `json:"error"`
+		Message    string               `json:"message"`
+		Report     []*models.PurchaseDB `json:"report"`
+		TotalCount int64                `json:"total_count"`
+		Totals     interface{}          `json:"totals"` // Generic interface to hold the totals struct
+	}{
+		Error:      false,
+		Message:    "Branch report generated successfully",
+		Report:     branchReport,
+		TotalCount: totalCount,
+		Totals:     totals,
 	}
 
 	utils.WriteJSON(w, http.StatusOK, resp)

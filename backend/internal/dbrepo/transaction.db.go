@@ -85,6 +85,12 @@ func CreateTransactionTx(ctx context.Context, tx pgx.Tx, t *models.Transaction) 
 
 	return transactionID, nil
 }
+// DeleteTransactionByBranchMemoTx deletes a transaction from transactions table by memoNO and branchID
+func DeleteTransactionByBranchMemoTx(ctx context.Context, tx pgx.Tx, memoNo string, branchID int64) error {
+	var transactionID int64
+	query := `DELETE FROM transactions WHERE memo_no=$1 AND branch_id=$2`
+	return tx.QueryRow(ctx, query, memoNo, branchID).Scan(&transactionID)
+}
 
 // ListTransactionsPaginated retrieves transactions with optional filters
 func (r *TransactionRepo) ListTransactionsPaginated(

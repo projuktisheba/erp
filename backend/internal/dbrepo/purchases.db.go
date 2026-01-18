@@ -21,7 +21,7 @@ func NewPurchaseRepo(db *pgxpool.Pool) *PurchaseRepo {
 }
 
 // CreatePurchase inserts a new purchase, updates the branch cash account, and logs expense in top_sheet
-func (r *PurchaseRepo) CreatePurchase(ctx context.Context, p *models.Purchase) error {
+func (r *PurchaseRepo) CreatePurchase(ctx context.Context, p *models.PurchaseDB) error {
 	// Begin transaction
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -45,7 +45,6 @@ func (r *PurchaseRepo) CreatePurchase(ctx context.Context, p *models.Purchase) e
 		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		RETURNING id, created_at, updated_at
 	`
-
 	err = tx.QueryRow(ctx, query,
 		p.MemoNo,
 		p.PurchaseDate,
@@ -58,21 +57,11 @@ func (r *PurchaseRepo) CreatePurchase(ctx context.Context, p *models.Purchase) e
 		return fmt.Errorf("insert purchase: %w", err)
 	}
 
-	// Update branch cash account
-	_, err = tx.Exec(ctx, `
-		UPDATE accounts
-		SET current_balance = current_balance - $1
-		WHERE branch_id = $2 AND type='cash'
-	`, p.TotalAmount, p.BranchID)
-	if err != nil {
-		return fmt.Errorf("update account balance: %w", err)
-	}
-
 	// --- Update TopSheet: increase expense ---
 	topSheet := &models.TopSheetDB{
-		SheetDate:     p.PurchaseDate,
-		BranchID: p.BranchID,
-		Expense:  p.TotalAmount,
+		SheetDate: p.PurchaseDate,
+		BranchID:  p.BranchID,
+		Expense:   p.TotalAmount,
 	}
 	if err := SaveTopSheetTx(tx, ctx, topSheet); err != nil {
 		return fmt.Errorf("update topsheet expense: %w", err)
@@ -94,21 +83,28 @@ func (r *PurchaseRepo) CreatePurchase(ctx context.Context, p *models.Purchase) e
 		return err
 	}
 	//insert transaction
-	transaction := &models.Transaction{
-		BranchID:        p.BranchID,
-		MemoNo:          p.MemoNo,
-		FromID:          fromAccountID,
-		FromType:        "accounts",
-		ToID:            p.SupplierID,
-		ToType:          "suppliers",
-		Amount:          p.TotalAmount,
-		TransactionType: "payment",
-		CreatedAt:       p.PurchaseDate,
-		Notes:           notes,
-	}
-	_, err = CreateTransactionTx(ctx, tx, transaction) // silently add transaction
+	_, err = tx.Exec(ctx, `
+			INSERT INTO transactions(
+				transaction_date, memo_no, branch_id,
+				from_entity_id, from_entity_type,
+				to_entity_id, to_entity_type,
+				amount, transaction_type, notes
+			)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		`,
+		p.PurchaseDate,
+		models.PURCHASE_MEMO_PREFIX+"-"+p.MemoNo,
+		p.BranchID,
+		fromAccountID,
+		models.ENTITY_ACCOUNT,
+		p.SupplierID,
+		models.ENTITY_SUPPLIER,
+		p.TotalAmount,
+		models.PAYMENT,
+		"Payment for Material Purchase",
+	)
 	if err != nil {
-		return fmt.Errorf("insert transaction: %w", err)
+		return fmt.Errorf("insert transaction failed (4b): %w", err)
 	}
 
 	// Commit transaction
@@ -119,116 +115,203 @@ func (r *PurchaseRepo) CreatePurchase(ctx context.Context, p *models.Purchase) e
 
 	return nil
 }
+// GetPurchaseReport gives the purchase history for a particular branch with filtering and pagination
+func (r *PurchaseRepo) GetPurchaseReport(ctx context.Context, branchID int64, startDate, endDate time.Time, page, limit int, search string) ([]*models.PurchaseDB, int64, *models.PurchaseReportTotals, error) {
+    var purchases []*models.PurchaseDB
+    totals := &models.PurchaseReportTotals{}
+    var totalCount int64
 
-// ListPurchasesPaginated lists purchases with dynamic filters and pagination
-func (r *PurchaseRepo) ListPurchasesPaginated(
-	ctx context.Context,
-	memoNo string,
-	supplierID, branchID int64,
-	fromDate, toDate *time.Time,
-	pageNo, pageLen int,
-) ([]*models.Purchase, int, error) {
+    // --- 1. BUILD BASE QUERY & ARGS ---
+    // JOIN suppliers so we can search by name and mobile
+    baseQuery := `
+        FROM purchase p
+        JOIN suppliers s ON p.supplier_id = s.id
+        WHERE p.branch_id = $1
+          AND p.purchase_date BETWEEN $2::date AND $3::date
+    `
+    args := []interface{}{branchID, startDate, endDate}
+    argCounter := 4
 
-	// Base SELECT query
-	baseQuery := `
-		SELECT 
-			p.id, 
-			p.memo_no, 
-			p.purchase_date, 
-			p.supplier_id,
-			s.name AS supplier_name, 
-			p.branch_id, 
-			p.total_amount, 
-			p.notes, 
-			p.created_at, 
-			p.updated_at
-		FROM purchase p
-		JOIN suppliers s ON p.supplier_id = s.id
-	`
+    if search != "" {
+        // Search by Memo No OR Supplier Name OR Supplier Mobile
+        baseQuery += fmt.Sprintf(" AND (p.memo_no ILIKE $%d OR s.name ILIKE $%d OR s.mobile ILIKE $%d)", argCounter, argCounter+1, argCounter+2)
+        searchPattern := "%" + search + "%"
+        args = append(args, searchPattern, searchPattern, searchPattern)
+        argCounter += 3
+    }
 
-	// Build dynamic WHERE conditions
-	var conditions []string
-	var args []interface{}
-	argPos := 1
+    // --- 2. QUERY TOTALS (Count & Sums) ---
+    totalsQuery := `
+        SELECT 
+            COUNT(*),
+            COALESCE(SUM(p.total_amount), 0)
+    ` + baseQuery
 
-	if memoNo != "" {
-		conditions = append(conditions, fmt.Sprintf("p.memo_no ILIKE '%%' || $%d || '%%'", argPos))
-		args = append(args, memoNo)
-		argPos++
-	}
-	if supplierID > 0 {
-		conditions = append(conditions, fmt.Sprintf("p.supplier_id = $%d", argPos))
-		args = append(args, supplierID)
-		argPos++
-	}
-	if branchID > 0 {
-		conditions = append(conditions, fmt.Sprintf("p.branch_id = $%d", argPos))
-		args = append(args, branchID)
-		argPos++
-	}
-	if fromDate != nil {
-		conditions = append(conditions, fmt.Sprintf("p.purchase_date >= $%d", argPos))
-		args = append(args, *fromDate)
-		argPos++
-	}
-	if toDate != nil {
-		conditions = append(conditions, fmt.Sprintf("p.purchase_date <= $%d", argPos))
-		args = append(args, *toDate)
-		argPos++
-	}
+    err := r.db.QueryRow(ctx, totalsQuery, args...).Scan(
+        &totalCount,
+        &totals.TotalAmount,
+    )
+    if err != nil {
+        return nil, 0, nil, err
+    }
 
-	whereClause := ""
-	if len(conditions) > 0 {
-		whereClause = " WHERE " + strings.Join(conditions, " AND ")
-	}
+    // --- 3. QUERY DATA (Paginated) ---
+    offset := (page - 1) * limit
 
-	// COUNT query for total rows
-	countQuery := "SELECT COUNT(*) FROM purchase p JOIN suppliers s ON p.supplier_id = s.id" + whereClause
-	var total int
-	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count purchases: %w", err)
-	}
+    dataQuery := `
+        SELECT
+            p.id,
+            p.memo_no,
+            p.purchase_date,
+            p.supplier_id,
+            s.name,
+            s.mobile,
+            p.branch_id,
+            p.total_amount,
+            p.notes
+    ` + baseQuery + fmt.Sprintf(" ORDER BY p.purchase_date DESC, p.id DESC LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
 
-	query := baseQuery + whereClause + " ORDER BY p.purchase_date DESC"
-	// Add ORDER, LIMIT, OFFSET for pagination
-	if pageLen > 0 && pageNo > 0 {
-		offset := (pageNo - 1) * pageLen
+    // Add limit and offset to args
+    args = append(args, limit, offset)
 
-		query += fmt.Sprintf(" LIMIT %d OFFSET %d", pageLen, offset)
-	}
+    rows, err := r.db.Query(ctx, dataQuery, args...)
+    if err != nil {
+        return nil, 0, nil, err
+    }
+    defer rows.Close()
 
-	// Execute final query
-	rows, err := r.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, 0, fmt.Errorf("list purchases: %w", err)
-	}
-	defer rows.Close()
+    for rows.Next() {
+        p := &models.PurchaseDB{}
 
-	var purchases []*models.Purchase
-	for rows.Next() {
-		p := &models.Purchase{}
-		if err := rows.Scan(
-			&p.ID,
-			&p.MemoNo,
-			&p.PurchaseDate,
-			&p.SupplierID,
-			&p.SupplierName,
-			&p.BranchID,
-			&p.TotalAmount,
-			&p.Notes,
-			&p.CreatedAt,
-			&p.UpdatedAt,
-		); err != nil {
-			return nil, 0, fmt.Errorf("scan purchase: %w", err)
-		}
-		purchases = append(purchases, p)
-	}
+        err := rows.Scan(
+            &p.ID,
+            &p.MemoNo,
+            &p.PurchaseDate,
+            &p.SupplierID,
+            &p.SupplierName,
+            &p.SupplierMobile,
+            &p.BranchID,
+            &p.TotalAmount,
+            &p.Notes,
+        )
+        if err != nil {
+            return nil, 0, nil, err
+        }
 
-	return purchases, total, nil
+        purchases = append(purchases, p)
+    }
+
+    return purchases, totalCount, totals, nil
 }
+// ListPurchasesPaginated lists purchases with dynamic filters and pagination
+// func (r *PurchaseRepo) ListPurchasesPaginated(
+// 	ctx context.Context,
+// 	memoNo string,
+// 	supplierID, branchID int64,
+// 	fromDate, toDate *time.Time,
+// 	pageNo, pageLen int,
+// ) ([]*models.PurchaseDB, int, error) {
+
+// 	// Base SELECT query
+// 	baseQuery := `
+// 		SELECT 
+// 			p.id, 
+// 			p.memo_no, 
+// 			p.purchase_date, 
+// 			p.supplier_id,
+// 			s.name AS supplier_name, 
+// 			p.branch_id, 
+// 			p.total_amount, 
+// 			p.notes, 
+// 			p.created_at, 
+// 			p.updated_at
+// 		FROM purchase p
+// 		JOIN suppliers s ON p.supplier_id = s.id
+// 	`
+
+// 	// Build dynamic WHERE conditions
+// 	var conditions []string
+// 	var args []interface{}
+// 	argPos := 1
+
+// 	if memoNo != "" {
+// 		conditions = append(conditions, fmt.Sprintf("p.memo_no ILIKE '%%' || $%d || '%%'", argPos))
+// 		args = append(args, memoNo)
+// 		argPos++
+// 	}
+// 	if supplierID > 0 {
+// 		conditions = append(conditions, fmt.Sprintf("p.supplier_id = $%d", argPos))
+// 		args = append(args, supplierID)
+// 		argPos++
+// 	}
+// 	if branchID > 0 {
+// 		conditions = append(conditions, fmt.Sprintf("p.branch_id = $%d", argPos))
+// 		args = append(args, branchID)
+// 		argPos++
+// 	}
+// 	if fromDate != nil {
+// 		conditions = append(conditions, fmt.Sprintf("p.purchase_date >= $%d", argPos))
+// 		args = append(args, *fromDate)
+// 		argPos++
+// 	}
+// 	if toDate != nil {
+// 		conditions = append(conditions, fmt.Sprintf("p.purchase_date <= $%d", argPos))
+// 		args = append(args, *toDate)
+// 		argPos++
+// 	}
+
+// 	whereClause := ""
+// 	if len(conditions) > 0 {
+// 		whereClause = " WHERE " + strings.Join(conditions, " AND ")
+// 	}
+
+// 	// COUNT query for total rows
+// 	countQuery := "SELECT COUNT(*) FROM purchase p JOIN suppliers s ON p.supplier_id = s.id" + whereClause
+// 	var total int
+// 	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+// 		return nil, 0, fmt.Errorf("count purchases: %w", err)
+// 	}
+
+// 	query := baseQuery + whereClause + " ORDER BY p.purchase_date DESC"
+// 	// Add ORDER, LIMIT, OFFSET for pagination
+// 	if pageLen > 0 && pageNo > 0 {
+// 		offset := (pageNo - 1) * pageLen
+
+// 		query += fmt.Sprintf(" LIMIT %d OFFSET %d", pageLen, offset)
+// 	}
+
+// 	// Execute final query
+// 	rows, err := r.db.Query(ctx, query, args...)
+// 	if err != nil {
+// 		return nil, 0, fmt.Errorf("list purchases: %w", err)
+// 	}
+// 	defer rows.Close()
+
+// 	var purchases []*models.PurchaseDB
+// 	for rows.Next() {
+// 		p := &models.PurchaseDB{}
+// 		if err := rows.Scan(
+// 			&p.ID,
+// 			&p.MemoNo,
+// 			&p.PurchaseDate,
+// 			&p.SupplierID,
+// 			&p.SupplierName,
+// 			&p.BranchID,
+// 			&p.TotalAmount,
+// 			&p.Notes,
+// 			&p.CreatedAt,
+// 			&p.UpdatedAt,
+// 		); err != nil {
+// 			return nil, 0, fmt.Errorf("scan purchase: %w", err)
+// 		}
+// 		purchases = append(purchases, p)
+// 	}
+
+// 	return purchases, total, nil
+// }
 
 // UpdatePurchase updates an existing purchase, adjusts branch cash, and updates TopSheet & transaction
-func (r *PurchaseRepo) UpdatePurchase(ctx context.Context, p *models.Purchase) error {
+func (r *PurchaseRepo) UpdatePurchase(ctx context.Context, p *models.PurchaseDB) error {
 	// Begin transaction
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -282,9 +365,9 @@ func (r *PurchaseRepo) UpdatePurchase(ctx context.Context, p *models.Purchase) e
 
 	// Update TopSheet expense
 	topSheet := &models.TopSheetDB{
-		SheetDate:     p.PurchaseDate,
-		BranchID: p.BranchID,
-		Expense:  diff,
+		SheetDate: p.PurchaseDate,
+		BranchID:  p.BranchID,
+		Expense:   diff,
 	}
 	if err := SaveTopSheetTx(tx, ctx, topSheet); err != nil {
 		return fmt.Errorf("update topsheet expense: %w", err)

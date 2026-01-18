@@ -58,6 +58,7 @@ CREATE TABLE employees (
     role VARCHAR(20) NOT NULL CHECK (role IN ('chairman', 'manager', 'salesperson', 'worker')),
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK(status IN('active', 'inactive')),  
     mobile VARCHAR(20) NOT NULL,  
+    mobile_alt VARCHAR(20) NOT null default '',  
     email VARCHAR(150)NOT NULL DEFAULT '',
     password TEXT NOT NULL DEFAULT '',
     passport_no VARCHAR(50)NOT NULL DEFAULT '',  

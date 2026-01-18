@@ -75,6 +75,7 @@ function renderEmployees(list) {
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Employee</th>
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Role</th>
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Contact</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Address</th>
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Salary (SAR)</th>
             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
@@ -129,18 +130,29 @@ function createEmployeeTableRow(emp) {
           </span>
       </td>
 
-      <td class="px-6 py-4 whitespace-nowrap">
-          <div class="flex flex-col gap-0.5">
-            <div class="text-sm text-slate-600 flex items-center gap-1.5">
-                <i class="ph ph-phone text-slate-400 text-xs"></i> ${emp.mobile}
-            </div>
-            ${emp.email ? `
-            <div class="text-xs text-slate-500 flex items-center gap-1.5">
-                <i class="ph ph-envelope text-slate-400 text-xs"></i> 
-                <span class="truncate max-w-[150px]" title="${emp.email}">${emp.email}</span>
-            </div>` : ''}
+      <td class="px-6 py-4">
+          <div class="flex items-center gap-4">
+              <div class="flex flex-col min-w-[120px]">
+                  <div class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                      ${emp.mobile}
+                  </div>
+                  <div class="text-[11px] text-slate-400 font-medium">
+                      ${emp.mobile_alt || 'No secondary'}
+                  </div>
+              </div>
           </div>
       </td>
+      <td class="px-6 py-4">
+          <div class="flex items-center gap-4">
+              <div class="flex flex-col">
+                  <div class="text-xs text-slate-500 max-w-[180px] leading-tight truncate-2-lines">
+                      ${emp.address || 'N/A'}
+                  </div>
+              </div>
+          </div>
+      </td>
+
+      
 
       <td class="px-6 py-4 whitespace-nowrap">
           <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${statusColor} capitalize">
@@ -229,6 +241,7 @@ window.editEmployee = function (emp) {
   document.getElementById("empName").value = emp.name;
   document.getElementById("empRole").value = emp.role;
   document.getElementById("empMobile").value = emp.mobile;
+  document.getElementById("empMobileAlt").value = emp.mobile_alt || "";
   document.getElementById("empEmail").value = emp.email || "";
   document.getElementById("empStatus").value = emp.status;
   document.getElementById("empSalary").value = emp.base_salary;
@@ -282,6 +295,7 @@ async function saveEmployee() {
     name,
     role,
     mobile,
+    mobile_alt: document.getElementById("empMobileAlt").value,
     email: document.getElementById("empEmail").value,
     password: document.getElementById("empPassword").value,
     status: document.getElementById("empStatus").value,

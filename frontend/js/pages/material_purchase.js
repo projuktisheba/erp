@@ -7,16 +7,14 @@ window.materialPurchaseState = {
   paymentAccounts: [], // Holds payment accounts
 };
 
-
 /* ==========================================================================
    INITIALIZATION UPDATE
    ========================================================================== */
 // Modify your window.initMaterialPurchasePage function
 window.initMaterialPurchasePage = async function () {
-
   // 1. Fetch Initial Data
   await fetchSuppliers();
-  await fetchPaymentAccounts();
+  // await fetchPaymentAccounts();
 
   // 2. Attach Listeners for the Supplier Table Search
   const searchInput = document.getElementById("supplierSearch");
@@ -29,9 +27,7 @@ window.initMaterialPurchasePage = async function () {
 
   // A. Supplier Form (Allows searching ALL active suppliers)
   setupSupplierAutocomplete("supplier", (emp) => emp.status === "active");
-
 };
-
 
 /* ==========================================================================
    LOGIC: FETCHING DATA
@@ -54,10 +50,7 @@ function renderSuppliers(list) {
                 <thead class="bg-slate-50 border-b border-slate-200">
                     <tr>
                         <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Supplier</th>
-                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Role</th>
                         <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact</th>
-                        <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Base Salary</th>
-                        <th class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
                         <th class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -262,9 +255,8 @@ function selectSupplierForForm(prefix, emp) {
   document.getElementById(`${prefix}CardName`).textContent = emp.name;
   document.getElementById(`${prefix}CardMobile`).textContent = emp.mobile;
 
-
   // 3. FORM: Set ID and Show Form
-  const idInput = document.getElementById(`${prefix}SupplierId`);
+  const idInput = document.getElementById(`supplierId`);
   const form = document.getElementById(`${prefix}Form`);
 
   if (idInput) idInput.value = emp.id;
@@ -273,7 +265,7 @@ function selectSupplierForForm(prefix, emp) {
     form.classList.remove("hidden", "opacity-50", "pointer-events-none");
 
     // Set default date to today if empty
-    const dateInput = document.getElementById(`${prefix}Date`);
+    const dateInput = document.getElementById(`purchaseDate`);
     if (dateInput && !dateInput.value) {
       dateInput.valueAsDate = new Date();
     }
@@ -297,7 +289,7 @@ window.resetAutocomplete = function (prefix) {
   }
 
   // 3. Clear ID
-  const idInput = document.getElementById(`${prefix}SupplierId`);
+  const idInput = document.getElementById(`supplierId`);
   if (idInput) idInput.value = "";
 };
 
@@ -307,23 +299,24 @@ window.resetAutocomplete = function (prefix) {
 
 // --- A. Save Salary ---
 window.saveMaterialPurchaseRecord = async function () {
-  const supplierId = document.getElementById("salarySupplierId").value;
-  const amount = document.getElementById("salaryAmount").value;
-  const paymentAccountID = document.getElementById(
-    "salaryPaymentAccountSelect"
-  ).value;
-  const date = document.getElementById("salaryDate").value;
+  const supplierId = document.getElementById("supplierId").value;
+  const memoNo = document.getElementById("memoNo").value;
+  const totalAmount = document.getElementById("totalAmount").value;
+  // const paymentAccountID = document.getElementById(
+  //   "PaymentAccountSelect"
+  // ).value;
+  const purchaseDate = document.getElementById("purchaseDate").value;
   // const note = document.getElementById("salaryNote").value;
 
   const error = !supplierId
-    ? "Please select an supplier"
-    : !amount
-    ? "Please enter price amount"
-    : !paymentAccountID
-    ? "Please select payment account"
-    : !date
-    ? "Please select payment date"
-    : null;
+    ? "Please select supplier"
+    : !totalAmount
+      ? "Please enter price amount"
+      : !memoNo
+        ? "Please enter memo no"
+        : !purchaseDate
+          ? "Please select purchase date"
+          : null;
 
   if (error) {
     showModalConfirm("error", "Error", error, "Ok", () => {});
@@ -331,28 +324,40 @@ window.saveMaterialPurchaseRecord = async function () {
   }
 
   try {
+    // ID           int64     `json:"id"`
+    // MemoNo       string    `json:"memo_no"`
+    // PurchaseDate time.Time `json:"purchase_date"`
+    // SupplierID   int64     `json:"supplier_id"`
+    // SupplierName string    `json:"supplier_name"`
+    // BranchID     int64     `json:"branch_id"`
+    // TotalAmount  float64   `json:"total_amount"`
+    // Notes        string    `json:"notes"`
+    // CreatedAt    time.Time `json:"created_at"`
     const payload = {
+      memo_no: memoNo,
+      purchase_date: new Date(purchaseDate).toISOString(),
       supplier_id: parseInt(supplierId),
-      payment_account_id: parseInt(paymentAccountID),
-      amount: parseFloat(amount),
-      payment_date: new Date(date).toISOString(),
+      branch_id:window.globalState.user.branch_id,
+      total_amount: parseFloat(totalAmount),
     };
-    console.log(payload)
-    // const response = await fetch(
-    //   `${window.globalState.apiBase}/hr/supplier/salary/create`,
-    //   {
-    //     method: "POST",
-    //     headers: window.getAuthHeaders(),
-    //     body: JSON.stringify(payload),
-    //   }
-    // );
+    console.log(payload);
+    const response = await fetch(
+      `${window.globalState.apiBase}/purchase/new`,
+      {
+        method: "POST",
+        headers: window.getAuthHeaders(),
+        body: JSON.stringify(payload),
+      }
+    );
 
+    if (!response.ok) throw new Error("Failed to fetch report");
+
+    const data = await response.json();
     if (response.ok) {
-      showNotification("success", "Salary payment recorded successfully!");
+      showNotification("success", "Purchase completed!");
       resetAutocomplete("salary");
     } else {
-      const err = await response.json();
-      throw new Error(err.message || "Failed to save salary");
+      throw new Error(data.message || "Failed to make purchase");
     }
   } catch (error) {
     showNotification("error", error.message);

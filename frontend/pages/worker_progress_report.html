@@ -41,7 +41,7 @@
                         <span>Print</span>
                     </button>
 
-                    <!-- <div class="relative">
+                    <div class="relative">
                         <select id="pageLengthSelector"
                             class="appearance-none w-20 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm cursor-pointer text-center font-medium text-slate-700">
                             <option value="10" selected>10</option>
@@ -51,7 +51,7 @@
                         </select>
                         <i
                             class="ph ph-caret-down absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
-                    </div> -->
+                    </div>
                 </div>
 
             </div>
@@ -59,41 +59,77 @@
     </div>
 
     <div class="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-        <div class="overflow-auto flex-1">
-            <table id="reportTable" class="w-full text-left text-sm whitespace-nowrap">
-                <thead class="bg-slate-50 text-slate-500 sticky top-0 z-10 border-b border-slate-200 font-semibold uppercase text-xs tracking-wider">
+        <div class="overflow-x-auto flex-1 w-full">
+            <table id="reportTable" class="min-w-full text-left text-sm whitespace-nowrap">
+                <thead
+                    class="bg-slate-50 text-slate-500 sticky top-0 z-10 border-b border-slate-200 font-semibold uppercase text-xs tracking-wider">
                     <tr>
                         <th class="px-4 py-3 border-r border-slate-100">Date</th>
-                        <th class="px-4 py-3 text-center border-r border-slate-100">Worker Name</th>
-                        <th class="px-4 py-3 text-right border-r border-slate-100">Production Units</th>                     
+                        <th class="px-4 py-3 text-left border-r border-slate-100">Employee Name</th>
+                        <th class="px-4 py-3 text-left border-r border-slate-100">Mobile</th>
+                        <th class="px-4 py-3 text-right border-r border-slate-100">Product Unit</th>
                         <th class="px-4 py-3 text-right border-r border-slate-100">Overtime Hours</th>
                         <th class="px-4 py-3 text-right border-r border-slate-100">Advance Payment</th>
+                        <th class="px-4 py-3 text-right border-r border-slate-100">Action</th>
                     </tr>
                 </thead>
                 <tbody id="reportTableBody" class="divide-y divide-slate-100">
-                    </tbody>
-                
-                <tfoot id="reportTableFoot" class="bg-slate-50 font-bold text-slate-700 sticky bottom-0 z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-                    </tfoot>
+                </tbody>
+                <tfoot id="reportTableFoot"
+                    class="bg-slate-50 font-bold text-slate-700 sticky bottom-0 z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                </tfoot>
             </table>
 
-            <div id="emptyReportState" class="hidden flex flex-col items-center justify-center py-20 text-center">
+            <div id="emptyReportState" class="hidden flex flex-col items-center justify-center py-20 text-center px-4">
                 <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                     <i class="ph ph-chart-bar text-4xl text-slate-300"></i>
                 </div>
                 <h3 class="text-lg font-bold text-slate-700">No records found</h3>
-                <p class="text-slate-400 text-sm mt-1">Try changing the date range.</p>
+                <p class="text-slate-400 text-sm mt-1">Try changing the date range or search query.</p>
             </div>
         </div>
     </div>
+
+    <div
+        class="px-2 py-2 sm:p-2 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+
+        <p class="text-xs sm:text-sm text-slate-500 font-medium order-2 sm:order-1 text-center sm:text-left"
+            id="paginationInfo">
+            Showing 0-0 of 0 results
+        </p>
+
+        <div id="paginationContainer"
+            class="flex flex-wrap gap-1 sm:gap-2 items-center justify-center order-1 sm:order-2">
+        </div>
+    </div>
+
 </div>
 
 <style>
     @media print {
-        body * { visibility: hidden; }
-        #reportTable, #reportTable * { visibility: visible; }
-        #reportTable { position: absolute; left: 0; top: 0; width: 100%; }
-        /* Hide scrollbars and headers during print */
-        .no-print { display: none !important; }
+        body * {
+            visibility: hidden;
+        }
+
+        #reportTable,
+        #reportTable * {
+            visibility: visible;
+        }
+
+        #reportTable {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+        }
+
+        .no-print {
+            display: none !important;
+        }
+
+        .overflow-x-auto {
+            overflow: visible !important;
+        }
     }
 </style>

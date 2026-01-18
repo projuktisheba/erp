@@ -16,9 +16,10 @@ const (
 	SALARY          = "Salary"
 )
 const (
-	SALE_MEMO_PREFIX   = "SALE"
-	ORDER_MEMO_PREFIX  = "ORDER"
-	SALARY_MEMO_PREFIX = "SALARY"
+	SALE_MEMO_PREFIX     = "SALE"
+	ORDER_MEMO_PREFIX    = "ORDER"
+	SALARY_MEMO_PREFIX   = "SALARY"
+	PURCHASE_MEMO_PREFIX = "PUR"
 )
 const (
 	ACCOUNT_BANK = "bank"
@@ -26,6 +27,7 @@ const (
 )
 const (
 	ENTITY_ACCOUNT     = "accounts"
+	ENTITY_SUPPLIER    = "suppliers"
 	ENTITY_CUSTOMER    = "customers"
 	ENTITY_EMPLOYEE    = "employees"
 	ENTITY_SALESPERSON = "salespersons"
@@ -91,6 +93,7 @@ type Employee struct {
 	Role         string    `json:"role"`   // chairman, manager, salesperson, worker
 	Status       string    `json:"status"` // active, inactive
 	Mobile       string    `json:"mobile"`
+	MobileAlt       string    `json:"mobile_alt"`
 	Email        string    `json:"email,omitempty"`
 	Password     string    `json:"password"` // hashed password
 	PassportNo   string    `json:"passport_no,omitempty"`
@@ -121,20 +124,25 @@ type Supplier struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// Purchase represents the purchase table
-type Purchase struct {
-	ID           int64     `json:"id"`
-	MemoNo       string    `json:"memo_no"`
-	PurchaseDate time.Time `json:"purchase_date"`
-	SupplierID   int64     `json:"supplier_id"`
-	SupplierName string    `json:"supplier_name"`
-	BranchID     int64     `json:"branch_id"`
-	TotalAmount  float64   `json:"total_amount"`
-	Notes        string    `json:"notes"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+// PurchaseDB represents the purchase table
+type PurchaseDB struct {
+	ID             int64     `json:"id"`
+	MemoNo         string    `json:"memo_no"`
+	PurchaseDate   time.Time `json:"purchase_date"`
+	SupplierID     int64     `json:"supplier_id"`
+	SupplierName   string    `json:"supplier_name"`
+	SupplierMobile string    `json:"supplier_mobile"`
+	BranchID       int64     `json:"branch_id"`
+	TotalAmount    float64   `json:"total_amount"`
+	Notes          string    `json:"notes"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+// PurchaseReportTotals represents the aggregate data
+type PurchaseReportTotals struct {
+	TotalAmount float64 `json:"total_amount"`
+}
 type Customer struct {
 	ID        int64   `json:"id"`
 	Name      string  `json:"name"`
@@ -255,7 +263,7 @@ type WorkerProgressReportDB struct {
 	Mobile               string  `json:"mobile"`
 	Email                string  `json:"email"`
 	BaseSalary           float64 `json:"base_salary"`
-	Date                 string  `json:"date"`
+	SheetDate            string  `json:"sheet_date"`
 	TotalAdvancePayment  float64 `json:"total_advance_payment"`
 	TotalProductionUnits float64 `json:"total_production_units"`
 	TotalOvertimeHours   float64 `json:"total_overtime_hours"`
@@ -300,6 +308,7 @@ type SalesPersonProgressTotals struct {
 
 // Employee progress struct
 type EmployeeProgressDB struct {
+	ID               int64     `json:"id"`
 	SheetDate        time.Time `json:"sheet_date"`
 	BranchID         int64     `json:"branch_id"`
 	EmployeeID       int64     `json:"employee_id"`
@@ -307,7 +316,7 @@ type EmployeeProgressDB struct {
 	SaleReturnAmount float64   `json:"sale_return_amount"`
 	OrderCount       int64     `json:"order_count"`
 	ProductionUnits  int64     `json:"production_units"`
-	OvertimeHours    int16     `json:"overtime_hours"`
+	OvertimeHours    float64   `json:"overtime_hours"`
 	AdvancePayment   float64   `json:"advance_payment"`
 	Salary           float64   `json:"salary"`
 }
@@ -331,10 +340,13 @@ type WorkerLogDB struct {
 }
 
 type SalaryRecord struct {
-	EmployeeID   int64     `json:"employee_id"`
-	EmployeeName string    `json:"employee_name"`
-	Role         string    `json:"role"`
-	BaseSalary   float64   `json:"base_salary"`
-	TotalSalary  float64   `json:"total_salary"`
-	SheetDate    time.Time `json:"sheet_date"`
+	ID             int64     `json:"id"`
+	BranchID       int64     `json:"branch_id"`
+	EmployeeID     int64     `json:"employee_id"`
+	EmployeeName   string    `json:"employee_name"`
+	EmployeeMobile string    `json:"employee_mobile"`
+	Role           string    `json:"role"`
+	BaseSalary     float64   `json:"base_salary"`
+	TotalSalary    float64   `json:"total_salary"`
+	SheetDate      time.Time `json:"sheet_date"`
 }
