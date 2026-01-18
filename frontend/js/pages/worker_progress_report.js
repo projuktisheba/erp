@@ -9,41 +9,53 @@ window.reportState = {
   totalRecords: 0,
   searchDebounce: null,
 };
-
+window.employeePaymentState = {
+  list: [], // Holds the raw data from API
+  filtered: [], // Holds data currently shown in the table
+  paymentAccounts: [], // Holds payment accounts
+};
 /* --- INITIALIZATION --- */
 window.initWorkerProgressReportPage = async function () {
   
-  // 1. Grab Elements
-  const searchInput = document.getElementById("searchReportInput"); // Assumed ID
+  // 1. Setup Search & Pagination Listeners (Existing code)
+  const searchInput = document.getElementById("searchReportInput");
   const pageLengthSelect = document.getElementById("pageLengthSelector");
 
-  // 2. Search Listener (Debounced)
   if (searchInput) {
     searchInput.value = reportState.searchQuery;
     searchInput.addEventListener("input", (e) => {
       clearTimeout(reportState.searchDebounce);
       reportState.searchDebounce = setTimeout(() => {
-        const newVal = e.target.value.trim();
-        if (reportState.searchQuery !== newVal) {
-          reportState.searchQuery = newVal;
-          reportState.currentPage = 1; // Reset to page 1 on search
-          fetchReport();
-        }
+        reportState.searchQuery = e.target.value.trim();
+        reportState.currentPage = 1;
+        fetchReport();
       }, 400);
     });
   }
 
-  // 3. Page Length Listener
   if (pageLengthSelect) {
-    pageLengthSelect.value = reportState.pageLength.toString();
     pageLengthSelect.addEventListener("change", (e) => {
       reportState.pageLength = parseInt(e.target.value);
-      reportState.currentPage = 1; // Reset to page 1 on change
+      reportState.currentPage = 1;
       fetchReport();
     });
   }
 
-  // 4. Default Date Preset (Triggers Initial Fetch)
+  // 2. Load Data for Autocomplete
+  await fetchEmployees(); 
+  await fetchPaymentAccounts(); 
+  
+  // 3. Setup Autocomplete for Worker
+  window.initAutocomplete({
+    prefix: "worker",
+    // Filter only active workers
+    data: window.employeePaymentState.list.filter(e => e.role === 'worker'), 
+    searchKeys: ["name", "mobile"],
+    hiddenId: "workerId",
+    onSelect: (emp) => updateWorkerCardUI(emp),
+  });
+
+  // 4. Default Date Preset & Fetch
   applyPreset("this_month");
 };
 
@@ -198,7 +210,77 @@ async function fetchReport() {
     }
   }
 }
+/* ==========================================================================
+   1. DATA FETCHING
+   ========================================================================== */
+async function fetchEmployees() {
+  const container = document.getElementById("employeeGrid");
 
+  // Show Loading Spinner in Table Area
+  if (container) {
+    container.innerHTML =
+      '<div class="w-full text-center py-10"><i class="ph ph-spinner animate-spin text-3xl text-brand-600"></i></div>';
+  }
+
+  try {
+    const response = await fetch(`${window.globalState.apiBase}/hr/employees?role=worker`, {
+      headers: window.getAuthHeaders(),
+    });
+
+    if (!response.ok) throw new Error("Failed to fetch employees");
+
+    const data = await response.json();
+
+    // Store Data
+    employeePaymentState.list = data.employees || data || [];
+    employeePaymentState.filtered = employeePaymentState.list;
+
+    // Note: We don't need to manually update the top forms here because
+    // the autocomplete functions always read directly from `employeePaymentState.list`
+  } catch (error) {
+    console.error(error);
+    if (container)
+      container.innerHTML = `<div class="w-full text-center text-red-500 font-bold py-4">Failed to load employee data</div>`;
+    showNotification("error", "Could not load employees.");
+  }
+}
+async function fetchPaymentAccounts() {
+  try {
+    const response = await fetch(`${window.globalState.apiBase}/accounts`, {
+      headers: window.getAuthHeaders(),
+    });
+
+    if (!response.ok) throw new Error("Failed to fetch payment accounts");
+
+    const data = await response.json();
+
+    // Store Data
+    employeePaymentState.paymentAccounts = data.accounts || [];
+
+    // Render dropdown
+    renderPaymentAccounts(
+      "paymentAccountSelect",
+      employeePaymentState.paymentAccounts || []
+    );
+  } catch (error) {
+    console.error(error);
+    if (container)
+      container.innerHTML = `<div class="w-full text-center text-red-500 font-bold py-4">Failed to load employee data</div>`;
+    showNotification("error", "Could not load employees.");
+  }
+}
+function renderPaymentAccounts(elementId, list) {
+  const select = document.getElementById(elementId);
+  if (!select) return;
+  select.innerHTML = `<option value="" disabled>Select Payment Method</option>`;
+  if (!list || list.length === 0) {
+    select.innerHTML = `<option value="" disabled>No Payment Method Found</option>`;
+  } else {
+    list.forEach((item) => {
+      select.innerHTML += `<option value="${item.id}">${item.name}(${item.type})</option>`;
+    });
+  }
+}
 /* --- 3. CALCULATE TOTALS --- */
 function calculateTotals() {
   let t = { total_advance_payment:0, total_production_units:0, total_overtime_hours:0 };
@@ -247,6 +329,11 @@ function renderReportTable() {
             <td class="px-4 py-3 text-right border-r border-slate-100"> ${row.total_production_units}</td>                
             <td class="px-4 py-3 text-right border-r border-slate-100">${row.total_overtime_hours}</td>
             <td class="px-4 py-3 text-right border-r border-slate-100">${row.total_advance_payment}</td>
+            <td class="px-4 py-2 whitespace-nowrap text-right text-sm font-medium">
+              <button onclick='openWorkerModal(${row.id})' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
+                  <i class="ph ph-pencil-simple text-lg"></i>
+              </button>
+            </td>
         </tr>
     `;
   });
@@ -259,6 +346,7 @@ function renderReportTable() {
         <td class="px-4 py-3 text-right">${t.total_production_units}</td>
         <td class="px-4 py-3 text-right">${t.total_overtime_hours}</td>
         <td class="px-4 py-3 text-right">${t.total_advance_payment}</td>
+        <td class="px-4 py-3 text-right"></td>
     </tr>
   `;
 }
@@ -300,3 +388,105 @@ window.printReport = function () {
     totals: reportState.totals,
   });
 };
+
+/* --- HELPER: UPDATE CARD UI --- */
+function updateWorkerCardUI(emp) {
+    if (!emp) return;
+    document.getElementById("workerCardInitials").textContent = emp.name.substring(0, 2).toUpperCase();
+    document.getElementById("workerId").value = emp.id;
+    document.getElementById("workerCardName").textContent = emp.name;
+    document.getElementById("workerCardMobile").textContent = emp.mobile || '--';
+    document.getElementById("workerCardRole").textContent = emp.role || 'Worker';
+}
+
+/* --- MODAL ACTIONS --- */
+
+// 1. OPEN MODAL & PRE-FILL
+window.openWorkerModal = function (rowId) {
+  // Find the row data
+  const rowData = reportState.data.find((item) => item.id === rowId);
+  if (!rowData) return;
+
+  const empInfo = window.employeePaymentState.list.find(e => e.id === rowData.worker_id);
+
+  // Fill Form Fields
+  document.getElementById("progressRecordId").value = rowData.id;
+  document.getElementById("workerId").value = rowData.worker_id;
+  document.getElementById("workerDate").value = formatDateVal(new Date(rowData.sheet_date));
+  
+  document.getElementById("workerProduction").value = rowData.total_production_units || 0;
+  document.getElementById("workerOvertime").value = rowData.total_overtime_hours || 0;
+  document.getElementById("workerAdvance").value = rowData.total_advance_payment || 0;
+
+  // Setup UI State (Card vs Search)
+  if (empInfo) {
+      updateWorkerCardUI(empInfo);
+      document.getElementById("workerSearchContainer").classList.add("hidden");
+      document.getElementById("workerSelectedCard").classList.remove("hidden");
+      document.getElementById("workerSearchInput").value = "";
+  } else {
+      // Fallback
+      document.getElementById("workerSearchContainer").classList.remove("hidden");
+      document.getElementById("workerSelectedCard").classList.add("hidden");
+  }
+
+  document.getElementById("workerModal").classList.remove("hidden");
+};
+
+// 2. CLOSE MODAL
+window.closeWorkerModal = function () {
+  document.getElementById("workerModal").classList.add("hidden");
+};
+
+// 3. SAVE / UPDATE
+window.handleUpdateWorkerProgress = async function(e) {
+    e.preventDefault();
+
+    const empId = document.getElementById("workerId").value;
+    const progressRecordId = document.getElementById("progressRecordId").value;
+    const date = document.getElementById("workerDate").value;
+    const production = document.getElementById("workerProduction").value || 0;
+    const overtime = document.getElementById("workerOvertime").value || 0;
+    const advance = document.getElementById("workerAdvance").value || 0;
+    const paymentID = document.getElementById("paymentAccountSelect").value || 0;
+
+    if (!empId || !date || !paymentID) {
+        showNotification("error", "Employee, payment date and Payment account id are required");
+        return;
+    }
+
+    try {
+        const payload = {
+            employee_id: parseInt(empId),
+            sheet_date: new Date(date).toISOString(),
+            production_units: parseInt(production),
+            overtime_hours: parseFloat(overtime),
+            advance_payment: parseFloat(advance),
+            payment_account_id: parseInt(paymentID)
+            // Note: Your Go backend handles upsert (INSERT... ON CONFLICT UPDATE)
+            // so we don't strictly need the row ID if the unique constraint is (date, emp_id)
+        };
+        console.log(payload)
+        const response = await fetch(`${window.globalState.apiBase}/hr/employee/worker/progress/update/${progressRecordId}`, {
+            method: "PATCH",
+            headers: window.getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            showNotification("success", "Worker progress updated");
+            closeWorkerModal();
+            // fetchReport(); // Refresh Table
+        } else {
+            const err = await response.json();
+            throw new Error(err.message || "Update failed");
+        }
+    } catch (error) {
+        showNotification("error", error.message);
+    }
+};
+
+
+function printData(id){
+  console.log("payment account changed to: ", id)
+}

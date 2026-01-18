@@ -275,9 +275,7 @@ function selectSupplierForForm(prefix, emp) {
 // Global Function to Reset (called by 'X' button or after submit)
 window.resetAutocomplete = function (prefix) {
   // 1. Reset Search UI
-  document
-    .getElementById(`${prefix}SearchContainer`)
-    .classList.remove("hidden");
+  document.getElementById(`${prefix}SearchContainer`).classList.remove("hidden");
   document.getElementById(`${prefix}SelectedCard`).classList.add("hidden");
   document.getElementById(`${prefix}SearchInput`).value = "";
 
@@ -324,15 +322,6 @@ window.saveMaterialPurchaseRecord = async function () {
   }
 
   try {
-    // ID           int64     `json:"id"`
-    // MemoNo       string    `json:"memo_no"`
-    // PurchaseDate time.Time `json:"purchase_date"`
-    // SupplierID   int64     `json:"supplier_id"`
-    // SupplierName string    `json:"supplier_name"`
-    // BranchID     int64     `json:"branch_id"`
-    // TotalAmount  float64   `json:"total_amount"`
-    // Notes        string    `json:"notes"`
-    // CreatedAt    time.Time `json:"created_at"`
     const payload = {
       memo_no: memoNo,
       purchase_date: new Date(purchaseDate).toISOString(),
@@ -355,11 +344,12 @@ window.saveMaterialPurchaseRecord = async function () {
     const data = await response.json();
     if (response.ok) {
       showNotification("success", "Purchase completed!");
-      resetAutocomplete("salary");
+      resetAutocomplete("supplier");
     } else {
       throw new Error(data.message || "Failed to make purchase");
     }
   } catch (error) {
+    console.error(error)
     showNotification("error", error.message);
   }
 };

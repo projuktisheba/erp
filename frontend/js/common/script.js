@@ -297,6 +297,7 @@ async function loadPage(pageName, pageTitle) {
             pageTitle = pageName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
         document.getElementById("pageTitle").textContent = pageTitle;
+        document.title = pageTitle;
 
         // --- NEW LOGIC START ---
         // Persist the current location to LocalStorage

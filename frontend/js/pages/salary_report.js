@@ -440,7 +440,7 @@ window.closeSalaryModal = function () {
 };
 
 // 3. HANDLE SAVE (UPDATE)
-window.handleSaveSalary = async function(e) {
+window.handleUpdateSalary = async function(e) {
     e.preventDefault();
     
     const salaryId = document.getElementById("salaryId").value;

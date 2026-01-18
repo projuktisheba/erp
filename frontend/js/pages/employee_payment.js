@@ -394,7 +394,7 @@ window.saveWorkerProgress = async function () {
     };
 
     const response = await fetch(
-      `${window.globalState.apiBase}/hr/employee/worker/progress`,
+      `${window.globalState.apiBase}/hr/employee/worker/progress/create`,
       {
         method: "POST",
         headers: window.getAuthHeaders(),
