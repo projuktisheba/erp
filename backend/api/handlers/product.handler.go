@@ -56,9 +56,10 @@ func (h *ProductHandler) GetProductsHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *ProductHandler) RestockProducts(w http.ResponseWriter, r *http.Request) {
+
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {
-		h.errorLog.Println("ERROR_01_CheckoutOrder: Branch id not found")
+		h.errorLog.Println("ERROR_01_RestockProducts: Branch id not found")
 		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
 		return
 	}
@@ -113,11 +114,11 @@ func (h *ProductHandler) GetProductStockReportHandler(w http.ResponseWriter, r *
 	search := strings.TrimSpace(q.Get("search"))
 
 	// Pagination Params (Default: Page 1, Limit 10)
-	page, err := strconv.ParseInt(q.Get("page"),10,64)
+	page, err := strconv.ParseInt(q.Get("page"), 10, 64)
 	if err != nil || page < 1 {
 		page = 1
 	}
-	limit, err := strconv.ParseInt(q.Get("limit"),10,64)
+	limit, err := strconv.ParseInt(q.Get("limit"), 10, 64)
 	if err != nil || limit < 1 {
 		limit = 10
 	}
@@ -158,11 +159,11 @@ func (h *ProductHandler) GetProductStockReportHandler(w http.ResponseWriter, r *
 
 	// 5. Response
 	resp := struct {
-		Error      bool                 `json:"error"`
-		Message    string               `json:"message"`
+		Error      bool                           `json:"error"`
+		Message    string                         `json:"message"`
 		Report     []*models.ProductStockRegistry `json:"report"`
-		TotalCount int64                `json:"total_count"`
-		Totals     interface{}          `json:"totals"` // Generic interface to hold the totals struct
+		TotalCount int64                          `json:"total_count"`
+		Totals     interface{}                    `json:"totals"` // Generic interface to hold the totals struct
 	}{
 		Error:      false,
 		Message:    "Branch report generated successfully",
@@ -172,6 +173,34 @@ func (h *ProductHandler) GetProductStockReportHandler(w http.ResponseWriter, r *
 	}
 
 	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *ProductHandler) DeleteStockProducts(w http.ResponseWriter, r *http.Request) {
+	stockID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if stockID == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid stock id"))
+		return
+	}
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
+		return
+	}
+
+	err = h.DB.DeleteStockProducts(r.Context(), stockID, branchID)
+	if err != nil {
+		h.errorLog.Println("ERROR_02_DeleteStockProducts: Unable to update stocks => ", err)
+		utils.BadRequest(w, err)
+		return
+	}
+	var resp struct {
+		Error   bool   `json:"error"`
+		Message string `json:"message"`
+	}
+
+	resp.Error = false
+	resp.Message = "Record deleted successfully"
+	utils.WriteJSON(w, http.StatusCreated, resp)
 }
 
 // AddSale handles POST /sales/new

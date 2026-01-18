@@ -418,7 +418,7 @@ window.renderProductOptions = function () {
   select.innerHTML = `<option value="" disabled selected>Select Product</option>`;
 
   if (availableProducts.length === 0) {
-    select.innerHTML += `<option value="" disabled>All items in cart</option>`;
+    select.innerHTML += `<option value="" disabled>No product available</option>`;
   } else {
     availableProducts.forEach((p) => {
       // Re-select the item if it was previously selected (helps when switching edit modes)

@@ -249,6 +249,11 @@ function renderReportTable() {
                 <td class="px-4 py-3 text-right font-medium border-r border-slate-100">
                     ${row.quantity}
                 </td>
+                <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                  <button onclick='deleteStock(${row.id})' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
+                    <i class="ph ph-trash text-lg"></i>
+                  </button>
+                </td>
             </tr>
         `;
   });
@@ -259,6 +264,7 @@ function renderReportTable() {
         <tr class="bg-slate-100 border-t-2 border-slate-200">
             <td class="px-4 py-3 text-right uppercase text-xs tracking-wider text-slate-500" colspan="3">Total</td>
             <td class="px-4 py-3 text-right">${t.quantity}</td>
+            <td class="px-4 py-3 text-right"></td>
         </tr>
     `;
 }
@@ -298,3 +304,32 @@ window.printReport = function () {
     // totals: reportState.totals,
   });
 };
+
+
+/* --- DELETE LOGIC --- */
+window.deleteStock = async function (id) {
+  if (!confirm("Are you sure you want to delete this stock?")) return;
+
+  try {
+    const response = await fetch(
+      `${window.globalState.apiBase}/products/stocks/delete/${id}`,
+      {
+        method: "DELETE",
+        headers: window.getAuthHeaders(),
+      }
+    );
+
+    if (response.ok) {
+      showNotification('success', 'Record deleted');
+      fetchReport();
+    } else {
+      showNotification('error', 'Failed to delete record');
+    }
+  } catch (error) {
+    console.error(error);
+   showNotification('error', 'Server Error');
+  }
+};
+
+
+

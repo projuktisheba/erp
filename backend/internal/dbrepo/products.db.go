@@ -99,8 +99,43 @@ func (s *ProductRepo) RestockProducts(ctx context.Context, date time.Time, memoN
 	return memoNo, nil
 }
 
+// DeleteStockProducts reduce stock quantities for given products and remove corresponded logs.
+// (V2)
+func (s *ProductRepo) DeleteStockProducts(ctx context.Context, stockID, branchID int64) error {
+	// Begin transaction
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
 
+	//Load old data
+	var productID, productQuantity int64 
+	err = tx.QueryRow(ctx, `SELECT product_id, quantity FROM product_stock_registry WHERE id=$1 AND branch_id=$2`, stockID, branchID).Scan(&productID, &productQuantity) 
 
+	// Update stock and insert restock record
+	_, err = tx.Exec(ctx, `
+		UPDATE products
+		SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $2;
+	`, productQuantity, productID)
+	if err != nil {
+		return fmt.Errorf("update stock for product %w", err)
+	}
+
+	// Log in product_stock_registry (if table exists)
+	_, err = tx.Exec(ctx, `DELETE FROM product_stock_registry WHERE id=$1 AND branch_id=$2;`, stockID, branchID)
+	if err != nil {
+		return fmt.Errorf("insert stock registry: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+
+	return nil
+}
 
 // GetProductStockReportByDateRange retrieves stock registry records
 // with pagination, total counts, and quantity summation.
@@ -315,10 +350,10 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 	// Step 3: Update top sheet
 	// --------------------
 	topSheet := &models.TopSheetDB{
-		SheetDate: sale.SaleDate,
-		BranchID:  sale.BranchID,
+		SheetDate:   sale.SaleDate,
+		BranchID:    sale.BranchID,
 		SalesAmount: sale.TotalAmount, // total amount
-		ReadyMade: sale.TotalItems, // total items
+		ReadyMade:   sale.TotalItems,  // total items
 	}
 
 	var acctType string
@@ -447,7 +482,7 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 	// Step 6: Salesperson progress
 	// --------------------
 	salespersonProgress := &models.EmployeeProgressDB{
-		SheetDate:       sale.SaleDate,
+		SheetDate:  sale.SaleDate,
 		BranchID:   sale.BranchID,
 		EmployeeID: sale.SalespersonID,
 		SaleAmount: sale.TotalAmount,
@@ -459,6 +494,7 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 
 	return saleID, tx.Commit(ctx)
 }
+
 // ============================== UPDATE SALE TRANSACTIONS ==============================
 // UpdateSale updates an existing sale and adjusts all dependent reports.
 // It creates a "Revert Old" -> "Apply New" flow to handle changes in
@@ -556,10 +592,10 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 	// 6. Top Sheet
 	// --------------------
 	oldSheet := &models.TopSheetDB{
-		SheetDate: oldSale.SaleDate,
-		BranchID:  oldSale.BranchID,
-		SalesAmount: -oldSale.TotalAmount, 
-		ReadyMade: -oldSale.TotalItems,
+		SheetDate:   oldSale.SaleDate,
+		BranchID:    oldSale.BranchID,
+		SalesAmount: -oldSale.TotalAmount,
+		ReadyMade:   -oldSale.TotalItems,
 	}
 	var acctType string
 	if oldSale.ReceivedAmount > 0 {
@@ -579,12 +615,12 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 		}
 	}
 	newSheet := &models.TopSheetDB{
-		SheetDate: sale.SaleDate,
-		BranchID:  sale.BranchID,
+		SheetDate:   sale.SaleDate,
+		BranchID:    sale.BranchID,
 		SalesAmount: sale.TotalAmount,
-		ReadyMade: sale.TotalItems,
+		ReadyMade:   sale.TotalItems,
 	}
-	
+
 	if sale.ReceivedAmount > 0 {
 		err = tx.QueryRow(ctx,
 			`SELECT type FROM accounts WHERE id=$1 AND branch_id=$2`,
@@ -614,7 +650,7 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 	oldDue := oldSale.TotalAmount - oldSale.ReceivedAmount
 	newDue := sale.TotalAmount - sale.ReceivedAmount
 	deltaDue := newDue - oldDue
-	
+
 	if deltaDue != 0 {
 		_, err = tx.Exec(ctx,
 			`UPDATE customers SET due_amount = due_amount + $1 WHERE id=$2`,
@@ -691,7 +727,7 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 	// 9. Salesperson progress
 	// --------------------
 	oldSalespersonProgress := &models.EmployeeProgressDB{
-		SheetDate:       oldSale.SaleDate,
+		SheetDate:  oldSale.SaleDate,
 		BranchID:   oldSale.BranchID,
 		EmployeeID: oldSale.SalespersonID,
 		SaleAmount: -oldSale.TotalAmount,
@@ -701,7 +737,7 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 		return fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 	newSalespersonProgress := &models.EmployeeProgressDB{
-		SheetDate:       sale.SaleDate,
+		SheetDate:  sale.SaleDate,
 		BranchID:   sale.BranchID,
 		EmployeeID: sale.SalespersonID,
 		SaleAmount: sale.TotalAmount,
@@ -713,7 +749,6 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 
 	return tx.Commit(ctx)
 }
-
 
 // ============================== SALE RETRIEVAL ==============================
 // GetSaleDetailsByID retrieves a sale info and details
@@ -969,7 +1004,7 @@ func (r *ProductRepo) GetSales(
 			&o.ID, &o.BranchID, &o.MemoNo, &o.SaleDate,
 			&o.SalespersonID, &o.Salesperson.Name, &o.Salesperson.Mobile,
 			&o.CustomerID, &o.Customer.Name, &o.Customer.Mobile,
-			&o.TotalItems, 
+			&o.TotalItems,
 			&o.TotalAmount, &o.ReceivedAmount,
 			&o.Status, &o.Notes, &o.CreatedAt, &o.UpdatedAt,
 		)
@@ -1101,12 +1136,12 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 
 	// 1.4: Reverse Salesperson Progress (Negative Amount)
 	prevProgress := models.EmployeeProgressDB{
-		SheetDate:       prevSale.SaleDate,
+		SheetDate:  prevSale.SaleDate,
 		BranchID:   branchID,
 		EmployeeID: prevSale.SalespersonID,
 		SaleAmount: -prevSale.TotalPayableAmount,
 	}
-	if _,err := UpdateEmployeeProgressReportTx(tx, ctx, &prevProgress); err != nil {
+	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, &prevProgress); err != nil {
 		return fmt.Errorf("reverse salesperson progress: %w", err)
 	}
 
@@ -1230,12 +1265,12 @@ func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sa
 
 	// 2.6: Update Salesperson Progress (Positive Amount)
 	newProgress := models.EmployeeProgressDB{
-		SheetDate:       sale.SaleDate,
+		SheetDate:  sale.SaleDate,
 		BranchID:   branchID,
 		EmployeeID: sale.SalespersonID,
 		SaleAmount: sale.TotalPayableAmount,
 	}
-	if _,err := UpdateEmployeeProgressReportTx(tx, ctx, &newProgress); err != nil {
+	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, &newProgress); err != nil {
 		return fmt.Errorf("update salesperson progress: %w", err)
 	}
 

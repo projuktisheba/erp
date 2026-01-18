@@ -485,8 +485,3 @@ window.handleUpdateWorkerProgress = async function(e) {
         showNotification("error", error.message);
     }
 };
-
-
-function printData(id){
-  console.log("payment account changed to: ", id)
-}

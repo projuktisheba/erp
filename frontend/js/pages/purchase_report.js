@@ -252,6 +252,11 @@ function renderReportTable() {
                 }</td><td class="px-4 py-3 text-right border-r border-slate-100">${
                   row.total_amount || "0"
                 }</td>
+                <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                  <button onclick='deletePurchaseRecord(${row.id})' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
+                      <i class="ph ph-trash text-lg"></i>
+                  </button>
+                </td>
             </tr>
         `;
   });
@@ -262,6 +267,7 @@ function renderReportTable() {
         <tr class="bg-slate-100 border-t-2 border-slate-200">
             <td class="px-4 py-3 text-right uppercase text-xs tracking-wider text-slate-500" colspan="4">Total</td>
             <td class="px-4 py-3 text-right">${t.total_amount}</td>
+            <td class="px-4 py-3 text-right"></td>
         </tr>
     `;
 }
@@ -276,7 +282,7 @@ window.printReport = function () {
     { label: "Date", key: "purchase_date", align: "center", action: "date" },
     { label: "Memo No", key: "memo_no", align: "left" },
     { label: "Supplier Name", key: "supplier_name", align: "left" },
-    { label: "Supplier Mobile", key: "supplier_name", align: "left" },
+    { label: "Supplier Mobile", key: "supplier_mobile", align: "left" },
     { label: "Total Amount", key: "total_amount", align: "right" },
   ];
 
@@ -301,4 +307,31 @@ window.printReport = function () {
     rows: printData,
     totals: reportState.totals,
   });
+};
+
+
+/* --- 7. DELETE LOGIC --- */
+window.deletePurchaseRecord = async function (id) {
+  if (!confirm("Are you sure you want to delete this record?")) return;
+
+  try {
+    const response = await fetch(
+      `${window.globalState.apiBase}/purchase/delete/${id}`,
+      {
+        method: "DELETE",
+        headers: window.getAuthHeaders(),
+      }
+    );
+
+    if (response.ok) {
+      showNotification('success', 'Purchase Deleted');
+      fetchReport();
+    } else {
+      const data = await response.json()
+      showNotification('error', 'Failed to delete');
+      throw new Error("Failed to delete purchase record: ", data.message || "")
+    }
+  } catch (error) {
+    console.error(error);
+  }
 };

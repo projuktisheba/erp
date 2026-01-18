@@ -122,6 +122,7 @@ func (app *application) routes() http.Handler {
 		r.Get("/", app.Handlers.Product.GetProductsHandler)
 		r.Post("/stock/add", app.Handlers.Product.RestockProducts)
 		r.Get("/stocks", app.Handlers.Product.GetProductStockReportHandler)
+		r.Delete("/stocks/delete/{id}", app.Handlers.Product.DeleteStockProducts)
 		r.Post("/sales/new", app.Handlers.Product.AddSale)
 		r.Patch("/sales/update/{id}", app.Handlers.Product.UpdateSale)
 		r.Get("/sales/details/{sale_id}", app.Handlers.Product.GetSaleDetailsByID)
@@ -149,7 +150,8 @@ func (app *application) routes() http.Handler {
 	// -------------------- Inventory Routes --------------------
 	protected.Route("/api/v1/purchase", func(r chi.Router) {
 		r.Post("/new", app.Handlers.Purchase.AddPurchase)
-		r.Patch("/update", app.Handlers.Purchase.UpdatePurchase)
+		r.Patch("/update/{id}", app.Handlers.Purchase.UpdatePurchase)
+		r.Delete("/delete/{id}", app.Handlers.Purchase.DeletePurchase)
 		r.Get("/list", app.Handlers.Purchase.GetPurchaseReport)
 	})
 
