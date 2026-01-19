@@ -137,7 +137,7 @@ func (app *application) routes() http.Handler {
 		r.Patch("/orders/update/{id}", app.Handlers.Order.UpdateOrder)
 		// r.Delete("orders/cancel/{id}", app.Handlers.Order.CancelOrder)
 		r.Post("/orders/delivery/create", app.Handlers.Order.OrderDelivery)
-		r.Delete("/orders/delivery/delete", app.Handlers.Order.DeleteOrderDeliveryRecord)
+		r.Delete("/orders/delivery/delete/{id}", app.Handlers.Order.DeleteOrderDeliveryRecord)
 		// r.Get("/", app.Handlers.Order.GetOrderDetailsByID)
 		// r.Get("/items", app.Handlers.Order.GetOrderItemsByMemoNo)
 		// r.Get("/list", app.Handlers.Order.ListOrders)

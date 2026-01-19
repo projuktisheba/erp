@@ -18,8 +18,8 @@ func GenerateMemoNo() string {
 func GetPurchaseMemo(id int64) string {
 	return fmt.Sprintf("%s-%d", models.PURCHASE_MEMO_PREFIX, id)
 }
-func GetOrderMemo(memo string) string {
-	return fmt.Sprintf("%s-%s", models.ORDER_MEMO_PREFIX, memo)
+func GetOrderMemo(transactionID int64, memo string) string {
+	return fmt.Sprintf("%s-%d-%s", models.ORDER_MEMO_PREFIX, transactionID, memo)
 }
 func GetSalaryMemo(salaryID int64) string {
 	return fmt.Sprintf("%s-%d", models.SALARY_MEMO_PREFIX, salaryID)

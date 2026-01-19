@@ -110,10 +110,6 @@ window.applyPreset = function (type) {
   fetchReport();
 };
 
-function formatDateVal(date) {
-  return date.toISOString().split("T")[0];
-}
-
 /* --- 2. FETCH DATA --- */
 async function fetchReport() {
   const tbody = document.getElementById("reportTableBody");
@@ -237,7 +233,7 @@ function renderReportTable() {
   reportState.data.forEach((row) => {
     tbody.innerHTML += `
             <tr class="hover:bg-slate-50 border-b border-slate-50 transition text-slate-700">
-                <td class="px-4 py-3 border-r border-slate-100 font-medium">${formatDate(row.stock_date)}</td>
+                <td class="px-4 py-3 border-r border-slate-100 font-medium">${formatDateVal(row.stock_date)}</td>
                 <td class="px-4 py-3 text-left border-r border-slate-100">${
                   row.product_name || "0"
                 }</td>
@@ -287,7 +283,7 @@ window.printReport = function () {
       const dateObj = row.stock_date;
       return {
           ...row,
-          stock_date: formatDate(dateObj),
+          stock_date: formatDateVal(dateObj),
       };
   });
 

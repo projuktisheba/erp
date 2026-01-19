@@ -65,6 +65,7 @@ func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get branches on which the use has access
 	// Generate JWT
 	token, err := utils.GenerateJWT(models.JWT{
 		ID:        user.ID,

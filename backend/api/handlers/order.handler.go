@@ -84,8 +84,6 @@ func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	orderDetails.BranchID = branchID
 
-	o.infoLog.Printf("Received order data: %+v\n", orderDetails)
-
 	// load old data
 	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderDetails.ID);
 	if err != nil {
@@ -151,8 +149,6 @@ func (o *OrderHandler) OrderDelivery(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, err)
 		return
 	}
-
-	o.infoLog.Printf("Received order data: %+v\n", orderTx)
 	// load old data
 	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), *orderTx.OrderID);
 	if err != nil {

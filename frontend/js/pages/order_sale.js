@@ -23,6 +23,7 @@ window.resetOrderState = () => {
 window.initOrderSalePage = async function () {
     //Reset order state
   resetOrderState();
+    // Set Input Values (YYYY-MM-DD)
   try {
     // Load ALL necessary static data (products, customers, employees, accounts)
     const [productsRes, customersRes, employeesRes, accountsRes] =
@@ -212,10 +213,10 @@ window.loadOrderForEdit = async function (orderId) {
     document.getElementById("orderNotes").value = order.notes || "";
 
     // 4. Populate Dates
-    const formatDate = (dateStr) => (dateStr ? dateStr.split("T")[0] : "");
+    // const formatDateVal = (dateStr) => (dateStr ? dateStr.split("T")[0] : "");
 
-    document.getElementById("orderDate").value = formatDate(order.order_date);
-    document.getElementById("deliveryDate").value = formatDate(
+    document.getElementById("orderDate").value = formatDateVal(order.order_date);
+    document.getElementById("deliveryDate").value = formatDateVal(
       order.delivery_date
     );
 
@@ -355,7 +356,7 @@ window.updateOrderState = function () {
 // Helper function to set today's date on all date inputs
 function setTodayDates() {
   const today = new Date();
-  const dateString = today.toISOString().split("T")[0];
+  const dateString = formatDateVal(today);
 
   const saleDateInput = document.getElementById("saleDate");
   const orderDateInput = document.getElementById("orderDate");

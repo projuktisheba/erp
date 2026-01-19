@@ -24,13 +24,13 @@ const BRANCH_NAMES = {
   3: "EID AL ABAYAT",
 };
 const BRANCH_CONTACTS = {
-  1: "50294046",
-  2: "50294046",
+  1: "55016898",
+  2: "33079655",
   3: "50294046",
 };
 const BRANCH_CONTACTS_ALT = {
-  1: "50298321",
-  2: "50298321",
+  1: "50036274",
+  2: "51051407",
   3: "50298321",
 };
 window.GetUserRole = function (){

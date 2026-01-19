@@ -87,6 +87,24 @@ type Config struct {
 	DB   DBConfig
 }
 
+type Branch struct {
+	ID          int64     `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Slogan      string    `json:"slogan"`
+	Mobile      string    `json:"mobile"`
+	Telephone   string    `json:"telephone"`
+	Email       string    `json:"email"`
+	Website     string    `json:"website"`
+	Country     string    `json:"country"`
+	City        string    `json:"city"`
+	Address     string    `json:"address"`
+	PostalCode  string    `json:"postal_code"`
+	LogoLink    string    `json:"logo_link"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 // Employee model
 type Employee struct {
 	ID           int64     `json:"id"`

@@ -23,7 +23,7 @@ const menuConfig = [
         label: "Restock Products",
         pageId: "restock_products",
         action: "loadPage('restock_products','Restock Product')",
-        roles: ["chairman", "manager"],
+        roles: ["chairman"],
       },
       {
         label: "Material Purchase",

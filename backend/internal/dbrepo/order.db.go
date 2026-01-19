@@ -150,12 +150,14 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 		}
 
 		// 4a: order payment transaction
-		_, err = tx.Exec(ctx, `
+		var orderTxId int64
+		err = tx.QueryRow(ctx, `
 			INSERT INTO order_transactions(
 				order_id, transaction_date, payment_account_id, memo_no, delivered_by, quantity_delivered,
 				amount, transaction_type
 			)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			RETURNING transaction_id
 		`,
 			orderID,
 			order.OrderDate,
@@ -165,7 +167,7 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 			order.DeliveredItems,
 			order.ReceivedAmount,
 			models.ADVANCE_PAYMENT,
-		)
+		).Scan(&orderTxId)
 		if err != nil {
 			return 0, fmt.Errorf("insert payment transaction failed (4a): %w", err)
 		}
@@ -181,7 +183,7 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		`,
 			order.OrderDate,
-			utils.GetOrderMemo(order.MemoNo),
+			utils.GetOrderMemo(orderTxId, order.MemoNo),
 			order.BranchID,
 			order.CustomerID,
 			models.ENTITY_CUSTOMER,
@@ -267,9 +269,9 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 	// --------------------
 	// 1. Basic Validations
 	// --------------------
-	if oldOrder.Status != models.ORDER_PENDING {
-		return fmt.Errorf("only pending orders can be modified")
-	}
+	// if oldOrder.Status != models.ORDER_PENDING {
+	// 	return fmt.Errorf("only pending orders can be modified")
+	// }
 	if len(order.Items) == 0 {
 		return fmt.Errorf("order must contain at least one item")
 	}
@@ -286,23 +288,31 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		order.TotalItems += int64(item.Quantity)
 	}
 
+	// change memo no
+	memoNo := strings.TrimSpace(order.MemoNo)
+	if memoNo == "" {
+		order.MemoNo = oldOrder.MemoNo
+	} else {
+		order.MemoNo = memoNo
+	}
+
 	// --------------------
 	// 2. Update Order Header
 	// --------------------
 	_, err = tx.Exec(ctx, `
 		UPDATE orders SET
-			order_date = $2, delivery_date = $3,
+			memo_no=$1, order_date = $2, delivery_date = $3,
 			salesperson_id = $4, customer_id = $5,
 			total_products = $6, delivered_products = $7,
 			total_amount = $8, received_amount = $9,
 			notes = $10, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1
+		WHERE id = $11
 	`,
-		order.ID, order.OrderDate, order.DeliveryDate,
+		order.MemoNo, order.OrderDate, order.DeliveryDate,
 		order.SalespersonID, order.CustomerID,
 		order.TotalItems, order.DeliveredItems,
 		order.TotalAmount, order.ReceivedAmount,
-		order.Notes,
+		order.Notes, order.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update order header failed: %w", err)
@@ -458,15 +468,15 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		if err != nil {
 			return fmt.Errorf("revert old account balance failed: %w", err)
 		}
-
+		fmt.Println(order.OrderTransactions)
 		// Delete Old Logs
-		_, err = tx.Exec(ctx, `DELETE FROM order_transactions WHERE order_id=$1 AND transaction_type=$2`,
-			order.ID, models.ADVANCE_PAYMENT)
+		_, err = tx.Exec(ctx, `DELETE FROM order_transactions WHERE transaction_id=$1`,
+			oldOrder.OrderTransactions[0].TransactionID)
 		if err != nil {
 			return fmt.Errorf("delete old order tx failed: %w", err)
 		}
 
-		oldMemoStr := utils.GetOrderMemo(oldOrder.MemoNo)
+		oldMemoStr := utils.GetOrderMemo(oldOrder.OrderTransactions[0].TransactionID, oldOrder.MemoNo)
 		_, err = tx.Exec(ctx, `DELETE FROM transactions WHERE memo_no=$1 AND branch_id=$2 AND transaction_type=$3`,
 			oldMemoStr, oldOrder.BranchID, models.ADVANCE_PAYMENT)
 		if err != nil {
@@ -484,15 +494,16 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		}
 
 		// Insert New Logs
-		_, err = tx.Exec(ctx, `
+		var orderTxId int64
+		err = tx.QueryRow(ctx, `
 			INSERT INTO order_transactions(
 				order_id, transaction_date, payment_account_id, memo_no, 
 				delivered_by, quantity_delivered, amount, transaction_type
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING transaction_id
 		`,
 			order.ID, order.OrderDate, order.PaymentAccountID, order.MemoNo,
 			order.SalespersonID, order.DeliveredItems, order.ReceivedAmount, models.ADVANCE_PAYMENT,
-		)
+		).Scan(&orderTxId)
 		if err != nil {
 			return fmt.Errorf("insert new order tx failed: %w", err)
 		}
@@ -505,7 +516,7 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 				amount, transaction_type, notes
 			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		`,
-			order.OrderDate, utils.GetOrderMemo(order.MemoNo), order.BranchID,
+			order.OrderDate, utils.GetOrderMemo(orderTxId, order.MemoNo), order.BranchID,
 			order.CustomerID, models.ENTITY_CUSTOMER,
 			order.PaymentAccountID, models.ENTITY_ACCOUNT,
 			order.ReceivedAmount, models.ADVANCE_PAYMENT, "Advance payment (Updated)",
@@ -817,12 +828,14 @@ func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTrans
 	}
 
 	// 4a: order payment transaction
-	_, err = tx.Exec(ctx, `
+	var orderTxId int64
+	err = tx.QueryRow(ctx, `
 			INSERT INTO order_transactions(
 				order_id, transaction_date, payment_account_id, memo_no, delivered_by, quantity_delivered,
 				amount, transaction_type
 			)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			RETURNING transaction_id
 		`,
 		orderTx.OrderID,
 		orderTx.TransactionDate,
@@ -832,7 +845,7 @@ func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTrans
 		orderTx.QuantityDelivered,
 		orderTx.Amount,
 		models.PAYMENT,
-	)
+	).Scan(&orderTxId)
 	if err != nil {
 		return fmt.Errorf("ERROR_7: insert payment transaction failed (4a): %w", err)
 	}
@@ -853,7 +866,7 @@ func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTrans
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		`,
 			orderTx.TransactionDate,
-			models.ORDER_MEMO_PREFIX+"-"+orderTx.MemoNo,
+			utils.GetOrderMemo(orderTxId, orderInfo.MemoNo),
 			orderInfo.BranchID,
 			orderInfo.CustomerID,
 			models.ENTITY_CUSTOMER,
@@ -926,15 +939,15 @@ func (r *OrderRepo) DeleteOrderDeliveryRecord(ctx context.Context, orderTxID, br
 			SELECT transaction_id, order_id, transaction_date, payment_account_id, memo_no, delivered_by, quantity_delivered, amount, transaction_type
 			FROM order_transactions WHERE transaction_id=$1`
 	err = tx.QueryRow(ctx, query, orderTxID).Scan(
-		orderTx.TransactionID,
-		orderTx.OrderID,
-		orderTx.TransactionDate,
-		orderTx.PaymentAccountID,
-		orderTx.MemoNo,
-		orderTx.DeliveredBy,
-		orderTx.QuantityDelivered,
-		orderTx.Amount,
-		orderTx.TransactionType,
+		&orderTx.TransactionID,
+		&orderTx.OrderID,
+		&orderTx.TransactionDate,
+		&orderTx.PaymentAccountID,
+		&orderTx.MemoNo,
+		&orderTx.DeliveredBy,
+		&orderTx.QuantityDelivered,
+		&orderTx.Amount,
+		&orderTx.TransactionType,
 	)
 	if err != nil {
 		return fmt.Errorf("ERROR_7: retrieve payment transaction failed (4a): %w", err)
@@ -954,7 +967,7 @@ func (r *OrderRepo) DeleteOrderDeliveryRecord(ctx context.Context, orderTxID, br
 			o.total_products,
 			o.delivered_products,
 			o.total_amount,
-			o.received_amount,
+			o.received_amount
 		FROM orders o
 		WHERE o.id = $1
 	`, orderTx.OrderID).Scan(
@@ -1082,7 +1095,7 @@ func (r *OrderRepo) DeleteOrderDeliveryRecord(ctx context.Context, orderTxID, br
 
 		// 5a: global transaction log
 		_, err = tx.Exec(ctx, `DELETE FROM transactions WHERE memo_no=$1 AND branch_id=$2 AND transaction_date=$3 AND transaction_type=$4`,
-			utils.GetOrderMemo(orderTx.MemoNo),
+			utils.GetOrderMemo(orderTx.TransactionID, orderTx.MemoNo),
 			branchID,
 			orderTx.TransactionDate,
 			models.PAYMENT,
@@ -1119,7 +1132,7 @@ func (r *OrderRepo) DeleteOrderDeliveryRecord(ctx context.Context, orderTxID, br
 
 		_, err = tx.Exec(ctx, `
 			UPDATE customers
-			SET due_amount = due_amount - $1
+			SET due_amount = due_amount + $1
 			WHERE id = $2
 		`,
 			orderTx.Amount,

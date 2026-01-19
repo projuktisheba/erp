@@ -123,9 +123,6 @@ window.applyPreset = function (type) {
   fetchReport();
 };
 
-function formatDateVal(date) {
-  return date.toISOString().split("T")[0];
-}
 
 /* --- 2. FETCH DATA --- */
 async function fetchReport() {
@@ -323,7 +320,7 @@ function renderReportTable() {
   reportState.data.forEach((row) => {
     tbody.innerHTML += `
         <tr class="hover:bg-slate-50 border-b border-slate-50 transition text-slate-700">
-            <td class="px-4 py-3 text-left border-r border-slate-100 font-medium">${formatDate(row.sheet_date)}</td>
+            <td class="px-4 py-3 text-left border-r border-slate-100 font-medium">${formatDateVal(row.sheet_date)}</td>
             <td class="px-4 py-3 text-left border-r border-slate-100">${row.worker_name || "Unknown"}</td>
             <td class="px-4 py-3 text-left border-r border-slate-100">${row.mobile || "-"}</td>                
             <td class="px-4 py-3 text-right border-r border-slate-100"> ${row.total_production_units}</td>                
@@ -371,7 +368,7 @@ window.printReport = function () {
       const dateObj = row.sheet_date;
       return {
           ...row,
-          sheet_date: formatDate(dateObj),
+          sheet_date: formatDateVal(dateObj),
       };
   });
 
@@ -476,7 +473,7 @@ window.handleUpdateWorkerProgress = async function(e) {
         if (response.ok) {
             showNotification("success", "Worker progress updated");
             closeWorkerModal();
-            // fetchReport(); // Refresh Table
+            fetchReport(); // Refresh Table
         } else {
             const err = await response.json();
             throw new Error(err.message || "Update failed");

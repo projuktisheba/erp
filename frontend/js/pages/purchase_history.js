@@ -11,7 +11,7 @@ window.reportState = {
 };
 
 /* --- INITIALIZATION --- */
-window.initPurchaseReportPage = async function () {
+window.initPurchaseHistoryPage = async function () {
 
   // 1. Grab Elements
   const searchInput = document.getElementById("searchReportInput"); // Assumed ID
@@ -110,10 +110,6 @@ window.applyPreset = function (type) {
   reportState.currentPage = 1;
   fetchReport();
 };
-
-function formatDateVal(date) {
-  return date.toISOString().split("T")[0];
-}
 
 /* --- 2. FETCH DATA --- */
 async function fetchReport() {
@@ -238,7 +234,7 @@ function renderReportTable() {
   reportState.data.forEach((row) => {
     tbody.innerHTML += `
             <tr class="hover:bg-slate-50 border-b border-slate-50 transition text-slate-700">
-                <td class="px-4 py-3 text-center border-r border-slate-100 font-medium">${formatDate(
+                <td class="px-4 py-3 text-center border-r border-slate-100 font-medium">${formatDateVal(
                   row.purchase_date
                 )}</td>
                 <td class="px-4 py-3 text-left border-r border-slate-100">${
@@ -253,7 +249,7 @@ function renderReportTable() {
                   row.total_amount || "0"
                 }</td>
                 <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                  <button onclick='deletePurchaseRecord(${row.id})' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
+                  <button onclick='showModalConfirm("error", "Are You Sure?", "Delete the delivery record", "Yes", ()=> deletePurchaseRecord(${row.id}), "No")' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
                       <i class="ph ph-trash text-lg"></i>
                   </button>
                 </td>
@@ -291,7 +287,7 @@ window.printReport = function () {
     const dateObj = row.purchase_date;
     return {
       ...row,
-      purchase_date: formatDate(dateObj),
+      purchase_date: formatDateVal(dateObj),
     };
   });
 
@@ -312,8 +308,6 @@ window.printReport = function () {
 
 /* --- 7. DELETE LOGIC --- */
 window.deletePurchaseRecord = async function (id) {
-  if (!confirm("Are you sure you want to delete this record?")) return;
-
   try {
     const response = await fetch(
       `${window.globalState.apiBase}/purchase/delete/${id}`,

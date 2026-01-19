@@ -31,7 +31,7 @@ window.initRestockProductsPage = async function () {
     // 2. Set Default Date to Today (Targeting the input in the toolbar now)
     const stockDateInput = document.getElementById("stockDate");
     if (stockDateInput) {
-      stockDateInput.value = new Date().toISOString().split("T")[0];
+      stockDateInput.value = formatDateVal(new Date());
     }
 
     // 3. Render Dropdown
