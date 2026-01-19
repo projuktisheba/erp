@@ -23,11 +23,27 @@ const BRANCH_NAMES = {
   2: "DIVA ABAYAT",
   3: "EID AL ABAYAT",
 };
+const BRANCH_CONTACTS = {
+  1: "50294046",
+  2: "50294046",
+  3: "50294046",
+};
+const BRANCH_CONTACTS_ALT = {
+  1: "50298321",
+  2: "50298321",
+  3: "50298321",
+};
 window.GetUserRole = function (){
-  return BRANCH_NAMES[(window.globalState.user.role) || "manager"]
+  return (window.globalState.user.role) || "manager"
 }
 window.GetBranchName = function (){
-  return BRANCH_NAMES[(window.globalState.user.branch_id) || 0]
+  return BRANCH_NAMES[(window.globalState.user.branch_id) || ""]
+}
+window.GetBranchContact = function (){
+  return BRANCH_CONTACTS[(window.globalState.user.branch_id) || ""]
+}
+window.GetBranchContactAlt = function (){
+  return BRANCH_CONTACTS_ALT[(window.globalState.user.branch_id) || "0"]
 }
 /* --- 1. INITIALIZATION (Check Session) --- */
 document.addEventListener("DOMContentLoaded", () => {

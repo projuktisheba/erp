@@ -528,26 +528,33 @@ async function viewOrder(id) {
             totalAmount += t.amount || 0;
 
             return `
-          <tr class="hover:bg-slate-50 transition-colors">
-              <td class="px-4 py-3 text-sm text-slate-600">
-                  ${formatDate(t.transaction_date)}
-              </td>
-              <td class="px-4 py-3">
-                  <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${typeBadgeClass}">
-                      ${t.transaction_type}
-                  </span>
-              </td>
-              <td class="px-4 py-3 text-sm text-center text-slate-600">
-                  ${t.payment_account_name || ""}
-              </td>
-              <td class="px-4 py-3 text-sm text-right text-slate-600">
-                  ${t.quantity_delivered > 0 ? t.quantity_delivered : "-"}
-              </td>
-              <td class="px-4 py-3 text-sm text-right font-bold text-emerald-600">
-                  ${t.amount > 0 ? formatMoney(t.amount) : "-"}
-              </td>
-          </tr>
-        `;
+            <tr class="hover:bg-slate-50 transition-colors">
+                <td class="px-4 py-3 text-sm text-slate-600">
+                    ${formatDate(t.transaction_date)}
+                </td>
+                <td class="px-4 py-3">
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${typeBadgeClass}">
+                        ${t.transaction_type}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-sm text-center text-slate-600">
+                    ${t.payment_account_name || ""}
+                </td>
+                <td class="px-4 py-3 text-sm text-right text-slate-600">
+                    ${t.quantity_delivered > 0 ? t.quantity_delivered : "-"}
+                </td>
+                <td class="px-4 py-3 text-sm text-right font-bold text-emerald-600">
+                    ${t.amount > 0 ? formatMoney(t.amount) : "-"}
+                </td>
+                ${
+                t.transaction_type != "Advance Payment"?
+                `<td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                      <button onclick='deleteOrderTransaction(${t.id})' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
+                          <i class="ph ph-trash text-lg"></i>
+                      </button>
+                    </td>
+                  </tr>`:""}
+            `;
           })
           .join("");
 
@@ -561,6 +568,7 @@ async function viewOrder(id) {
             <td class="px-4 py-3 text-sm text-right text-emerald-700">${
               totalAmount > 0 ? formatMoney(totalAmount) : "-"
             }</td>
+            <td class="px-4 py-3 text-sm text-right text-emerald-700"></td>
         </tr>
       `;
       }
@@ -846,7 +854,7 @@ window.submitDelivery = async function () {
 
   try {
     const apiBase = window.globalState?.apiBase || "/api/v1";
-    const response = await fetch(`${apiBase}/products/orders/delivery`, {
+    const response = await fetch(`${apiBase}/products/orders/delivery/create`, {
       method: "POST",
       headers: window.getAuthHeaders(),
       body: JSON.stringify(payload),

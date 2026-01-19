@@ -1,19 +1,22 @@
-window.printOrderInvoice = async function(id, order) {
-    if (!id) {
-        showNotification("error", "No order loaded to print.");
-        return;
-    }
+window.printOrderInvoice = async function (id, order) {
+  if (!id) {
+    showNotification("error", "No order loaded to print.");
+    return;
+  }
 
-    try {
-        const formatMoney = (m) => parseFloat(m || 0).toFixed(2);
+  try {
+    const formatMoney = (m) => parseFloat(m || 0).toFixed(2);
 
-        // Watermark Logic: Try order branch, global branch, or fallback
-        const branchName = GetBranchName();
+    // Watermark Logic: Try order branch, global branch, or fallback
+    const branchName = GetBranchName();
+    const branchContact = GetBranchContact();
+    const branchContactAlt = GetBranchContactAlt();
 
-        // Generate Items Rows
-        const itemsRows = order.items.map((item, index) => {
-            const unitPrice = item.quantity > 0 ? (item.subtotal / item.quantity) : 0;
-            return `
+    // Generate Items Rows
+    const itemsRows = order.items
+      .map((item, index) => {
+        const unitPrice = item.quantity > 0 ? item.subtotal / item.quantity : 0;
+        return `
             <tr>
                 <td style="text-align:center;">${index + 1}</td>
                 <td class="description-cell" style="padding-left:8px;">${item.product_name}</td>
@@ -21,23 +24,24 @@ window.printOrderInvoice = async function(id, order) {
                 <td style="text-align:center;">${formatMoney(unitPrice)}</td>
                 <td style="text-align:center; font-weight:600;">${formatMoney(item.subtotal)}</td>
             </tr>`;
-        }).join("");
+      })
+      .join("");
 
-        // Fill Empty Rows
-        const totalRowsNeeded = 10;
-        let emptyRows = "";
-        const currentCount = order.items.length;
-        if (currentCount < totalRowsNeeded) {
-            for (let i = currentCount; i < totalRowsNeeded; i++) {
-                emptyRows += `<tr><td style="text-align:center;">${i + 1}</td><td></td><td></td><td></td><td></td></tr>`;
-            }
-        }
+    // Fill Empty Rows
+    const totalRowsNeeded = 10;
+    let emptyRows = "";
+    const currentCount = order.items.length;
+    if (currentCount < totalRowsNeeded) {
+      for (let i = currentCount; i < totalRowsNeeded; i++) {
+        emptyRows += `<tr><td style="text-align:center;">${i + 1}</td><td></td><td></td><td></td><td></td></tr>`;
+      }
+    }
 
-        const totalAmount = parseFloat(order.total_amount || 0);
-        const receivedAmount = parseFloat(order.received_amount || 0);
-        const dueAmount = totalAmount - receivedAmount;
+    const totalAmount = parseFloat(order.total_amount || 0);
+    const receivedAmount = parseFloat(order.received_amount || 0);
+    const dueAmount = totalAmount - receivedAmount;
 
-        const printContent = `
+    const printContent = `
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -172,7 +176,7 @@ window.printOrderInvoice = async function(id, order) {
 
                     <header class="invoice-header">
                         <div class="contact-info left">
-                            <p>Mob: 50294046 | Mob: 50298321</p>
+                            <p>Mob: ${branchContact} | Mob: ${branchContactAlt}</p>
                             <p>Al Shafee Street</p>
                             <p>Opp. Commercial Bank</p>
                             <p>New Rayyan</p>
@@ -180,8 +184,8 @@ window.printOrderInvoice = async function(id, order) {
                         </div>
 
                         <div class="logo-name-section">
-                            <h1 style="color:#800000; font-size:28px; margin-bottom:5px;">${branchName}</h1>
-                            <h2 style="font-size:12px; margin:0; font-weight:normal;">
+                            <h1 style="color:#800000; font-size:28px; font-weight:bold; margin-bottom:5px;">${branchName}</h1>
+                            <h2 style="font-size:12px; margin:0; font-weight:bold;">
                             Abayat - Shelat - Hijabat - Niqabat &amp; Jalabia
                             </h2>
                             <p>عبايات - شيلات - حجابات - نقابات و جلابيات</p>
@@ -217,13 +221,13 @@ window.printOrderInvoice = async function(id, order) {
                             <label class="arabic-label">التاريخ</label>
                         </div>
                         <div class="info-item full-width">
-                            <label>Mr./Messrs</label>
-                            <input type="text" class="thin-line" value="${order.customer?.name || ''}">
+                            <label>Mr./Mrs.</label>
+                            <input type="text" class="thin-line" value="${order.customer?.name || ""}">
                             <label class="arabic-label">السيد / السادة</label>
                         </div>
                         <div class="info-item full-width">
                             <label>Tel. Mobile</label>
-                            <input type="text" class="thin-line" value="${order.customer?.mobile || ''}">
+                            <input type="text" class="thin-line" value="${order.customer?.mobile || ""}">
                             <label class="arabic-label">تليفون / جوال</label>
                         </div>
                     </div>
@@ -273,18 +277,18 @@ window.printOrderInvoice = async function(id, order) {
         `;
 
     // Remove existing iframe if any
-    const oldFrame = document.getElementById('print-iframe');
+    const oldFrame = document.getElementById("print-iframe");
     if (oldFrame) oldFrame.remove();
 
     // Create iframe
-    const iframe = document.createElement('iframe');
-    iframe.id = 'print-iframe';
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
+    const iframe = document.createElement("iframe");
+    iframe.id = "print-iframe";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
 
     document.body.appendChild(iframe);
 
@@ -298,36 +302,39 @@ window.printOrderInvoice = async function(id, order) {
 
     // Print after load
     iframe.onload = () => {
-        setTimeout(() => {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
 
-            // Cleanup after printing
-            setTimeout(() => iframe.remove(), 1000);
-        }, 300);
+        // Cleanup after printing
+        setTimeout(() => iframe.remove(), 1000);
+      }, 300);
     };
-    } catch (error) {
-        console.error("Print Error:", error);
-        showNotification("error", "Failed to generate invoice.");
-    }
+  } catch (error) {
+    console.error("Print Error:", error);
+    showNotification("error", "Failed to generate invoice.");
+  }
 };
 
-window.printSaleInvoice = async function(id, sale) {
-    if (!id) {
-        showNotification("error", "No sale loaded to print.");
-        return;
-    }
+window.printSaleInvoice = async function (id, sale) {
+  if (!id) {
+    showNotification("error", "No sale loaded to print.");
+    return;
+  }
 
-    try {
-        const formatMoney = (m) => parseFloat(m || 0).toFixed(2);
+  try {
+    const formatMoney = (m) => parseFloat(m || 0).toFixed(2);
 
-        // Watermark Logic: Try sale branch, global branch, or fallback
-        const branchName = GetBranchName();
+    // Watermark Logic: Try sale branch, global branch, or fallback
+    const branchName = GetBranchName();
+    const branchContact = GetBranchContact();
+    const branchContactAlt = GetBranchContactAlt();
 
-        // Generate Items Rows
-        const itemsRows = sale.items.map((item, index) => {
-            const unitPrice = item.quantity > 0 ? (item.subtotal / item.quantity) : 0;
-            return `
+    // Generate Items Rows
+    const itemsRows = sale.items
+      .map((item, index) => {
+        const unitPrice = item.quantity > 0 ? item.subtotal / item.quantity : 0;
+        return `
             <tr>
                 <td style="text-align:center;">${index + 1}</td>
                 <td class="description-cell" style="padding-left:8px;">${item.product_name}</td>
@@ -335,23 +342,24 @@ window.printSaleInvoice = async function(id, sale) {
                 <td style="text-align:center;">${formatMoney(unitPrice)}</td>
                 <td style="text-align:center; font-weight:600;">${formatMoney(item.subtotal)}</td>
             </tr>`;
-        }).join("");
+      })
+      .join("");
 
-        // Fill Empty Rows
-        const totalRowsNeeded = 10;
-        let emptyRows = "";
-        const currentCount = sale.items.length;
-        if (currentCount < totalRowsNeeded) {
-            for (let i = currentCount; i < totalRowsNeeded; i++) {
-                emptyRows += `<tr><td style="text-align:center;">${i + 1}</td><td></td><td></td><td></td><td></td></tr>`;
-            }
-        }
+    // Fill Empty Rows
+    const totalRowsNeeded = 10;
+    let emptyRows = "";
+    const currentCount = sale.items.length;
+    if (currentCount < totalRowsNeeded) {
+      for (let i = currentCount; i < totalRowsNeeded; i++) {
+        emptyRows += `<tr><td style="text-align:center;">${i + 1}</td><td></td><td></td><td></td><td></td></tr>`;
+      }
+    }
 
-        const totalAmount = parseFloat(sale.total_amount || 0);
-        const receivedAmount = parseFloat(sale.received_amount || 0);
-        const dueAmount = totalAmount - receivedAmount;
+    const totalAmount = parseFloat(sale.total_amount || 0);
+    const receivedAmount = parseFloat(sale.received_amount || 0);
+    const dueAmount = totalAmount - receivedAmount;
 
-        const printContent = `
+    const printContent = `
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -486,7 +494,7 @@ window.printSaleInvoice = async function(id, sale) {
 
                     <header class="invoice-header">
                         <div class="contact-info left">
-                            <p>Mob: 50294046 | Mob: 50298321</p>
+                            <p>Mob: ${branchContact} | Mob: ${branchContactAlt}</p>
                             <p>Al Shafee Street</p>
                             <p>Opp. Commercial Bank</p>
                             <p>New Rayyan</p>
@@ -494,8 +502,8 @@ window.printSaleInvoice = async function(id, sale) {
                         </div>
 
                         <div class="logo-name-section">
-                            <h1 style="color:#800000; font-size:28px; margin-bottom:5px;">${branchName}</h1>
-                            <h2 style="font-size:12px; margin:0; font-weight:normal;">
+                            <h1 style="color:#800000; font-size:28px; font-weight:bold; margin-bottom:5px;">${branchName}</h1>
+                            <h2 style="font-size:12px; margin:0; font-weight:bold;">
                             Abayat - Shelat - Hijabat - Niqabat &amp; Jalabia
                             </h2>
                             <p>عبايات - شيلات - حجابات - نقابات و جلابيات</p>
@@ -531,13 +539,13 @@ window.printSaleInvoice = async function(id, sale) {
                             <label class="arabic-label">التاريخ</label>
                         </div>
                         <div class="info-item full-width">
-                            <label>Mr./Messrs</label>
-                            <input type="text" class="thin-line" value="${sale.customer?.name || ''}">
+                            <label>Mr./Mrs.</label>
+                            <input type="text" class="thin-line" value="${sale.customer?.name || ""}">
                             <label class="arabic-label">السيد / السادة</label>
                         </div>
                         <div class="info-item full-width">
                             <label>Tel. Mobile</label>
-                            <input type="text" class="thin-line" value="${sale.customer?.mobile || ''}">
+                            <input type="text" class="thin-line" value="${sale.customer?.mobile || ""}">
                             <label class="arabic-label">تليفون / جوال</label>
                         </div>
                     </div>
@@ -587,18 +595,18 @@ window.printSaleInvoice = async function(id, sale) {
         `;
 
     // Remove existing iframe if any
-    const oldFrame = document.getElementById('print-iframe');
+    const oldFrame = document.getElementById("print-iframe");
     if (oldFrame) oldFrame.remove();
 
     // Create iframe
-    const iframe = document.createElement('iframe');
-    iframe.id = 'print-iframe';
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
+    const iframe = document.createElement("iframe");
+    iframe.id = "print-iframe";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
 
     document.body.appendChild(iframe);
 
@@ -612,29 +620,36 @@ window.printSaleInvoice = async function(id, sale) {
 
     // Print after load
     iframe.onload = () => {
-        setTimeout(() => {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
 
-            // Cleanup after printing
-            setTimeout(() => iframe.remove(), 1000);
-        }, 300);
+        // Cleanup after printing
+        setTimeout(() => iframe.remove(), 1000);
+      }, 300);
     };
-    } catch (error) {
-        console.error("Print Error:", error);
-        showNotification("error", "Failed to generate invoice.");
-    }
+  } catch (error) {
+    console.error("Print Error:", error);
+    showNotification("error", "Failed to generate invoice.");
+  }
 };
 
-window.printReportGeneric = function ({ header, columns, rows, totals = null }) {
-    const todayStr = new Date().toLocaleDateString('en-GB', {
-        day: '2-digit', month: 'short', year: 'numeric'
-    });
+window.printReportGeneric = function ({
+  header,
+  columns,
+  rows,
+  totals = null,
+}) {
+  const todayStr = new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 
-    const printContent = `
+  const printContent = `
     <html>
     <head>
-        <title>${header.reportTitle || 'Report'}</title>
+        <title>${header.reportTitle || "Report"}</title>
         <style>
             body {
                 font-family: Arial, Helvetica, sans-serif;
@@ -717,8 +732,8 @@ window.printReportGeneric = function ({ header, columns, rows, totals = null }) 
         <!-- META -->
         <div class="meta">
             <div>
-                ${header.branchName ? `<strong>Branch:</strong> ${header.branchName}<br>` : ''}
-                ${header.startDate === "" || header.endDate === "" ? '': ` <strong>Period:</strong> ${header.startDate} - ${header.endDate}`}
+                ${header.branchName ? `<strong>Branch:</strong> ${header.branchName}<br>` : ""}
+                ${header.startDate === "" || header.endDate === "" ? "" : ` <strong>Period:</strong> ${header.startDate} - ${header.endDate}`}
             </div>
             <div>
                 <strong>Print Date:</strong> ${todayStr}
@@ -729,32 +744,51 @@ window.printReportGeneric = function ({ header, columns, rows, totals = null }) 
         <table>
             <thead>
                 <tr>
-                    ${columns.map(col =>
-                        `<th style="text-align:${col.align || 'right'}">${col.label}</th>`
-                    ).join('')}
+                    ${columns
+                      .map(
+                        (col) =>
+                          `<th style="text-align:${col.align || "right"}">${col.label}</th>`,
+                      )
+                      .join("")}
                 </tr>
             </thead>
 
             <tbody>
-                ${rows.map(row => `
+                ${rows
+                  .map(
+                    (row) => `
                     <tr>
-                        ${columns.map(col => `
-                            <td style="text-align:${col.align || 'right'}">
-                                ${row[col.key] ?? '-'}
+                        ${columns
+                          .map(
+                            (col) => `
+                            <td style="text-align:${col.align || "right"}">
+                                ${row[col.key] ?? "-"}
                             </td>
-                        `).join('')}
+                        `,
+                          )
+                          .join("")}
                     </tr>
-                `).join('')}
+                `,
+                  )
+                  .join("")}
             </tbody>
 
-            ${totals ? `
+            ${
+              totals
+                ? `
             <tfoot>
                 <tr>
-                    ${columns.map(col => `
-                        <td>${totals[col.key] ?? ''}</td>
-                    `).join('')}
+                    ${columns
+                      .map(
+                        (col) => `
+                        <td>${totals[col.key] ?? ""}</td>
+                    `,
+                      )
+                      .join("")}
                 </tr>
-            </tfoot>` : ''}
+            </tfoot>`
+                : ""
+            }
         </table>
 
         <div class="footer">
@@ -763,53 +797,66 @@ window.printReportGeneric = function ({ header, columns, rows, totals = null }) 
 
     </body>
     </html>
-    `
-    // Remove existing iframe if any
-    const oldFrame = document.getElementById('print-report-iframe');
-    if (oldFrame) oldFrame.remove();
+    `;
+  // Remove existing iframe if any
+  const oldFrame = document.getElementById("print-report-iframe");
+  if (oldFrame) oldFrame.remove();
 
-    // Create iframe
-    const iframe = document.createElement('iframe');
-    iframe.id = 'print-report-iframe';
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
+  // Create iframe
+  const iframe = document.createElement("iframe");
+  iframe.id = "print-report-iframe";
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
 
-    document.body.appendChild(iframe);
+  document.body.appendChild(iframe);
 
-    const iframeDoc = iframe.contentWindow || iframe.contentDocument;
-    const doc = iframeDoc.document || iframeDoc;
+  const iframeDoc = iframe.contentWindow || iframe.contentDocument;
+  const doc = iframeDoc.document || iframeDoc;
 
-    // Write content
-    doc.open();
-    doc.write(printContent);
-    doc.close();
+  // Write content
+  doc.open();
+  doc.write(printContent);
+  doc.close();
 
-    // Print after load
-    iframe.onload = () => {
-        setTimeout(() => {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
+  // Print after load
+  iframe.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
 
-            // Cleanup after printing
-            setTimeout(() => iframe.remove(), 1000);
-        }, 300);
-    };
+      // Cleanup after printing
+      setTimeout(() => iframe.remove(), 1000);
+    }, 300);
+  };
 };
 
-window.formatDate = (date)=>{
-    const dateObj = new Date(date);
-  
+window.formatDate = (date) => {
+  const dateObj = new Date(date);
+
   // Define short month names manually
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
   // Manually construct the date string (DD-MMM-YYYY)
-  const day = String(dateObj.getDate()).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, "0");
   const month = monthNames[dateObj.getMonth()]; // getMonth() is 0-indexed
   const year = dateObj.getFullYear();
-  
+
   return `${day} ${month} ${year}`;
-}
+};
