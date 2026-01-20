@@ -3,9 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -125,24 +123,6 @@ func GetBranchID(r *http.Request) int64 {
 	branchID, _ := strconv.ParseInt(r.Header.Get("X-Branch-ID"), 10, 64)
 	return branchID
 }
-
-// GenerateMemoNo generates a memo number like "MMDD-4CHAR"
-func GenerateMemoNo() string {
-	// create a new rand with its own seed
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	// MMDD part
-	datePart := time.Now().Format("0102")
-	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	// 4 random alphanumeric characters
-	randomPart := make([]byte, 4)
-	for i := range randomPart {
-		randomPart[i] = charset[r.Intn(len(charset))]
-	}
-
-	return fmt.Sprintf("%s%s", datePart, string(randomPart))
-}
-
 
 
 // IsUniqueViolation checks if an error contains a unique constraint violation

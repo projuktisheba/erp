@@ -283,10 +283,11 @@ function selectEmployeeForForm(prefix, emp) {
     form.classList.remove("hidden", "opacity-50", "pointer-events-none");
 
     // Set default date to today if empty
-    const dateInput = document.getElementById(`${prefix}Date`);
-    if (dateInput && !dateInput.value) {
-      dateInput.valueAsDate = new Date();
-    }
+    // Set Input Values (YYYY-MM-DD)
+  document.getElementById(`${prefix}Date`).value = formatDateVal(new Date());
+    // if (dateInput && !dateInput.value) {
+    //   dateInput.valueAsDate = new Date();
+    // }
   }
 }
 
@@ -394,7 +395,7 @@ window.saveWorkerProgress = async function () {
     };
 
     const response = await fetch(
-      `${window.globalState.apiBase}/hr/employee/worker/progress`,
+      `${window.globalState.apiBase}/hr/employee/worker/progress/create`,
       {
         method: "POST",
         headers: window.getAuthHeaders(),

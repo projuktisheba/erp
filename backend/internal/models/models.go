@@ -16,10 +16,11 @@ const (
 	SALARY          = "Salary"
 )
 const (
-	SALE_MEMO_PREFIX     = "SALE"
-	ORDER_MEMO_PREFIX    = "ORDER"
-	SALARY_MEMO_PREFIX   = "SALARY"
-	PURCHASE_MEMO_PREFIX = "PUR"
+	SALE_MEMO_PREFIX           = "SL"
+	ORDER_MEMO_PREFIX          = "OR"
+	SALARY_MEMO_PREFIX         = "SY"
+	ADVANCE_SALARY_MEMO_PREFIX = "ADV"
+	PURCHASE_MEMO_PREFIX       = "PR"
 )
 const (
 	ACCOUNT_BANK = "bank"
@@ -86,6 +87,24 @@ type Config struct {
 	DB   DBConfig
 }
 
+type Branch struct {
+	ID          int64     `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Slogan      string    `json:"slogan"`
+	Mobile      string    `json:"mobile"`
+	Telephone   string    `json:"telephone"`
+	Email       string    `json:"email"`
+	Website     string    `json:"website"`
+	Country     string    `json:"country"`
+	City        string    `json:"city"`
+	Address     string    `json:"address"`
+	PostalCode  string    `json:"postal_code"`
+	LogoLink    string    `json:"logo_link"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 // Employee model
 type Employee struct {
 	ID           int64     `json:"id"`
@@ -93,7 +112,7 @@ type Employee struct {
 	Role         string    `json:"role"`   // chairman, manager, salesperson, worker
 	Status       string    `json:"status"` // active, inactive
 	Mobile       string    `json:"mobile"`
-	MobileAlt       string    `json:"mobile_alt"`
+	MobileAlt    string    `json:"mobile_alt"`
 	Email        string    `json:"email,omitempty"`
 	Password     string    `json:"password"` // hashed password
 	PassportNo   string    `json:"passport_no,omitempty"`
@@ -258,6 +277,7 @@ type SalesPersonProgressReportDB struct {
 }
 
 type WorkerProgressReportDB struct {
+	ID                   int64   `json:"id"`
 	WorkerID             int64   `json:"worker_id"`
 	WorkerName           string  `json:"worker_name"`
 	Mobile               string  `json:"mobile"`
@@ -319,6 +339,7 @@ type EmployeeProgressDB struct {
 	OvertimeHours    float64   `json:"overtime_hours"`
 	AdvancePayment   float64   `json:"advance_payment"`
 	Salary           float64   `json:"salary"`
+	PaymentAccountID int64     `json:"payment_account_id"`
 }
 
 type SalaryLogDB struct {

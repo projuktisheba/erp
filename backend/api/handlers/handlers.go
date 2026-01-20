@@ -8,29 +8,31 @@ import (
 )
 
 type HandlerRepo struct {
-	Employee EmployeeHandler	
-	Auth AuthHandler
-	Customer CustomerHandler
-	Order OrderHandler
+	Employee    EmployeeHandler
+	Auth        AuthHandler
+	Customer    CustomerHandler
+	Order       OrderHandler
 	Transaction TransactionHandler
-	Account *AccountHandler
-	Product *ProductHandler
-	Report *ReportHandler
-	Supplier *SupplierHandler
-	Purchase *PurchaseHandler
+	// Branch     *BranchHandler
+	Account     *AccountHandler
+	Product     *ProductHandler
+	Report      *ReportHandler
+	Supplier    *SupplierHandler
+	Purchase    *PurchaseHandler
 }
 
-func NewHandlerRepo( db *dbrepo.DBRepository,JWT models.JWTConfig, infoLog *log.Logger, errorLog *log.Logger) *HandlerRepo {
+func NewHandlerRepo(db *dbrepo.DBRepository, JWT models.JWTConfig, infoLog *log.Logger, errorLog *log.Logger) *HandlerRepo {
 	return &HandlerRepo{
-		Employee: *NewEmployeeHandler(db.EmployeeRepo, infoLog, errorLog),
-		Auth: *NewAuthHandler( db,JWT, infoLog, errorLog),
-		Customer: *NewCustomerHandler(db.CustomerRepo, infoLog, errorLog),
-		Order: *NewOrderHandler(db.OrderRepo, infoLog, errorLog),
+		Employee:    *NewEmployeeHandler(db.EmployeeRepo, infoLog, errorLog),
+		Auth:        *NewAuthHandler(db, JWT, infoLog, errorLog),
+		Customer:    *NewCustomerHandler(db.CustomerRepo, infoLog, errorLog),
+		Order:       *NewOrderHandler(db.OrderRepo, infoLog, errorLog),
 		Transaction: *NewTransactionHandler(db.TransactionRepo, infoLog, errorLog),
-		Account: NewAccountHandler(db.AccountRepo,infoLog,errorLog),
-		Product: NewProductHandler(db.ProductRepo, infoLog, errorLog),
-		Report: NewReportHandler(db.ReportRepo, infoLog, errorLog),
-		Supplier: NewSupplierHandler(db.SupplierRepo, infoLog, errorLog),
-		Purchase: NewPurchaseHandler(db.PurchaseRepo, infoLog, errorLog),
+		// Branch:     NewBranchHandler(db.BranchRepo, infoLog, errorLog),
+		Account:     NewAccountHandler(db.AccountRepo, infoLog, errorLog),
+		Product:     NewProductHandler(db.ProductRepo, infoLog, errorLog),
+		Report:      NewReportHandler(db.ReportRepo, infoLog, errorLog),
+		Supplier:    NewSupplierHandler(db.SupplierRepo, infoLog, errorLog),
+		Purchase:    NewPurchaseHandler(db.PurchaseRepo, infoLog, errorLog),
 	}
 }

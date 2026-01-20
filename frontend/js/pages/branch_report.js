@@ -111,9 +111,6 @@ window.applyPreset = function (type) {
   fetchReport();
 };
 
-function formatDateVal(date) {
-  return date.toISOString().split("T")[0];
-}
 
 /* --- 2. FETCH DATA --- */
 async function fetchReport() {
@@ -244,7 +241,7 @@ function renderReportTable() {
   reportState.data.forEach((row) => {
     tbody.innerHTML += `
             <tr class="hover:bg-slate-50 border-b border-slate-50 transition text-slate-700">
-                <td class="px-4 py-3 border-r border-slate-100 font-medium">${formatDate(
+                <td class="px-4 py-3 border-r border-slate-100 font-medium">${formatDateVal(
                   row.sheet_date
                 )}</td>
                 <td class="px-4 py-3 text-right border-r border-slate-100">${
@@ -317,7 +314,7 @@ window.printReport = function () {
     const dateObj = row.sheet_date;
     return {
       ...row,
-      sheet_date: formatDate(dateObj),
+      sheet_date: formatDateVal(dateObj),
       orders: row.order_count, // Map key mismatch if necessary
     };
   });

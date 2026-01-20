@@ -48,7 +48,7 @@ type OrderTransactionDB struct {
 	MemoNo            string    `json:"memo_no"`
 	PaymentAccountID int64    `json:"payment_account_id,omitempty"`
 	PaymentAccountName string    `json:"payment_account_name"`
-	DeliveredBy       *string   `json:"delivered_by,omitempty"`
+	DeliveredBy       int64   `json:"delivered_by"`
 	QuantityDelivered int64     `json:"quantity_delivered"`
 	Amount            float64   `json:"amount"`
 	TransactionType   string    `json:"transaction_type"`

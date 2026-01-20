@@ -11,7 +11,7 @@ window.reportState = {
 };
 
 /* --- INITIALIZATION --- */
-window.initPurchaseReportPage = async function () {
+window.initPurchaseHistoryPage = async function () {
 
   // 1. Grab Elements
   const searchInput = document.getElementById("searchReportInput"); // Assumed ID
@@ -110,10 +110,6 @@ window.applyPreset = function (type) {
   reportState.currentPage = 1;
   fetchReport();
 };
-
-function formatDateVal(date) {
-  return date.toISOString().split("T")[0];
-}
 
 /* --- 2. FETCH DATA --- */
 async function fetchReport() {
@@ -238,7 +234,7 @@ function renderReportTable() {
   reportState.data.forEach((row) => {
     tbody.innerHTML += `
             <tr class="hover:bg-slate-50 border-b border-slate-50 transition text-slate-700">
-                <td class="px-4 py-3 text-center border-r border-slate-100 font-medium">${formatDate(
+                <td class="px-4 py-3 text-center border-r border-slate-100 font-medium">${formatDateVal(
                   row.purchase_date
                 )}</td>
                 <td class="px-4 py-3 text-left border-r border-slate-100">${
@@ -252,6 +248,11 @@ function renderReportTable() {
                 }</td><td class="px-4 py-3 text-right border-r border-slate-100">${
                   row.total_amount || "0"
                 }</td>
+                <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                  <button onclick='showModalConfirm("error", "Are You Sure?", "Delete the delivery record", "Yes", ()=> deletePurchaseRecord(${row.id}), "No")' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
+                      <i class="ph ph-trash text-lg"></i>
+                  </button>
+                </td>
             </tr>
         `;
   });
@@ -262,6 +263,7 @@ function renderReportTable() {
         <tr class="bg-slate-100 border-t-2 border-slate-200">
             <td class="px-4 py-3 text-right uppercase text-xs tracking-wider text-slate-500" colspan="4">Total</td>
             <td class="px-4 py-3 text-right">${t.total_amount}</td>
+            <td class="px-4 py-3 text-right"></td>
         </tr>
     `;
 }
@@ -276,7 +278,7 @@ window.printReport = function () {
     { label: "Date", key: "purchase_date", align: "center", action: "date" },
     { label: "Memo No", key: "memo_no", align: "left" },
     { label: "Supplier Name", key: "supplier_name", align: "left" },
-    { label: "Supplier Mobile", key: "supplier_name", align: "left" },
+    { label: "Supplier Mobile", key: "supplier_mobile", align: "left" },
     { label: "Total Amount", key: "total_amount", align: "right" },
   ];
 
@@ -285,7 +287,7 @@ window.printReport = function () {
     const dateObj = row.purchase_date;
     return {
       ...row,
-      purchase_date: formatDate(dateObj),
+      purchase_date: formatDateVal(dateObj),
     };
   });
 
@@ -301,4 +303,29 @@ window.printReport = function () {
     rows: printData,
     totals: reportState.totals,
   });
+};
+
+
+/* --- 7. DELETE LOGIC --- */
+window.deletePurchaseRecord = async function (id) {
+  try {
+    const response = await fetch(
+      `${window.globalState.apiBase}/purchase/delete/${id}`,
+      {
+        method: "DELETE",
+        headers: window.getAuthHeaders(),
+      }
+    );
+
+    if (response.ok) {
+      showNotification('success', 'Purchase Deleted');
+      fetchReport();
+    } else {
+      const data = await response.json()
+      showNotification('error', 'Failed to delete');
+      throw new Error("Failed to delete purchase record: ", data.message || "")
+    }
+  } catch (error) {
+    console.error(error);
+  }
 };

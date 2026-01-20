@@ -3,10 +3,16 @@ window.employeeState = {
   list: [],
   filtered: [],
 };
+
 // Initialize Page
 window.initEmployeesPage = async function () {
   // Set default date for new entry
   document.getElementById("empJoinDate").valueAsDate = new Date();
+  console.log("Role: ",GetUserRole())
+  if (GetUserRole() != "chairman") {
+    document.getElementById("addEmployeeBtn").classList.add("hidden");
+    document.getElementById("printEmployeeReportBtn").classList.add("hidden");
+  }
 
   await fetchEmployees();
 

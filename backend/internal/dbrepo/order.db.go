@@ -2,12 +2,14 @@ package dbrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/projuktisheba/erp-mini-api/internal/models"
+	"github.com/projuktisheba/erp-mini-api/internal/utils"
 )
 
 type OrderRepo struct {
@@ -38,6 +40,11 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 	}
 	if order.ReceivedAmount > order.TotalAmount {
 		return 0, fmt.Errorf("received amount cannot exceed total amount")
+	}
+
+	order.MemoNo = strings.TrimSpace(order.MemoNo)
+	if order.MemoNo == "" {
+		order.MemoNo = utils.GenerateMemoNo()
 	}
 
 	// --------------------
@@ -143,12 +150,14 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 		}
 
 		// 4a: order payment transaction
-		_, err = tx.Exec(ctx, `
+		var orderTxId int64
+		err = tx.QueryRow(ctx, `
 			INSERT INTO order_transactions(
 				order_id, transaction_date, payment_account_id, memo_no, delivered_by, quantity_delivered,
 				amount, transaction_type
 			)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			RETURNING transaction_id
 		`,
 			orderID,
 			order.OrderDate,
@@ -158,7 +167,7 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 			order.DeliveredItems,
 			order.ReceivedAmount,
 			models.ADVANCE_PAYMENT,
-		)
+		).Scan(&orderTxId)
 		if err != nil {
 			return 0, fmt.Errorf("insert payment transaction failed (4a): %w", err)
 		}
@@ -174,7 +183,7 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		`,
 			order.OrderDate,
-			models.ORDER_MEMO_PREFIX+"-"+order.MemoNo,
+			utils.GetOrderMemo(orderTxId, order.MemoNo),
 			order.BranchID,
 			order.CustomerID,
 			models.ENTITY_CUSTOMER,
@@ -233,7 +242,7 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 	// Step 6: Salesperson progress
 	// --------------------
 	salespersonProgress := &models.EmployeeProgressDB{
-		SheetDate:       order.OrderDate,
+		SheetDate:  order.OrderDate,
 		BranchID:   order.BranchID,
 		EmployeeID: order.SalespersonID,
 		OrderCount: order.TotalItems,
@@ -260,9 +269,9 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 	// --------------------
 	// 1. Basic Validations
 	// --------------------
-	if oldOrder.Status != models.ORDER_PENDING {
-		return fmt.Errorf("only pending orders can be modified")
-	}
+	// if oldOrder.Status != models.ORDER_PENDING {
+	// 	return fmt.Errorf("only pending orders can be modified")
+	// }
 	if len(order.Items) == 0 {
 		return fmt.Errorf("order must contain at least one item")
 	}
@@ -279,12 +288,20 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		order.TotalItems += int64(item.Quantity)
 	}
 
+	// change memo no
+	memoNo := strings.TrimSpace(order.MemoNo)
+	if memoNo == "" {
+		order.MemoNo = oldOrder.MemoNo
+	} else {
+		order.MemoNo = memoNo
+	}
+
 	// --------------------
 	// 2. Update Order Header
 	// --------------------
 	_, err = tx.Exec(ctx, `
 		UPDATE orders SET
-			memo_no = $1, order_date = $2, delivery_date = $3,
+			memo_no=$1, order_date = $2, delivery_date = $3,
 			salesperson_id = $4, customer_id = $5,
 			total_products = $6, delivered_products = $7,
 			total_amount = $8, received_amount = $9,
@@ -375,14 +392,14 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		return fmt.Errorf("apply top sheet failed: %w", err)
 	}
 
-	// --------------------
+	// -------------------------------
 	// 5. Handle Salesperson Progress
-	// --------------------
+	// -------------------------------
 
 	// 5a. Revert Old Salesperson
 	// We subtract the old stats from the OLD salesperson ID
 	oldProgress := &models.EmployeeProgressDB{
-		SheetDate:       oldOrder.OrderDate,
+		SheetDate:  oldOrder.OrderDate,
 		BranchID:   oldOrder.BranchID,
 		EmployeeID: oldOrder.SalespersonID, // OLD ID
 		OrderCount: -oldOrder.TotalItems,
@@ -395,7 +412,7 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 	// 5b. Apply New Salesperson
 	// We add the new stats to the NEW salesperson ID
 	newProgress := &models.EmployeeProgressDB{
-		SheetDate:       order.OrderDate,
+		SheetDate:  order.OrderDate,
 		BranchID:   order.BranchID,
 		EmployeeID: order.SalespersonID, // NEW ID
 		OrderCount: order.TotalItems,
@@ -405,9 +422,9 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		return fmt.Errorf("apply new salesperson progress failed: %w", err)
 	}
 
-	// --------------------
+	// -----------------------
 	// 6. Handle Customer Due
-	// --------------------
+	// -----------------------
 
 	// 6a. Revert Old Customer Due
 	// Remove the *Old Due* amount from the *Old Customer*
@@ -451,15 +468,15 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		if err != nil {
 			return fmt.Errorf("revert old account balance failed: %w", err)
 		}
-
+		fmt.Println(order.OrderTransactions)
 		// Delete Old Logs
-		_, err = tx.Exec(ctx, `DELETE FROM order_transactions WHERE order_id=$1 AND transaction_type=$2`,
-			order.ID, models.ADVANCE_PAYMENT)
+		_, err = tx.Exec(ctx, `DELETE FROM order_transactions WHERE transaction_id=$1`,
+			oldOrder.OrderTransactions[0].TransactionID)
 		if err != nil {
 			return fmt.Errorf("delete old order tx failed: %w", err)
 		}
 
-		oldMemoStr := models.ORDER_MEMO_PREFIX + "-" + oldOrder.MemoNo
+		oldMemoStr := utils.GetOrderMemo(oldOrder.OrderTransactions[0].TransactionID, oldOrder.MemoNo)
 		_, err = tx.Exec(ctx, `DELETE FROM transactions WHERE memo_no=$1 AND branch_id=$2 AND transaction_type=$3`,
 			oldMemoStr, oldOrder.BranchID, models.ADVANCE_PAYMENT)
 		if err != nil {
@@ -477,15 +494,16 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		}
 
 		// Insert New Logs
-		_, err = tx.Exec(ctx, `
+		var orderTxId int64
+		err = tx.QueryRow(ctx, `
 			INSERT INTO order_transactions(
 				order_id, transaction_date, payment_account_id, memo_no, 
 				delivered_by, quantity_delivered, amount, transaction_type
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING transaction_id
 		`,
 			order.ID, order.OrderDate, order.PaymentAccountID, order.MemoNo,
 			order.SalespersonID, order.DeliveredItems, order.ReceivedAmount, models.ADVANCE_PAYMENT,
-		)
+		).Scan(&orderTxId)
 		if err != nil {
 			return fmt.Errorf("insert new order tx failed: %w", err)
 		}
@@ -498,7 +516,7 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 				amount, transaction_type, notes
 			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		`,
-			order.OrderDate, models.ORDER_MEMO_PREFIX+"-"+order.MemoNo, order.BranchID,
+			order.OrderDate, utils.GetOrderMemo(orderTxId, order.MemoNo), order.BranchID,
 			order.CustomerID, models.ENTITY_CUSTOMER,
 			order.PaymentAccountID, models.ENTITY_ACCOUNT,
 			order.ReceivedAmount, models.ADVANCE_PAYMENT, "Advance payment (Updated)",
@@ -538,7 +556,6 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, oldOrder *models.OrderDB) e
 	// // 4. Handle Top Sheet (Daily Summary)
 	// // --------------------
 
-	
 	// // 4a. Revert Old (Subtract from OLD Date)
 	// oldSheet := &models.TopSheetDB{
 	// 	SheetDate:  oldOrder.OrderDate,
@@ -625,8 +642,8 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, oldOrder *models.OrderDB) e
 	// oldDue := oldOrder.TotalAmount - oldOrder.ReceivedAmount
 	// if oldDue != 0 {
 	// 	_, err = tx.Exec(ctx, `
-	// 		UPDATE customers 
-	// 		SET due_amount = due_amount - $1 
+	// 		UPDATE customers
+	// 		SET due_amount = due_amount - $1
 	// 		WHERE id = $2
 	// 	`, oldDue, oldOrder.CustomerID) // OLD Customer ID
 	// 	if err != nil {
@@ -639,8 +656,8 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, oldOrder *models.OrderDB) e
 	// newDue := order.TotalAmount - order.ReceivedAmount
 	// if newDue != 0 {
 	// 	_, err = tx.Exec(ctx, `
-	// 		UPDATE customers 
-	// 		SET due_amount = due_amount + $1 
+	// 		UPDATE customers
+	// 		SET due_amount = due_amount + $1
 	// 		WHERE id = $2
 	// 	`, newDue, order.CustomerID) // NEW Customer ID
 	// 	if err != nil {
@@ -690,7 +707,7 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, oldOrder *models.OrderDB) e
 	// 	// Insert New Logs
 	// 	_, err = tx.Exec(ctx, `
 	// 		INSERT INTO order_transactions(
-	// 			order_id, transaction_date, payment_account_id, memo_no, 
+	// 			order_id, transaction_date, payment_account_id, memo_no,
 	// 			delivered_by, quantity_delivered, amount, transaction_type
 	// 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 	// 	`,
@@ -811,12 +828,14 @@ func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTrans
 	}
 
 	// 4a: order payment transaction
-	_, err = tx.Exec(ctx, `
+	var orderTxId int64
+	err = tx.QueryRow(ctx, `
 			INSERT INTO order_transactions(
 				order_id, transaction_date, payment_account_id, memo_no, delivered_by, quantity_delivered,
 				amount, transaction_type
 			)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			RETURNING transaction_id
 		`,
 		orderTx.OrderID,
 		orderTx.TransactionDate,
@@ -826,7 +845,7 @@ func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTrans
 		orderTx.QuantityDelivered,
 		orderTx.Amount,
 		models.PAYMENT,
-	)
+	).Scan(&orderTxId)
 	if err != nil {
 		return fmt.Errorf("ERROR_7: insert payment transaction failed (4a): %w", err)
 	}
@@ -847,7 +866,7 @@ func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTrans
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		`,
 			orderTx.TransactionDate,
-			models.ORDER_MEMO_PREFIX+"-"+orderTx.MemoNo,
+			utils.GetOrderMemo(orderTxId, orderInfo.MemoNo),
 			orderInfo.BranchID,
 			orderInfo.CustomerID,
 			models.ENTITY_CUSTOMER,
@@ -894,6 +913,230 @@ func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTrans
 		`,
 			orderTx.Amount,
 			orderInfo.CustomerID,
+		)
+		if err != nil {
+			return fmt.Errorf("ERROR_11: update customer due failed: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// DeleteOrderDeliveryRecord delete all the records correspond to order delivery
+// delete order delivery, payment transaction,
+// revert top sheet, customer due.
+func (r *OrderRepo) DeleteOrderDeliveryRecord(ctx context.Context, orderTxID, branchID int64) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("ERROR_0: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// load order delivery details
+	var orderTx models.OrderTransactionDB
+	var customerId int64
+	query := `
+			SELECT transaction_id, order_id, transaction_date, payment_account_id, memo_no, delivered_by, quantity_delivered, amount, transaction_type
+			FROM order_transactions WHERE transaction_id=$1`
+	err = tx.QueryRow(ctx, query, orderTxID).Scan(
+		&orderTx.TransactionID,
+		&orderTx.OrderID,
+		&orderTx.TransactionDate,
+		&orderTx.PaymentAccountID,
+		&orderTx.MemoNo,
+		&orderTx.DeliveredBy,
+		&orderTx.QuantityDelivered,
+		&orderTx.Amount,
+		&orderTx.TransactionType,
+	)
+	if err != nil {
+		return fmt.Errorf("ERROR_7: retrieve payment transaction failed (4a): %w", err)
+	}
+
+	if orderTx.TransactionType == "Advance Payment" {
+		return errors.New("invalid transaction state for transaction deletion")
+	}
+	// load order details
+	var order models.OrderDB
+	err = r.db.QueryRow(ctx, `
+		SELECT
+			o.id,
+			o.branch_id,
+			o.memo_no,
+			o.customer_id,
+			o.total_products,
+			o.delivered_products,
+			o.total_amount,
+			o.received_amount
+		FROM orders o
+		WHERE o.id = $1
+	`, orderTx.OrderID).Scan(
+		&order.ID,
+		&order.BranchID,
+		&order.MemoNo,
+		&order.CustomerID,
+		&order.TotalItems,
+		&order.DeliveredItems,
+		&order.TotalAmount,    // float64
+		&order.ReceivedAmount, // float64
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("order not found")
+		}
+		return fmt.Errorf("fetch order failed: %w", err)
+	}
+
+	// Decide the current status
+	currentStatus := ""
+	finalDeliveredQuantity := order.DeliveredItems - orderTx.QuantityDelivered
+	finalReceivedAmount := order.ReceivedAmount - orderTx.Amount
+
+	// Validation
+	if finalDeliveredQuantity < 0 {
+		return errors.New("delete denied: delivered quantity would become negative")
+	}
+
+	if finalReceivedAmount < 0 {
+		return errors.New("delete denied: received amount would become negative")
+	}
+
+	if finalDeliveredQuantity > order.TotalItems {
+		return errors.New("delete denied: delivered quantity exceeds order total")
+	}
+
+	if finalReceivedAmount > order.TotalAmount {
+		return errors.New("delete denied: received amount exceeds order total")
+	}
+
+	// Status
+	switch {
+	case finalDeliveredQuantity == 0 && finalReceivedAmount == 0:
+		currentStatus = models.ORDER_PENDING
+
+	case finalDeliveredQuantity == order.TotalItems && finalReceivedAmount == order.TotalAmount:
+		currentStatus = models.ORDER_DELIVERY
+
+	default:
+		currentStatus = models.ORDER_PARTIAL_DELIVERY
+	}
+
+	// --------------------
+	// 2. Update Order Header
+	// --------------------
+	err = tx.QueryRow(ctx, `
+		UPDATE orders SET
+			delivered_products = delivered_products - $1,
+			received_amount = received_amount - $2,
+			status = $3,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = $4
+		RETURNING customer_id
+	`,
+		orderTx.QuantityDelivered, orderTx.Amount, currentStatus, orderTx.OrderID,
+	).Scan(&customerId)
+	if err != nil {
+		return fmt.Errorf("ERROR_3: update order header failed: %w", err)
+	}
+
+	// --------------------
+	// Step 3: Update top sheet
+	// --------------------
+	topSheet := &models.TopSheetDB{
+		SheetDate: orderTx.TransactionDate,
+		BranchID:  branchID,
+		Delivery:  -orderTx.QuantityDelivered, // total items ordered
+	}
+
+	var acctType string
+	if orderTx.Amount > 0 {
+		err = tx.QueryRow(ctx,
+			`SELECT type FROM accounts WHERE id=$1 AND branch_id=$2`,
+			orderTx.PaymentAccountID,
+			branchID,
+		).Scan(&acctType)
+		if err != nil {
+			return fmt.Errorf("ERROR_4: lookup account type failed: %w", err)
+		}
+
+		if acctType == models.ACCOUNT_BANK {
+			topSheet.Bank = -orderTx.Amount
+		} else {
+			topSheet.Cash = -orderTx.Amount
+		}
+	}
+
+	if err := SaveTopSheetTx(tx, ctx, topSheet); err != nil {
+		return fmt.Errorf("ERROR_5: save top sheet failed: %w", err)
+	}
+
+	// -----------------------------------
+	// Step 4: Order Payment transactions
+	// -----------------------------------
+	// lock account row
+	_, err = tx.Exec(ctx,
+		`SELECT id FROM accounts WHERE id=$1 FOR UPDATE`,
+		orderTx.PaymentAccountID,
+	)
+	if err != nil {
+		return fmt.Errorf("ERROR_6: lock account failed: %w", err)
+	}
+
+	// 4a: order payment transaction
+	_, err = tx.Exec(ctx, `DELETE FROM order_transactions WHERE transaction_id=$1`, orderTx.TransactionID)
+	if err != nil {
+		return fmt.Errorf("ERROR_7: delete payment transaction failed (4a): %w", err)
+	}
+
+	// --------------------
+	// Step 5: Global Payment transactions
+	// --------------------
+	if orderTx.Amount > 0 {
+
+		// 5a: global transaction log
+		_, err = tx.Exec(ctx, `DELETE FROM transactions WHERE memo_no=$1 AND branch_id=$2 AND transaction_date=$3 AND transaction_type=$4`,
+			utils.GetOrderMemo(orderTx.TransactionID, orderTx.MemoNo),
+			branchID,
+			orderTx.TransactionDate,
+			models.PAYMENT,
+		)
+		if err != nil {
+			return fmt.Errorf("ERROR_8: delete transaction failed (4b): %w", err)
+		}
+
+		// 5b: update account balance
+		_, err = tx.Exec(ctx, `
+			UPDATE accounts
+			SET current_balance = current_balance - $1
+			WHERE id = $2
+		`,
+			orderTx.Amount,
+			orderTx.PaymentAccountID,
+		)
+		if err != nil {
+			return fmt.Errorf("ERROR_9: update account balance failed: %w", err)
+		}
+
+		// --------------------
+		// Step 4d: Update customer due
+		// --------------------
+
+		// lock customer row
+		_, err = tx.Exec(ctx,
+			`SELECT id FROM customers WHERE id=$1 FOR UPDATE`,
+			customerId,
+		)
+		if err != nil {
+			return fmt.Errorf("ERROR_10: lock customer failed: %w", err)
+		}
+
+		_, err = tx.Exec(ctx, `
+			UPDATE customers
+			SET due_amount = due_amount + $1
+			WHERE id = $2
+		`,
+			orderTx.Amount,
+			customerId,
 		)
 		if err != nil {
 			return fmt.Errorf("ERROR_11: update customer due failed: %w", err)

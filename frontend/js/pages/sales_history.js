@@ -386,21 +386,7 @@ async function viewSale(id) {
     setText("viewCustomerName", sale.customer?.name || "Unknown Customer");
     setText("viewCustomerMobile", sale.customer?.mobile || "");
 
-    const formatDate = (d) =>
-      d
-        ? new Date(d).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-        : "-";
-    const formatMoney = (m) =>
-      parseFloat(m || 0).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-
-    setText("viewSaleDate", formatDate(sale.sale_date));
+    setText("viewSaleDate", formatDateVal(sale.sale_date));
     // Optional: If you kept the salesperson field in HTML
     setText("viewSalespersonName", sale.salesperson?.name || "Unknown");
     setText("viewSalespersonMobile", sale.salesperson?.mobile || "");
@@ -521,7 +507,7 @@ async function viewSale(id) {
             return `
           <tr class="hover:bg-slate-50 transition-colors">
               <td class="px-4 py-3 text-sm text-slate-600">
-                  ${formatDate(t.transaction_date)}
+                  ${formatDateVal(t.transaction_date)}
               </td>
               <td class="px-4 py-3">
                   <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${typeBadgeClass}">

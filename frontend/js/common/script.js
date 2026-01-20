@@ -23,11 +23,27 @@ const BRANCH_NAMES = {
   2: "DIVA ABAYAT",
   3: "EID AL ABAYAT",
 };
+const BRANCH_CONTACTS = {
+  1: "55016898",
+  2: "33079655",
+  3: "50294046",
+};
+const BRANCH_CONTACTS_ALT = {
+  1: "50036274",
+  2: "51051407",
+  3: "50298321",
+};
 window.GetUserRole = function (){
-  return BRANCH_NAMES[(window.globalState.user.role) || "manager"]
+  return (window.globalState.user.role) || "manager"
 }
 window.GetBranchName = function (){
-  return BRANCH_NAMES[(window.globalState.user.branch_id) || 0]
+  return BRANCH_NAMES[(window.globalState.user.branch_id) || ""]
+}
+window.GetBranchContact = function (){
+  return BRANCH_CONTACTS[(window.globalState.user.branch_id) || ""]
+}
+window.GetBranchContactAlt = function (){
+  return BRANCH_CONTACTS_ALT[(window.globalState.user.branch_id) || "0"]
 }
 /* --- 1. INITIALIZATION (Check Session) --- */
 document.addEventListener("DOMContentLoaded", () => {
@@ -297,6 +313,7 @@ async function loadPage(pageName, pageTitle) {
             pageTitle = pageName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
         document.getElementById("pageTitle").textContent = pageTitle;
+        document.title = pageTitle;
 
         // --- NEW LOGIC START ---
         // Persist the current location to LocalStorage

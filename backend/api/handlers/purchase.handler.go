@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/projuktisheba/erp-mini-api/internal/dbrepo"
 	"github.com/projuktisheba/erp-mini-api/internal/models"
 	"github.com/projuktisheba/erp-mini-api/internal/utils"
@@ -75,8 +76,14 @@ func (h *PurchaseHandler) AddPurchase(w http.ResponseWriter, r *http.Request) {
 // UpdatePurchase
 // =========================
 func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if id == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid purchase id"))
+		return
+	}
+
 	var purchase models.PurchaseDB
-	err := utils.ReadJSON(w, r, &purchase)
+	err = utils.ReadJSON(w, r, &purchase)
 	if err != nil {
 		h.errorLog.Println("ERROR_01_UpdatePurchase:", err)
 		utils.BadRequest(w, err)
@@ -89,7 +96,15 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
 		return
 	}
+
+	//update the fields
+	purchase.ID = id
 	purchase.BranchID = branchID
+	purchase.MemoNo = utils.GetPurchaseMemo(purchase.ID)
+	if purchase.Notes == ""{
+		purchase.Notes = fmt.Sprintf("Payment for Material Purchase %s", purchase.Notes)
+	}
+	
 
 	// Print each field
 	fmt.Println("ID:", purchase.ID)
@@ -101,8 +116,9 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 	fmt.Println("TotalAmount:", purchase.TotalAmount)
 	fmt.Println("Notes:", purchase.Notes)
 	fmt.Println("CreatedAt:", purchase.CreatedAt)
+	
 	// Update the purchase
-	err = h.DB.UpdatePurchase(r.Context(), &purchase)
+	err = h.DB.UpdatePurchase(r.Context(), purchase.ID, &purchase)
 	if err != nil {
 		h.errorLog.Println("ERROR_03_UpdatePurchase:", err)
 		utils.BadRequest(w, err)
@@ -113,12 +129,39 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 		Error    bool               `json:"error"`
 		Status   string             `json:"status"`
 		Message  string             `json:"message"`
-		Purchase *models.PurchaseDB `json:"purchase"`
 	}
 	resp.Error = false
 	resp.Status = "success"
 	resp.Message = "Purchase updated successfully"
-	resp.Purchase = &purchase
+
+	utils.WriteJSON(w, http.StatusCreated, resp)
+}
+
+// =========================
+// DeletePurchase
+// =========================
+func (h *PurchaseHandler) DeletePurchase(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if id == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid purchase id"))
+		return
+	}
+	// Delete purchase record
+	err = h.DB.DeletePurchase(r.Context(), id)
+	if err != nil {
+		h.errorLog.Println("ERROR_03_DeletePurchase:", err)
+		utils.BadRequest(w, err)
+		return
+	}
+
+	var resp struct {
+		Error    bool               `json:"error"`
+		Status   string             `json:"status"`
+		Message  string             `json:"message"`
+	}
+	resp.Error = false
+	resp.Status = "success"
+	resp.Message = "Purchase deleted successfully"
 
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }

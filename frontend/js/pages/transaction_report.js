@@ -195,7 +195,7 @@ function renderReportTable() {
             <td class="px-4 py-3 border-r border-slate-100 font-medium">${
               row.memo_no
             }</td>
-            <td class="px-4 py-3 border-r border-slate-100 font-medium">${formatDate(
+            <td class="px-4 py-3 border-r border-slate-100 font-medium">${formatDateVal(
               row.transaction_date
             )}</td>
             <td class="px-4 py-3 border-r border-slate-100 font-medium">${
@@ -237,7 +237,7 @@ window.printReport = function () {
   const printData = reportState.data.map((row) => {
     const newRow = { ...row };
     const dateObj = newRow.transaction_date;
-    newRow.transaction_date = formatDate(dateObj);
+    newRow.transaction_date = formatDateVal(dateObj);
     return newRow;
   });
 

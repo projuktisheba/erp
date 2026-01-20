@@ -23,13 +23,13 @@ const menuConfig = [
         label: "Restock Products",
         pageId: "restock_products",
         action: "loadPage('restock_products','Restock Product')",
-        roles: ["chairman", "manager"],
+        roles: ["chairman"],
       },
       {
         label: "Material Purchase",
         pageId: "material_purchase",
         action: "loadPage('material_purchase','Material Purchase')",
-        roles: ["chairman", "manager"],
+        roles: ["chairman"],
       },
       {
         label: "Order History",
@@ -86,14 +86,14 @@ const menuConfig = [
         label: "List Suppliers",
         action: "loadPage('suppliers','Supplier List')",
         pageId: "suppliers",
-        roles: ["chairman", "manager"],
+        roles: ["chairman"],
       },
     ],
   },
 
   {
     type: "parent", // This is a dropdown
-    label: "Report",
+    label: "Reports",
     icon: "ph-chart-line-up",
     pageId: "report-menu",
     id: "report-menu", // Unique ID for toggle
@@ -103,26 +103,26 @@ const menuConfig = [
         label: "Branch Report",
         action: "loadPage('branch_report','Branch Analytics')",
         pageId: "branch_report",
-        roles: ["chairman", "manager"],
+        roles: ["chairman"],
       },
       {
-        label: "Purchase Report",
-        action: "loadPage('purchase_report','Purchase Report')",
-        pageId: "purchase_report",
-        roles: ["chairman", "manager"],
+        label: "Purchase History",
+        action: "loadPage('purchase_history','Purchase History')",
+        pageId: "purchase_history",
+        roles: ["chairman"],
       },
       {
         label: "Stock Report",
         action: "loadPage('stock_report','Stock Report')",
         pageId: "stock_report",
-        roles: ["chairman", "manager"],
+        roles: ["chairman"],
       },
       {
         label: "Salesperson Progress",
         action:
           "loadPage('salesperson_progress_report','Salesperson Progress Report')",
         pageId: "salesperson_progress_report",
-        roles: ["chairman", "manager"],
+        roles: ["chairman"],
       },
       {
         label: "Worker Progress",
@@ -134,13 +134,13 @@ const menuConfig = [
         label: "Salary Report",
         action: "loadPage('salary_report','Salary Report')",
         pageId: "salary_report",
-        roles: ["chairman", "manager"],
+        roles: ["chairman"],
       },
       {
         label: "Transaction Report",
         action: "loadPage('transaction_report','Transaction Report')",
         pageId: "transaction_report",
-        roles: ["chairman", "manager"],
+        roles: ["chairman"],
       },
     ],
   },

@@ -16,7 +16,6 @@ window.orderHistoryState = window.orderHistoryState || {
 
 // --- INITIALIZATION ---
 window.initOrderHistoryPage = async function () {
-
   // 1. Grab Elements
   const searchInput = document.getElementById("searchOrderInput");
   const statusSelect = document.getElementById("statusFilter");
@@ -82,6 +81,7 @@ window.initOrderHistoryPage = async function () {
   orderHistoryState.paymentAccounts = Array.isArray(accountsData.accounts)
     ? accountsData.accounts
     : [];
+
 };
 
 // --- FETCH ORDERS ---
@@ -133,7 +133,7 @@ async function fetchOrders() {
     // Safety checks for data structure
     orderHistoryState.orders = Array.isArray(data.orders) ? data.orders : [];
     orderHistoryState.totalRecords = parseInt(
-      data.total_count || data.totalRecords || 0
+      data.total_count || data.totalRecords || 0,
     );
 
     renderOrders();
@@ -150,7 +150,7 @@ async function fetchOrders() {
         // The Callback: What happens when a user clicks a page?
         orderHistoryState.currentPage = newPage;
         fetchOrders();
-      }
+      },
     );
   } catch (err) {
     console.error("Fetch Error:", err);
@@ -266,7 +266,7 @@ function renderOrders() {
         <td class="px-6 py-4 whitespace-nowrap">
           <div class="flex items-center">
             <div class="h-10 w-10 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-bold ${getAvatarColor(
-              customerName
+              customerName,
             )} mr-3 ring-1 ring-slate-100">
               ${getInitials(customerName)}
             </div>
@@ -378,7 +378,7 @@ async function viewOrder(id) {
 
   try {
     const response = await fetch(
-      `${window.globalState.apiBase}/products/orders/${id}`
+      `${window.globalState.apiBase}/products/orders/${id}`,
     );
     const data = await response.json();
 
@@ -398,22 +398,9 @@ async function viewOrder(id) {
     setText("viewCustomerName", order.customer?.name || "Unknown Customer");
     setText("viewCustomerMobile", order.customer?.mobile || "");
 
-    const formatDate = (d) =>
-      d
-        ? new Date(d).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-        : "-";
-    const formatMoney = (m) =>
-      parseFloat(m || 0).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
 
-    setText("viewOrderDate", formatDate(order.order_date));
-    setText("viewDeliveryDate", formatDate(order.delivery_date));
+    setText("viewOrderDate", formatDateVal(order.order_date));
+    setText("viewDeliveryDate", formatDateVal(order.delivery_date));
     // Optional: If you kept the salesperson field in HTML
     setText("viewSalespersonName", order.salesperson?.name || "Unknown");
     setText("viewSalespersonMobile", order.salesperson?.mobile || "");
@@ -433,19 +420,19 @@ async function viewOrder(id) {
         statusEl.classList.add(
           "bg-emerald-50",
           "text-emerald-700",
-          "ring-emerald-600/20"
+          "ring-emerald-600/20",
         );
       } else if (status === "pending") {
         statusEl.classList.add(
           "bg-amber-50",
           "text-amber-700",
-          "ring-amber-600/20"
+          "ring-amber-600/20",
         );
       } else if (status === "partial") {
         statusEl.classList.add(
           "bg-blue-50",
           "text-blue-700",
-          "ring-blue-600/20"
+          "ring-blue-600/20",
         );
       } else if (status === "cancelled") {
         statusEl.classList.add("bg-red-50", "text-red-700", "ring-red-600/20");
@@ -453,7 +440,7 @@ async function viewOrder(id) {
         statusEl.classList.add(
           "bg-slate-50",
           "text-slate-600",
-          "ring-slate-500/20"
+          "ring-slate-500/20",
         );
       }
     }
@@ -478,7 +465,7 @@ async function viewOrder(id) {
                             ${formatMoney(item.subtotal)}
                         </td>
                     </tr>
-                `
+                `,
           )
           .join("");
 
@@ -528,26 +515,36 @@ async function viewOrder(id) {
             totalAmount += t.amount || 0;
 
             return `
-          <tr class="hover:bg-slate-50 transition-colors">
-              <td class="px-4 py-3 text-sm text-slate-600">
-                  ${formatDate(t.transaction_date)}
-              </td>
-              <td class="px-4 py-3">
-                  <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${typeBadgeClass}">
-                      ${t.transaction_type}
-                  </span>
-              </td>
-              <td class="px-4 py-3 text-sm text-center text-slate-600">
-                  ${t.payment_account_name || ""}
-              </td>
-              <td class="px-4 py-3 text-sm text-right text-slate-600">
-                  ${t.quantity_delivered > 0 ? t.quantity_delivered : "-"}
-              </td>
-              <td class="px-4 py-3 text-sm text-right font-bold text-emerald-600">
-                  ${t.amount > 0 ? formatMoney(t.amount) : "-"}
-              </td>
-          </tr>
-        `;
+            <tr class="hover:bg-slate-50 transition-colors">
+                <td class="px-4 py-3 text-sm text-slate-600">
+                    ${formatDateVal(t.transaction_date)}
+                </td>
+                <td class="px-4 py-3">
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${typeBadgeClass}">
+                        ${t.transaction_type}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-sm text-center text-slate-600">
+                    ${t.payment_account_name || ""}
+                </td>
+                <td class="px-4 py-3 text-sm text-right text-slate-600">
+                    ${t.quantity_delivered > 0 ? t.quantity_delivered : "-"}
+                </td>
+                <td class="px-4 py-3 text-sm text-right font-bold text-emerald-600">
+                    ${t.amount > 0 ? formatMoney(t.amount) : "-"}
+                </td>
+                ${
+                  t.transaction_type != "Advance Payment"
+                    ? `<td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                    <button onclick='deleteOrderTransaction(${t.transaction_id})' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
+                        <i class="ph ph-trash text-lg"></i>
+                    </button>
+                  </td>
+                `
+                    : ""
+                }
+            </tr>
+            `;
           })
           .join("");
 
@@ -561,6 +558,7 @@ async function viewOrder(id) {
             <td class="px-4 py-3 text-sm text-right text-emerald-700">${
               totalAmount > 0 ? formatMoney(totalAmount) : "-"
             }</td>
+            <td class="px-4 py-3 text-sm text-right text-emerald-700"></td>
         </tr>
       `;
       }
@@ -601,43 +599,38 @@ window.editOrder = function (id) {
 };
 
 window.cancelOrder = async function (id) {
-    try {
+  try {
     const url = `${window.globalState.apiBase}/products/orders/cancel/${id}`;
     const response = await fetch(url, {
       method: "DELETE",
       headers: window.getAuthHeaders(),
     });
     const data = await response.json();
-    if(!response.ok){
-      throw new Error(`${data.message ?? data.message}` || "Internal Server Error");
+    if (!response.ok) {
+      throw new Error(
+        `${data.message ?? data.message}` || "Internal Server Error",
+      );
     }
-    
+
     showModalConfirm(
       "success",
       "Order cancelled Successfully",
       "",
       "Ok",
       () => {
-        fetchOrders()
-      }
+        fetchOrders();
+      },
     );
-    
   } catch (error) {
     console.error("Cancel Order Error:", error);
-    showModalConfirm(
-      "error",
-      "Unable to cancel order",
-      error,
-      "Ok",
-      () => {}
-    );
+    showModalConfirm("error", "Unable to cancel order", error, "Ok", () => {});
   }
 };
 
 window.printSelectedOrder = async function () {
   printOrderInvoice(
     orderHistoryState.selectedOrder.id,
-    orderHistoryState.selectedOrder
+    orderHistoryState.selectedOrder,
   );
 };
 
@@ -649,7 +642,6 @@ window.closeViewModal = function () {
 
 // 1. Open & Render Modal
 window.deliverOrder = function (id) {
-  
   // 1. Find Order using loose equality
   const order = orderHistoryState.orders.find((o) => o.id == id);
 
@@ -657,7 +649,7 @@ window.deliverOrder = function (id) {
     console.error("Order not found in state for ID:", id);
     showNotification(
       "error",
-      "Error: Could not find order details. Please refresh the page."
+      "Error: Could not find order details. Please refresh the page.",
     );
     return;
   }
@@ -820,7 +812,7 @@ window.submitDelivery = async function () {
   if (parseFloat(paidVal) > 0 && !accountVal) {
     showNotification(
       "error",
-      "Please select a Payment Account for the paid amount."
+      "Please select a Payment Account for the paid amount.",
     );
     return;
   }
@@ -836,7 +828,7 @@ window.submitDelivery = async function () {
 
   // UI Loading
   const submitBtn = document.querySelector(
-    '#deliveryModalContainer button[onclick="submitDelivery()"]'
+    '#deliveryModalContainer button[onclick="submitDelivery()"]',
   );
   const originalText = submitBtn ? submitBtn.innerText : "Confirm";
   if (submitBtn) {
@@ -846,7 +838,7 @@ window.submitDelivery = async function () {
 
   try {
     const apiBase = window.globalState?.apiBase || "/api/v1";
-    const response = await fetch(`${apiBase}/products/orders/delivery`, {
+    const response = await fetch(`${apiBase}/products/orders/delivery/create`, {
       method: "POST",
       headers: window.getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -875,5 +867,31 @@ window.submitDelivery = async function () {
       submitBtn.innerText = originalText;
       submitBtn.disabled = false;
     }
+  }
+};
+
+/* --- 7. DELETE LOGIC --- */
+window.deleteOrderTransaction = async function (id) {
+  if (!confirm("Are you sure you want to delete this record?")) return;
+
+  try {
+    const response = await fetch(
+      `${window.globalState.apiBase}/products/orders/delivery/delete/${id}`,
+      {
+        method: "DELETE",
+        headers: window.getAuthHeaders(),
+      }
+    );
+
+    if (response.ok) {
+      showNotification('success', 'delivery record Deleted');
+      fetchReport();
+    } else {
+      const data = await response.json()
+      showNotification('error', 'Failed to delete');
+      throw new Error("Failed to delete deliver record: ", data.message || "")
+    }
+  } catch (error) {
+    console.error(error);
   }
 };

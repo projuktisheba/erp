@@ -34,52 +34,6 @@ window.initMaterialPurchasePage = async function () {
    ========================================================================== */
 
 /* ==========================================================================
-   LOGIC: RENDERING & FILTERING
-   ========================================================================== */
-function renderSuppliers(list) {
-  const container = document.getElementById("supplierGrid");
-  const emptyState = document.getElementById("emptyState");
-
-  // Re-inject Table structure if it was replaced by Loading Spinner
-  if (container && !container.querySelector("table")) {
-    container.className =
-      "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden";
-    container.innerHTML = `
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead class="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Supplier</th>
-                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact</th>
-                        <th class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="supplierTableBody" class="divide-y divide-slate-100"></tbody>
-            </table>
-        </div>
-     `;
-  }
-
-  const tbody = document.getElementById("supplierTableBody");
-  if (tbody) tbody.innerHTML = "";
-
-  // Handle Empty
-  if (list.length === 0) {
-    if (container) container.classList.add("hidden");
-    if (emptyState) emptyState.classList.remove("hidden");
-    return;
-  }
-
-  if (container) container.classList.remove("hidden");
-  if (emptyState) emptyState.classList.add("hidden");
-
-  // Render Rows
-  list.forEach((emp) => {
-    if (tbody) tbody.appendChild(createSupplierTableRow(emp));
-  });
-}
-
-/* ==========================================================================
    1. DATA FETCHING
    ========================================================================== */
 async function fetchSuppliers() {
@@ -266,8 +220,8 @@ function selectSupplierForForm(prefix, emp) {
 
     // Set default date to today if empty
     const dateInput = document.getElementById(`purchaseDate`);
-    if (dateInput && !dateInput.value) {
-      dateInput.valueAsDate = new Date();
+    if (dateInput) {
+      dateInput.value = formatDateVal(new Date());
     }
   }
 }
@@ -275,9 +229,7 @@ function selectSupplierForForm(prefix, emp) {
 // Global Function to Reset (called by 'X' button or after submit)
 window.resetAutocomplete = function (prefix) {
   // 1. Reset Search UI
-  document
-    .getElementById(`${prefix}SearchContainer`)
-    .classList.remove("hidden");
+  document.getElementById(`${prefix}SearchContainer`).classList.remove("hidden");
   document.getElementById(`${prefix}SelectedCard`).classList.add("hidden");
   document.getElementById(`${prefix}SearchInput`).value = "";
 
@@ -324,15 +276,6 @@ window.saveMaterialPurchaseRecord = async function () {
   }
 
   try {
-    // ID           int64     `json:"id"`
-    // MemoNo       string    `json:"memo_no"`
-    // PurchaseDate time.Time `json:"purchase_date"`
-    // SupplierID   int64     `json:"supplier_id"`
-    // SupplierName string    `json:"supplier_name"`
-    // BranchID     int64     `json:"branch_id"`
-    // TotalAmount  float64   `json:"total_amount"`
-    // Notes        string    `json:"notes"`
-    // CreatedAt    time.Time `json:"created_at"`
     const payload = {
       memo_no: memoNo,
       purchase_date: new Date(purchaseDate).toISOString(),
@@ -355,11 +298,12 @@ window.saveMaterialPurchaseRecord = async function () {
     const data = await response.json();
     if (response.ok) {
       showNotification("success", "Purchase completed!");
-      resetAutocomplete("salary");
+      resetAutocomplete("supplier");
     } else {
       throw new Error(data.message || "Failed to make purchase");
     }
   } catch (error) {
+    console.error(error)
     showNotification("error", error.message);
   }
 };

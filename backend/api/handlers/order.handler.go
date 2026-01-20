@@ -84,8 +84,6 @@ func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	orderDetails.BranchID = branchID
 
-	o.infoLog.Printf("Received order data: %+v\n", orderDetails)
-
 	// load old data
 	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderDetails.ID);
 	if err != nil {
@@ -142,7 +140,7 @@ func (o *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
-// UpdateOder handles POST /orders/delivery
+// OrderDelivery handles POST /orders/delivery
 func (o *OrderHandler) OrderDelivery(w http.ResponseWriter, r *http.Request) {
 	var orderTx models.OrderTransactionDB
 	err := utils.ReadJSON(w, r, &orderTx)
@@ -151,8 +149,6 @@ func (o *OrderHandler) OrderDelivery(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, err)
 		return
 	}
-
-	o.infoLog.Printf("Received order data: %+v\n", orderTx)
 	// load old data
 	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), *orderTx.OrderID);
 	if err != nil {
@@ -171,6 +167,33 @@ func (o *OrderHandler) OrderDelivery(w http.ResponseWriter, r *http.Request) {
 		"error":    false,
 		"status":   "success",
 		"message":  "Order delivery recorded successfully",
+	}
+	utils.WriteJSON(w, http.StatusCreated, resp)
+}
+// DeleteOrderDeliveryRecord handles POST /orders/delivery
+func (o *OrderHandler) DeleteOrderDeliveryRecord(w http.ResponseWriter, r *http.Request) {
+	orderTxID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if orderTxID == 0 || err != nil {
+		utils.ServerError(w, errors.New("Invalid order transaction id"))
+		return
+	}
+
+	branchID := utils.GetBranchID(r)
+	if branchID == 0 {
+		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
+		return
+	}
+	err = o.DB.DeleteOrderDeliveryRecord(r.Context(), orderTxID, branchID);
+	if err != nil {
+		o.errorLog.Println("DeleteOrderDeliveryRecord_DB:", err)
+		utils.ServerError(w, errors.New("Failed to delete record"))
+		return
+	}
+
+	resp := map[string]any{
+		"error":    false,
+		"status":   "success",
+		"message":  "Delivery record deleted successfully",
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }

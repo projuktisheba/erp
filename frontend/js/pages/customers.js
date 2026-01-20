@@ -241,30 +241,6 @@ window.editCustomer = function (id) {
   document.getElementById("customerModal").classList.remove("hidden");
 };
 
-// /* --- 7. DELETE LOGIC --- */
-// window.deleteCustomer = async function (id) {
-//   if (!confirm("Are you sure you want to delete this customer?")) return;
-
-//   try {
-//     const response = await fetch(
-//       `${window.globalState.apiBase}/customer/delete/${id}`,
-//       {
-//         method: "DELETE",
-//         headers: window.getAuthHeaders(),
-//       }
-//     );
-
-//     if (response.ok) {
-//       showNotification('success', 'Customer Deleted');
-//       fetchCustomers();
-//     } else {
-//       showNotification('error', 'Cannot delete (Constraint Violation or Server Error)');
-//     }
-//   } catch (error) {
-//     console.error(error);
-//    showNotification('error', 'Server Error');
-//   }
-// };
 
 /* --- PRINT --- */
 window.printCustomerReport = function () {
