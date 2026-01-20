@@ -247,7 +247,7 @@ func (e *EmployeeHandler) UpdateEmployeeRole(w http.ResponseWriter, r *http.Requ
 }
 
 // PaginatedEmployeeList handles fetching a paginated, filtered list of employees.
-// Supports query params: page, limit, role, status
+// Supports query params: page, limit, role, status, search
 func (e *EmployeeHandler) PaginatedEmployeeList(w http.ResponseWriter, r *http.Request) {
 
 	// Extract query params
@@ -255,6 +255,7 @@ func (e *EmployeeHandler) PaginatedEmployeeList(w http.ResponseWriter, r *http.R
 	limitParam := strings.TrimSpace(r.URL.Query().Get("limit"))
 	roleFilter := strings.TrimSpace(r.URL.Query().Get("role"))
 	statusFilter := strings.TrimSpace(r.URL.Query().Get("status"))
+	search := strings.TrimSpace(r.URL.Query().Get("search")) // 1. Extract search
 
 	// Defaults
 	page := 0 // 0 means list all
@@ -285,6 +286,7 @@ func (e *EmployeeHandler) PaginatedEmployeeList(w http.ResponseWriter, r *http.R
 	}
 
 	// Check role param
+	// Note: Your frontend sends ?role=salesperson, so this validation passes.
 	if _, found := RoleMap[roleFilter]; !found {
 		e.errorLog.Println("ERROR_03_PaginatedEmployeeList: Invalid role, allowed-role:[chairman, manager, salesperson, worker]")
 		utils.BadRequest(w, errors.New("Please provide correct role, allowed-role:[chairman, manager, salesperson, worker]"))
@@ -302,7 +304,8 @@ func (e *EmployeeHandler) PaginatedEmployeeList(w http.ResponseWriter, r *http.R
 	}
 
 	// Fetch filtered employees from DB
-	employees, total, err := e.DB.PaginatedEmployeeList(r.Context(), page, limit, branchID, roleFilter, statusFilter, sortBy, sortOrder)
+	// 2. Pass 'search' to the DB method
+	employees, total, err := e.DB.PaginatedEmployeeList(r.Context(), page, limit, branchID, roleFilter, statusFilter, search, sortBy, sortOrder)
 	if err != nil {
 		e.errorLog.Println("ERROR_04_PaginatedEmployeeList: ", err)
 		utils.BadRequest(w, err)

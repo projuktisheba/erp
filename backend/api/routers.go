@@ -135,15 +135,12 @@ func (app *application) routes() http.Handler {
 		r.Get("/orders", app.Handlers.Order.GetOrdersHandler)
 		r.Get("/orders/{id}", app.Handlers.Order.GetOrderDetailsByID)
 		r.Patch("/orders/update/{id}", app.Handlers.Order.UpdateOrder)
-<<<<<<< HEAD
 		r.Delete("/orders/cancel/{id}", app.Handlers.Order.CancelOrder)
 		// r.Patch("/checkout", app.Handlers.Order.CheckoutOrder)
 		r.Post("/orders/delivery", app.Handlers.Order.OrderDelivery)
-=======
 		// r.Delete("orders/cancel/{id}", app.Handlers.Order.CancelOrder)
 		r.Post("/orders/delivery/create", app.Handlers.Order.OrderDelivery)
 		r.Delete("/orders/delivery/delete/{id}", app.Handlers.Order.DeleteOrderDeliveryRecord)
->>>>>>> 7d6dde56b3ec8d6d20af38fd915c1942e015cafe
 		// r.Get("/", app.Handlers.Order.GetOrderDetailsByID)
 		// r.Get("/items", app.Handlers.Order.GetOrderItemsByMemoNo)
 		// r.Get("/list", app.Handlers.Order.ListOrders)

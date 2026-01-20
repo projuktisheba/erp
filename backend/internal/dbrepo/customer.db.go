@@ -236,57 +236,86 @@ func (s *CustomerRepo) FilterCustomersByName(ctx context.Context, branchID int64
 }
 
 // 7. GetCustomers (with pagination or all)
-func (s *CustomerRepo) GetCustomers(ctx context.Context, page, limit int, branchID int64) ([]*models.Customer, error) {
-	var query string
-	var rows pgx.Rows
-	var err error
+// 7. GetCustomers (with pagination, filtering, and search)
+// Added 'search' parameter to filter by Name or Mobile
+func (s *CustomerRepo) GetCustomers(ctx context.Context, page, limit int, branchID int64, search string) ([]*models.Customer, error) {
+    var rows pgx.Rows
+    var err error
 
-	if limit == -1 {
-		query = `
-			SELECT id, name, mobile, address, tax_id, branch_id, due_amount, status,
-			       length, shoulder, bust, waist, hip, arm_hole,
-			       sleeve_length, sleeve_width, round_width,
-			       created_at, updated_at
-			FROM customers
-			WHERE branch_id = $1
-			ORDER BY created_at DESC;`
-		rows, err = s.db.Query(ctx, query, branchID)
-	} else {
-		offset := (page - 1) * limit
-		query = `
-			SELECT id, name, mobile, address, tax_id, branch_id, due_amount, status,
-			       length, shoulder, bust, waist, hip, arm_hole,
-			       sleeve_length, sleeve_width, round_width,
-			       created_at, updated_at
-			FROM customers
-			WHERE branch_id = $1
-			ORDER BY created_at DESC
-			LIMIT $2 OFFSET $3;`
-		rows, err = s.db.Query(ctx, query, branchID, limit, offset)
-	}
+    // Basic columns to select
+    baseQuery := `
+        SELECT id, name, mobile, address, tax_id, branch_id, due_amount, status,
+               length, shoulder, bust, waist, hip, arm_hole,
+               sleeve_length, sleeve_width, round_width,
+               created_at, updated_at
+        FROM customers
+        WHERE branch_id = $1`
 
-	if err != nil {
-		return nil, fmt.Errorf("error fetching customers: %w", err)
-	}
-	defer rows.Close()
+    // Add search condition if provided
+    var args []interface{}
+    args = append(args, branchID)
 
-	var customers []*models.Customer
-	for rows.Next() {
-		var c models.Customer
-		if err := rows.Scan(
-			&c.ID, &c.Name, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
-			&c.Length, &c.Shoulder, &c.Bust, &c.Waist, &c.Hip, &c.ArmHole,
-			&c.SleeveLength, &c.SleeveWidth, &c.RoundWidth,
-			&c.CreatedAt, &c.UpdatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("error scanning customer: %w", err)
-		}
-		customers = append(customers, &c)
-	}
-	if len(customers) == 0 {
-		return nil, pgx.ErrNoRows
-	}
-	return customers, nil
+    if search != "" {
+        // ILIKE is case-insensitive. We check Name OR Mobile.
+        // $2 becomes the search pattern
+        baseQuery += ` AND (name ILIKE '%' || $2 || '%' OR mobile ILIKE '%' || $2 || '%')`
+        args = append(args, search)
+    }
+
+    baseQuery += ` ORDER BY created_at DESC`
+
+    // Handle Pagination
+    if limit != -1 {
+        offset := (page - 1) * limit
+        
+        // Append LIMIT and OFFSET based on current arg count
+        // If search exists, args has 2 items, so LIMIT is $3, OFFSET is $4
+        // If search is empty, args has 1 item, so LIMIT is $2, OFFSET is $3
+        paramStart := len(args) + 1
+        baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", paramStart, paramStart+1)
+        
+        args = append(args, limit, offset)
+    }
+
+    // Execute Query
+    rows, err = s.db.Query(ctx, baseQuery, args...)
+
+    if err != nil {
+        return nil, fmt.Errorf("error fetching customers: %w", err)
+    }
+    defer rows.Close()
+
+    // Use a pre-allocated slice if we know the limit to reduce allocations
+    capacity := 0
+    if limit > 0 {
+        capacity = limit
+    }
+    customers := make([]*models.Customer, 0, capacity)
+
+    for rows.Next() {
+        var c models.Customer
+        if err := rows.Scan(
+            &c.ID, &c.Name, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
+            &c.Length, &c.Shoulder, &c.Bust, &c.Waist, &c.Hip, &c.ArmHole,
+            &c.SleeveLength, &c.SleeveWidth, &c.RoundWidth,
+            &c.CreatedAt, &c.UpdatedAt,
+        ); err != nil {
+            return nil, fmt.Errorf("error scanning customer: %w", err)
+        }
+        customers = append(customers, &c)
+    }
+
+    // If searching, an empty result is valid (not an error), 
+    // but the original code returned pgx.ErrNoRows. 
+    // Generally, for lists, returning an empty slice [] is preferred over an error.
+    // However, maintaining your original logic:
+    if len(customers) == 0 {
+        // Only return ErrNoRows if that's specifically required by your logic,
+        // otherwise return nil, nil
+        return nil, nil // Or return nil, pgx.ErrNoRows if your handler relies on it
+    }
+
+    return customers, nil
 }
 
 // 8. GetCustomersNameAndID (active only)

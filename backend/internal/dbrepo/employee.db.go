@@ -575,98 +575,118 @@ func (e *EmployeeRepo) GetEmployeesNameAndIDByBranchAndRole(ctx context.Context,
 	return list, nil
 }
 
-// PaginatedEmployeeList returns a paginated list of employees with optional filters, dynamic sorting, or all rows if page/limit not provided.
-func (e *EmployeeRepo) PaginatedEmployeeList(ctx context.Context, page, limit int, branchID int64, role, status, sortBy, sortOrder string,
+// PaginatedEmployeeList returns a paginated list of employees with optional filters, search, and dynamic sorting.
+// Updated to include 'search' parameter and optimized query building.
+func (e *EmployeeRepo) PaginatedEmployeeList(ctx context.Context, page, limit int, branchID int64, role, status, search, sortBy, sortOrder string,
 ) ([]*models.Employee, int, error) {
 
-	// Base queries
-	query := `SELECT id, name, role, status, mobile, mobile_alt, email, password, passport_no, joining_date, address,
-	                 base_salary, overtime_rate, branch_id, created_at, updated_at
-	          FROM employees
-	          WHERE role <> 'chairman'`
+    // 1. Build the Base constraints
+    // Start with the hard constraint (excluding chairman) which applies to EVERYTHING
+    whereClause := " WHERE role <> 'chairman'"
+    args := []interface{}{}
+    argIdx := 1
 
-	countQuery := `SELECT COUNT(*) FROM employees WHERE 1=1`
+    // 2. Dynamic Filters
+    
+    // -- Search (Name or Mobile) --
+    if search != "" {
+        // Uses the same argument ($x) twice for efficient parameter binding
+        whereClause += fmt.Sprintf(" AND (name ILIKE '%%' || $%d || '%%' OR mobile ILIKE '%%' || $%d || '%%')", argIdx, argIdx)
+        args = append(args, search)
+        argIdx++
+    }
 
-	args := []interface{}{}
-	countArgs := []interface{}{}
-	argIdx := 1
+    // -- Branch --
+    if branchID != 0 {
+        whereClause += fmt.Sprintf(" AND branch_id = $%d", argIdx)
+        args = append(args, branchID)
+        argIdx++
+    }
 
-	// Dynamic filters
-	if branchID != 0 {
-		query += fmt.Sprintf(" AND branch_id = $%d", argIdx)
-		countQuery += fmt.Sprintf(" AND branch_id = $%d", argIdx)
-		args = append(args, branchID)
-		countArgs = append(countArgs, branchID)
-		argIdx++
-	}
+    // -- Role --
+    if role != "" {
+        whereClause += fmt.Sprintf(" AND role = $%d", argIdx)
+        args = append(args, role)
+        argIdx++
+    }
 
-	if role != "" {
-		query += fmt.Sprintf(" AND role = $%d", argIdx)
-		countQuery += fmt.Sprintf(" AND role = $%d", argIdx)
-		args = append(args, role)
-		countArgs = append(countArgs, role)
-		argIdx++
-	}
+    // -- Status --
+    if status != "" {
+        whereClause += fmt.Sprintf(" AND status = $%d", argIdx)
+        args = append(args, status)
+        argIdx++
+    }
 
-	if status != "" {
-		query += fmt.Sprintf(" AND status = $%d", argIdx)
-		countQuery += fmt.Sprintf(" AND status = $%d", argIdx)
-		args = append(args, status)
-		countArgs = append(countArgs, status)
-		argIdx++
-	}
+    // 3. Execute Count Query
+    // We do this BEFORE adding Sort/Limit/Offset logic
+    countQuery := `SELECT COUNT(*) FROM employees` + whereClause
+    
+    var total int
+    if err := e.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+        var pgErr *pgconn.PgError
+        if errors.As(err, &pgErr) {
+            return nil, 0, fmt.Errorf("database error: %s", pgErr.Message)
+        }
+        return nil, 0, err
+    }
 
-	// Dynamic sorting
-	if sortBy == "" {
-		sortBy = "created_at"
-	}
-	if sortOrder != "ASC" && sortOrder != "DESC" {
-		sortOrder = "DESC"
-	}
-	query += fmt.Sprintf(" ORDER BY %s %s", sortBy, sortOrder)
+    // 4. Prepare Main Query (Sort + Pagination)
+    query := `SELECT id, name, role, status, mobile, mobile_alt, email, password, passport_no, joining_date, address,
+                     base_salary, overtime_rate, branch_id, created_at, updated_at
+              FROM employees` + whereClause
 
-	// Only add LIMIT/OFFSET if both page and limit are provided
-	if page > 0 && limit > 0 {
-		offset := (page - 1) * limit
-		query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
-		args = append(args, limit, offset)
-	}
+    // Sorting
+    if sortBy == "" {
+        sortBy = "created_at"
+    }
+    // Whitelist sort order to prevent injection
+    if sortOrder != "ASC" && sortOrder != "DESC" {
+        sortOrder = "DESC"
+    }
+    query += fmt.Sprintf(" ORDER BY %s %s", sortBy, sortOrder)
 
-	// Get total count
-	var total int
-	if err := e.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			return nil, 0, fmt.Errorf("database error: %s", pgErr.Message)
-		}
-		return nil, 0, err
-	}
+    // Pagination
+    // Only apply if limit is provided (limit > 0)
+    if limit > 0 {
+        offset := 0
+        if page > 1 {
+            offset = (page - 1) * limit
+        }
+        query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+        args = append(args, limit, offset)
+    }
 
-	// Query employees
-	rows, err := e.db.Query(ctx, query, args...)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			return nil, 0, fmt.Errorf("database error: %s", pgErr.Message)
-		}
-		return nil, 0, err
-	}
-	defer rows.Close()
+    // 5. Execute Main Query
+    rows, err := e.db.Query(ctx, query, args...)
+    if err != nil {
+        var pgErr *pgconn.PgError
+        if errors.As(err, &pgErr) {
+            return nil, 0, fmt.Errorf("database error: %s", pgErr.Message)
+        }
+        return nil, 0, err
+    }
+    defer rows.Close()
 
-	employees := []*models.Employee{}
-	for rows.Next() {
-		var emp models.Employee
-		err := rows.Scan(
-			&emp.ID, &emp.Name, &emp.Role, &emp.Status,
-			&emp.Mobile, &emp.MobileAlt, &emp.Email, &emp.Password, &emp.PassportNo,
-			&emp.JoiningDate, &emp.Address, &emp.BaseSalary, &emp.OvertimeRate,
-			&emp.BranchID, &emp.CreatedAt, &emp.UpdatedAt,
-		)
-		if err != nil {
-			return nil, 0, err
-		}
-		employees = append(employees, &emp)
-	}
+    // Optimization: Pre-allocate slice capacity if limit is known to reduce allocations
+    capacity := 0
+    if limit > 0 {
+        capacity = limit
+    }
+    employees := make([]*models.Employee, 0, capacity)
 
-	return employees, total, nil
+    for rows.Next() {
+        var emp models.Employee
+        err := rows.Scan(
+            &emp.ID, &emp.Name, &emp.Role, &emp.Status,
+            &emp.Mobile, &emp.MobileAlt, &emp.Email, &emp.Password, &emp.PassportNo,
+            &emp.JoiningDate, &emp.Address, &emp.BaseSalary, &emp.OvertimeRate,
+            &emp.BranchID, &emp.CreatedAt, &emp.UpdatedAt,
+        )
+        if err != nil {
+            return nil, 0, err
+        }
+        employees = append(employees, &emp)
+    }
+
+    return employees, total, nil
 }

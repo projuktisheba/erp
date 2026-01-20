@@ -280,13 +280,12 @@ func (c *CustomerHandler) FilterCustomersByName(w http.ResponseWriter, r *http.R
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
-
 // GetCustomers returns a paginated list of customers with optional filters.
 func (c *CustomerHandler) GetCustomers(w http.ResponseWriter, r *http.Request) {
 	// Extract query params
 	pageStr := r.URL.Query().Get("page")
 	limitStr := r.URL.Query().Get("limit")
-	// statusStr := r.URL.Query().Get("status")
+	search := r.URL.Query().Get("search") // 1. Extract search param
 
 	page := 0
 	limit := -1
@@ -314,8 +313,10 @@ func (c *CustomerHandler) GetCustomers(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
 		return
 	}
+	
 	// Call DB repo
-	customers, err := c.DB.GetCustomers(r.Context(), page, limit, branchID)
+	// 2. Pass the search term to the DB method
+	customers, err := c.DB.GetCustomers(r.Context(), page, limit, branchID, search)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		c.errorLog.Println("ERROR_01_GetCustomers:", err)
@@ -338,7 +339,6 @@ func (c *CustomerHandler) GetCustomers(w http.ResponseWriter, r *http.Request) {
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
-
 func (c *CustomerHandler) GetCustomersNameAndID(w http.ResponseWriter, r *http.Request) {
 	//read branch id
 	branchID := utils.GetBranchID(r)

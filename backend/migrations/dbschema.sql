@@ -127,7 +127,7 @@ CREATE TABLE customers (
 
 -- Index for faster name lookups (useful for search/autocomplete)
 CREATE INDEX idx_customers_name ON customers(name);
-CREATE INDEX idx_customers_mobile ON customers(name);
+CREATE INDEX idx_customers_mobile ON customers(mobile);
 
 
 CREATE TABLE accounts (

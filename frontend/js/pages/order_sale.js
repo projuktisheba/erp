@@ -21,20 +21,14 @@ window.resetOrderState = () => {
 
 // --- INITIALIZATION ---
 window.initOrderSalePage = async function () {
-    //Reset order state
+  //Reset order state
   resetOrderState();
-    // Set Input Values (YYYY-MM-DD)
+  // Set Input Values (YYYY-MM-DD)
   try {
-    // Load ALL necessary static data (products, customers, employees, accounts)
-    const [productsRes, customersRes, employeesRes, accountsRes] =
+    // Load static data (products, accounts only)
+    const [productsRes, accountsRes] =
       await Promise.all([
         fetch(`${window.globalState.apiBase}/products`, {
-          headers: window.getAuthHeaders(),
-        }),
-        fetch(`${window.globalState.apiBase}/customers`, {
-          headers: window.getAuthHeaders(),
-        }),
-        fetch(`${window.globalState.apiBase}/hr/employees?role=salesperson`, {
           headers: window.getAuthHeaders(),
         }),
         fetch(`${window.globalState.apiBase}/accounts`, {
@@ -45,23 +39,7 @@ window.initOrderSalePage = async function () {
     const productsData = await productsRes.json();
     orderState.products = productsData.products || [];
 
-    // Populate Dropdowns
-    populateSelect(
-      "customerSelect",
-      "Customer",
-      (await customersRes.json()).customers || [],
-      (c) => `${c.name} - ${c.mobile}`,
-      "id"
-    );
-
-    populateSelect(
-      "employeeSelect",
-      "Employee",
-      (await employeesRes.json()).employees || [],
-      (e) => `${e.name} (${e.role})`,
-      "id"
-    );
-
+    // Populate Account Dropdown (remains standard select)
     populateSelect(
       "accountSelect",
       "Account",
@@ -70,23 +48,41 @@ window.initOrderSalePage = async function () {
       "id"
     );
 
+    // --- SETUP AUTOCOMPLETE ---
+    // Customer Search
+    setupAutocomplete(
+      "customerSearchInput",
+      "customerId",
+      "customerSuggestions",
+      `${window.globalState.apiBase}/customers`,
+      (c) => `${c.name} - ${c.mobile}`
+    );
+
+    // Salesperson Search
+    setupAutocomplete(
+      "employeeSearchInput",
+      "employeeId",
+      "employeeSuggestions",
+      `${window.globalState.apiBase}/hr/employees?role=salesperson`,
+      (e) => `${e.name} (${e.role})`
+    );
+
     // Add Listener for Advance Input
     const advInput = document.getElementById("advanceInput");
     if (advInput) advInput.addEventListener("input", calculateDue);
 
-    // Add Listener for Product Select to auto-fill price (Optional UX improvement)
+    // Add Listener for Product Select to auto-fill price
     document.getElementById("productSelect").addEventListener("change", (e) => {
       const product = orderState.products.find((p) => p.id == e.target.value);
       if (product && orderState.editingIndex === null) {
-        document.getElementById("priceInput").value = product.sell_price || 0;
+        // UPDATED: Just set the base price. No calculation with Qty.
+        // User enters the final Total manually.
+        document.getElementById("priceInput").value = (product.sell_price || 0).toFixed(2);
       }
     });
 
     // ----------------------------------------------------
     // --- NEW EDITING/CREATION LOGIC ---
-    // 1. Check for an order ID in the URL
-    // const urlParams = new URLSearchParams(window.location.search);
-    // const existingOrderId = urlParams.get("orderId");
     const existingOrderId = localStorage.getItem("orderID");
     localStorage.removeItem("orderID");
 
@@ -94,7 +90,6 @@ window.initOrderSalePage = async function () {
       orderState.orderId = existingOrderId;
 
       await loadOrderForEdit(existingOrderId); // Load data if ID exists
-      // Update the page title (assuming you have one)
       const pageTitle = document.getElementById("pageTitle");
       if (pageTitle) pageTitle.textContent = "Edit Transaction";
     } else {
@@ -123,19 +118,18 @@ window.initOrderSalePage = async function () {
     const stateToggleContainer = document.getElementById("stateToggleContainer");
     const stateToggle = document.getElementById("stateToggle");
     if (stateToggle) {
-      stateToggle.checked = orderState.isOrderState; // Set initial state (or loaded state)
+      stateToggle.checked = orderState.isOrderState; 
       stateToggle.addEventListener("change", () => {
         updateOrderState();
         renderProductOptions();
       });
-      updateOrderState(); // Call initially to set correct UI
+      updateOrderState(); 
       // Disable toggle if editing
       if (orderState.orderId || orderState.saleId) stateToggle.disabled = true;
       if (orderState.orderId || orderState.saleId) {
         stateToggleContainer.classList.add("bg-slate-100")
       } else {
         stateToggleContainer.classList.remove("bg-slate-100")
-
       }
     }
 
@@ -146,7 +140,72 @@ window.initOrderSalePage = async function () {
   }
 };
 
-// --- LOAD EXISTING DATA (UPDATED MAPPING) ---
+// --- AUTOCOMPLETE HELPER ---
+function setupAutocomplete(inputId, hiddenId, listId, apiBase, labelFn) {
+  const input = document.getElementById(inputId);
+  const hidden = document.getElementById(hiddenId);
+  const list = document.getElementById(listId);
+  let debounceTimer;
+
+  if (!input || !list) return;
+
+  // 1. Input Listener
+  input.addEventListener("input", function (e) {
+    const query = e.target.value;
+    hidden.value = ""; // Clear ID if user types (must re-select)
+    clearTimeout(debounceTimer);
+
+    if (query.length < 1) {
+      list.innerHTML = "";
+      list.classList.add("hidden");
+      return;
+    }
+
+    debounceTimer = setTimeout(async () => {
+      try {
+        // Assume API accepts ?search=QUERY. Append to apiBase properly
+        const separator = apiBase.includes("?") ? "&" : "?";
+        const url = `${apiBase}${separator}search=${encodeURIComponent(query)}`;
+
+        const res = await fetch(url, { headers: window.getAuthHeaders() });
+        const data = await res.json();
+        
+        // Handle different response structures (customers vs employees)
+        const items = data.customers || data.employees || [];
+
+        list.innerHTML = "";
+        if (items.length === 0) {
+          list.innerHTML = `<li class="px-4 py-2 text-sm text-slate-500">No results found</li>`;
+        } else {
+          items.forEach((item) => {
+            const li = document.createElement("li");
+            li.className = "px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors";
+            li.textContent = labelFn(item);
+            li.onclick = () => {
+              input.value = labelFn(item); // Set visual text
+              hidden.value = item.id;      // Set actual ID
+              list.classList.add("hidden"); // Hide list
+              list.innerHTML = "";
+            };
+            list.appendChild(li);
+          });
+        }
+        list.classList.remove("hidden");
+      } catch (err) {
+        console.error("Autocomplete fetch error", err);
+      }
+    }, 300); // 300ms debounce
+  });
+
+  // 2. Hide list on click outside
+  document.addEventListener("click", function (e) {
+    if (e.target !== input && e.target !== list) {
+      list.classList.add("hidden");
+    }
+  });
+}
+
+// --- LOAD EXISTING DATA ---
 window.loadOrderForEdit = async function (orderId) {
   try {
     const res = await fetch(
@@ -159,12 +218,10 @@ window.loadOrderForEdit = async function (orderId) {
     if (!res.ok) throw new Error("Failed to fetch order details");
 
     const data = await res.json();
-    const order = data.order; // Access the 'order' object from response
+    const order = data.order; 
 
     // 1. Map Items to Cart
     window.orderState.cart = (order.items || []).map((item) => {
-      // API returns item.product_name, so we can use that directly
-      // OR find it in our products list to be safe
       const product = window.orderState.products.find(
         (p) => p.id == item.product_id
       );
@@ -175,15 +232,13 @@ window.loadOrderForEdit = async function (orderId) {
           item.product_name ||
           (product ? product.product_name : `Item #${item.product_id}`),
         qty: item.quantity,
-        price: item.subtotal / item.quantity, // Derived unit price
-        total: item.subtotal,
+        price: item.subtotal / item.quantity, // Derived for display only
+        total: item.subtotal, // Source of truth
       };
     });
 
     // 2. Set State Type
-    // Assuming your API distinguishes types, or we infer it.
-    // If this endpoint only returns "orders", we force order state.
-    const isOrder = true; // Since we fetched from /products/orders/
+    const isOrder = true;
     window.orderState.isOrderState = isOrder;
 
     const stateToggle = document.getElementById("stateToggle");
@@ -193,15 +248,20 @@ window.loadOrderForEdit = async function (orderId) {
     }
 
     // 3. Populate Form Fields
-    // Use IDs from the response objects
-    if (document.getElementById("customerSelect")) {
-      document.getElementById("customerSelect").value =
-        order.customer_id || (order.customer ? order.customer.id : "");
+    if (document.getElementById("customerId")) {
+        document.getElementById("customerId").value = order.customer_id || (order.customer ? order.customer.id : "");
+        if (order.customer) {
+             document.getElementById("customerSearchInput").value = `${order.customer.name} - ${order.customer.mobile}`;
+        }
     }
-    if (document.getElementById("employeeSelect")) {
-      document.getElementById("employeeSelect").value =
-        order.salesperson_id || (order.salesperson ? order.salesperson.id : "");
+    
+    if (document.getElementById("employeeId")) {
+        document.getElementById("employeeId").value = order.salesperson_id || (order.salesperson ? order.salesperson.id : "");
+        if (order.salesperson) {
+            document.getElementById("employeeSearchInput").value = `${order.salesperson.name} (${order.salesperson.role})`;
+        }
     }
+
     if (document.getElementById("accountSelect")) {
       document.getElementById("accountSelect").value = String(
         order.order_transactions?.[0]?.payment_account_id || ""
@@ -213,8 +273,6 @@ window.loadOrderForEdit = async function (orderId) {
     document.getElementById("orderNotes").value = order.notes || "";
 
     // 4. Populate Dates
-    // const formatDateVal = (dateStr) => (dateStr ? dateStr.split("T")[0] : "");
-
     document.getElementById("orderDate").value = formatDateVal(order.order_date);
     document.getElementById("deliveryDate").value = formatDateVal(
       order.delivery_date
@@ -229,6 +287,7 @@ window.loadOrderForEdit = async function (orderId) {
     showNotification("error", "Could not load data.");
   }
 };
+
 window.loadSaleForEdit = async function (saleId) {
   try {
     const res = await fetch(
@@ -253,8 +312,8 @@ window.loadSaleForEdit = async function (saleId) {
           item.product_name ||
           (product ? product.product_name : `Item #${item.product_id}`),
         qty: item.quantity,
-        price: item.subtotal / item.quantity,
-        total: item.subtotal,
+        price: item.subtotal / item.quantity, // Derived for display
+        total: item.subtotal, // Source of truth
       };
     });
 
@@ -268,8 +327,16 @@ window.loadSaleForEdit = async function (saleId) {
     }
 
     // --- FORM FIELDS ---
-    document.getElementById("customerSelect").value = sale.customer_id;
-    document.getElementById("employeeSelect").value = sale.salesperson_id;
+    document.getElementById("customerId").value = sale.customer_id;
+    if(sale.customer) {
+        document.getElementById("customerSearchInput").value = `${sale.customer.name} - ${sale.customer.mobile}`;
+    }
+    
+    document.getElementById("employeeId").value = sale.salesperson_id;
+    if(sale.salesperson) {
+        document.getElementById("employeeSearchInput").value = `${sale.salesperson.name} (${sale.salesperson.role})`;
+    }
+
     if (document.getElementById("accountSelect")) {
       document.getElementById("accountSelect").value = String(
         sale.sale_transactions?.[0]?.payment_account_id || ""
@@ -364,7 +431,6 @@ function setTodayDates() {
 
   if (saleDateInput) saleDateInput.value = dateString;
   if (orderDateInput) orderDateInput.value = dateString;
-  // Optionally set delivery date to a future date or leave blank/set today
   if (deliveryDateInput) deliveryDateInput.value = dateString;
 }
 
@@ -387,9 +453,8 @@ function populateSelect(elementId, labelName, data, labelFn, valueKey) {
 // --- Render Product Options ---
 window.renderProductOptions = function () {
   const select = document.getElementById("productSelect");
-  const currentSelection = select.value; // Remember what was selected (if any)
+  const currentSelection = select.value; 
 
-  // 1. Identify which Product ID is currently being edited (if any)
   let editingProductId = null;
   if (
     orderState.editingIndex !== null &&
@@ -398,31 +463,21 @@ window.renderProductOptions = function () {
     editingProductId = orderState.cart[orderState.editingIndex].product_id;
   }
 
-  // 2. Filter Products
-  // Show product IF: (It is NOT in the cart) OR (It is the item currently being edited)
   const availableProducts = orderState.products.filter((p) => {
     const isInCart = orderState.cart.some((item) => item.product_id == p.id);
-
-    // Always allow the product being edited
     if (p.id == editingProductId) return true;
-
-    // If NOT order state, stock must be > 0
     if (window.orderState.isOrderState === false) {
       return !isInCart && p.current_stock_level > 0;
     }
-
-    // If order state, do not check stock
     return !isInCart;
   });
 
-  // 3. Generate HTML
   select.innerHTML = `<option value="" disabled selected>Select Product</option>`;
 
   if (availableProducts.length === 0) {
     select.innerHTML += `<option value="" disabled>No product available</option>`;
   } else {
     availableProducts.forEach((p) => {
-      // Re-select the item if it was previously selected (helps when switching edit modes)
       const isSelected = p.id == currentSelection ? "selected" : "";
       select.innerHTML += `<option value="${p.id}" ${isSelected}>${p.product_name} [${p.current_stock_level}]</option>`;
     });
@@ -434,10 +489,11 @@ window.handleAddToCart = function (e) {
   e.preventDefault();
   const pid = document.getElementById("productSelect").value;
   const qty = parseInt(document.getElementById("qtyInput").value);
-  const price = parseFloat(document.getElementById("priceInput").value);
+  // NEW: Read priceInput as the Total Price
+  const totalEntered = parseFloat(document.getElementById("priceInput").value);
 
   // Validation
-  if (!pid || !qty || isNaN(qty) || isNaN(price)) {
+  if (!pid || !qty || isNaN(qty) || isNaN(totalEntered)) {
     showModalConfirm(
       "error",
       "Please fill all fields correctly",
@@ -451,15 +507,17 @@ window.handleAddToCart = function (e) {
   // Find product details
   const product = orderState.products.find((p) => p.id == pid);
   const pName = product ? product.product_name : "Unknown Item";
-  const lineTotal = qty * price; // Correct calculation
+  
+  // Calculate Unit Price for display only (approximate)
+  const unitPrice = totalEntered / qty;
+  // UPDATED: Line total is exactly what user typed. No calculation.
+  const lineTotal = totalEntered;
 
   // LOGIC: Check for Duplicates
-  // We search if this product ID exists in the cart, BUT we ignore the index currently being edited
   const existingIndex = orderState.cart.findIndex(
     (item) => item.product_id == pid
   );
 
-  // 0. If Adding new item for sale where  qty > current_stock_level
   if (
     !window.orderState.isOrderState &&
     parseInt(qty) > product.current_stock_level
@@ -486,17 +544,15 @@ window.handleAddToCart = function (e) {
     return;
   }
 
-  // 2. If Updating Item (editingIndex is NOT null)
+  // 2. If Updating Item
   if (orderState.editingIndex !== null) {
-    // Update the existing row
     orderState.cart[orderState.editingIndex] = {
       product_id: pid,
       name: pName,
       qty: qty,
-      price: price,
-      total: lineTotal,
+      price: unitPrice, // Stored for display
+      total: lineTotal, // FINAL SOURCE OF TRUTH
     };
-    // Reset Edit State
     resetFormState();
   }
   // 3. Add New Item
@@ -505,16 +561,14 @@ window.handleAddToCart = function (e) {
       product_id: pid,
       name: pName,
       qty: qty,
-      price: price,
+      price: unitPrice,
       total: lineTotal,
     });
     e.target.reset();
   }
 
   renderCart();
-  // NEW: Update the dropdown to remove the used item
   renderProductOptions();
-  // Reset form (unless editing, handled by your logic)
   if (orderState.editingIndex === null) {
     e.target.reset();
   }
@@ -524,40 +578,35 @@ window.handleAddToCart = function (e) {
 window.editCartItem = function (index) {
   const item = orderState.cart[index];
 
-  // Set Global State
   orderState.editingIndex = index;
   renderProductOptions();
-  // Populate Form
+  
   const productSelect = document.getElementById("productSelect");
   productSelect.value = item.product_id;
-  productSelect.disabled = true; // Lock product so they can't switch items while editing logic
+  productSelect.disabled = true;
 
   document.getElementById("qtyInput").value = item.qty;
-  document.getElementById("priceInput").value = item.price;
+  
+  // NEW: Fill input with the Total Price, not the unit price
+  document.getElementById("priceInput").value = item.total.toFixed(2);
 
-  // Update Button Text
   const submitBtn = document.querySelector(
     "form[onsubmit='handleAddToCart(event)'] button"
   );
   submitBtn.innerHTML = `<i class="ph ph-check font-bold"></i> Update`;
   submitBtn.classList.remove("bg-slate-900", "hover:bg-slate-800");
   submitBtn.classList.add("bg-brand-600", "hover:bg-brand-700");
-
-  // Add a cancel button if it doesn't exist (Optional, for better UX)
-  // For now, we rely on the user finishing the update.
 };
 
 // Helper to reset form back to "Add" mode
 function resetFormState() {
   orderState.editingIndex = null;
 
-  // Reset Form Fields
   document.getElementById("productSelect").disabled = false;
   document.getElementById("productSelect").value = "";
   document.getElementById("qtyInput").value = "";
   document.getElementById("priceInput").value = "";
 
-  // Reset Button Styles
   const submitBtn = document.querySelector(
     "form[onsubmit='handleAddToCart(event)'] button"
   );
@@ -576,7 +625,6 @@ window.renderCart = function () {
   orderState.cart.forEach((item, index) => {
     grandTotal += item.total;
 
-    // Highlight the row being edited
     const isEditing = orderState.editingIndex === index;
     const rowClass = isEditing
       ? "bg-brand-50 border-brand-200"
@@ -586,12 +634,8 @@ window.renderCart = function () {
    <tr class="border-b transition-colors ${rowClass}">
     <td class="px-4 py-3 font-medium text-slate-700">${item.name}</td>
     <td class="px-4 py-3 text-center text-slate-600">${item.qty}</td>
-    <td class="px-4 py-3 text-right text-slate-600">${item.price.toFixed(
-      2
-    )}</td>
-    <td class="px-4 py-3 text-right font-bold text-slate-800">${item.total.toFixed(
-      2
-    )}</td>
+    <td class="px-4 py-3 text-right text-slate-600">${item.price.toFixed(2)}</td>
+    <td class="px-4 py-3 text-right font-bold text-slate-800">${item.total.toFixed(2)}</td>
     <td class="px-4 py-3 text-center">
      <div class="flex justify-center items-center gap-2">
       <button onclick="editCartItem(${index})"
@@ -610,7 +654,6 @@ window.renderCart = function () {
   document.getElementById("cartTotalDisplay").textContent =
     grandTotal.toFixed(2);
 
-  // Update Badge
   const badge = document.getElementById("totalItemsBadge");
   if (badge) badge.innerText = `${orderState.cart.length} Items`;
 
@@ -619,11 +662,9 @@ window.renderCart = function () {
 
 // Remove Cart Item
 window.removeCartItem = function (index) {
-  // If user deletes the item currently being edited, reset form
   if (orderState.editingIndex === index) {
     resetFormState();
   }
-  // If user deletes an item BEFORE the one being edited, adjust the index
   else if (
     orderState.editingIndex !== null &&
     index < orderState.editingIndex
@@ -647,7 +688,6 @@ window.calculateDue = function () {
 
   dueDisplay.textContent = due.toFixed(2);
 
-  // Visual cue if negative
   if (due == 0) {
     dueDisplay.classList.remove("text-red-600");
     dueDisplay.classList.add("text-emerald-600"); // full payment
@@ -669,7 +709,6 @@ window.submitData = async function () {
   const icon = document.getElementById("saveIcon");
   const text = document.getElementById("saveText");
 
-  // Start loading
   btn.disabled = true;
   btn.classList.add("animate-pulse");
   spinner.classList.remove("hidden");
@@ -694,13 +733,14 @@ window.submitData = async function () {
   }
 };
 
-// --- SUBMIT LOGIC (UPDATED FOR EDIT/PUT, ORDER vs SALE) ---
+// --- SUBMIT LOGIC ---
 window.submitOrderToDB = async function () {
     if (orderState.cart.length === 0)
     return showNotification("error", "No product selected");
 
-  const customerId = document.getElementById("customerSelect").value;
-  const salespersonId = document.getElementById("employeeSelect").value;
+  const customerId = document.getElementById("customerId").value;
+  const salespersonId = document.getElementById("employeeId").value;
+  
   const paymentAccountId = document.getElementById("accountSelect").value;
   const memoNo = document.getElementById("memoNo").value;
   const advanceAmount =
@@ -714,7 +754,6 @@ window.submitOrderToDB = async function () {
     return showNotification("error", "Please select a payment account");
   if (!memoNo) return showNotification("error", "Please enter a Memo No.");
 
-  // --- Dates ---
   const rawOrderDate = document.getElementById("orderDate").value;
   const rawDeliveryDate = document.getElementById("deliveryDate").value;
   if (!rawOrderDate)
@@ -725,14 +764,13 @@ window.submitOrderToDB = async function () {
   const orderDate = new Date(rawOrderDate);
   const deliveryDate = new Date(rawDeliveryDate);
 
-  // --- Calculate totals ---
   let totalAmount = 0;
   orderState.cart.forEach((item) => {
-    totalAmount += parseFloat(item.price) * parseInt(item.qty);
+    // UPDATED: Use the stored total directly. No multiplication.
+    totalAmount += item.total;
   });
   const receivedAmount = advanceAmount;
 
-  // --- Prepare payload matching OrderDB & OrderItemDB ---
   const payload = {
     ...(isEditing && { id: parseInt(orderState.orderId) }),
     branch_id: window.globalState.user.branch_id,
@@ -751,7 +789,8 @@ window.submitOrderToDB = async function () {
     items: orderState.cart.map((item) => ({
       product_id: parseInt(item.product_id),
       quantity: parseInt(item.qty),
-      subtotal: parseFloat(item.price) * parseInt(item.qty),
+      // UPDATED: Use the item.total directly
+      subtotal: item.total,
     })),
   };
 
@@ -761,7 +800,6 @@ window.submitOrderToDB = async function () {
   const method = isEditing ? "PATCH" : "POST";
   const action = isEditing ? "Updated" : "Confirmed";
 
-  
   try {
     const res = await fetch(url, {
       method: method,
@@ -769,7 +807,6 @@ window.submitOrderToDB = async function () {
       body: JSON.stringify(payload),
     });
 
-    // This is the OUTER 'data' variable
     const data = await res.json();
 
     if (res.ok) {
@@ -779,31 +816,28 @@ window.submitOrderToDB = async function () {
         `Order ${action} successfully!`,
         "Print Invoice",
         async () => {
-          // Use outer 'data' here safely
           const response = await fetch(
             `${window.globalState.apiBase}/products/orders/${
               isEditing ? orderState.orderId : data.order_id
             }`
           );
 
-          // FIX: Rename this to 'orderData' to avoid conflict
           const orderData = await response.json();
 
           if (orderData.error) throw new Error(orderData.error);
 
           const order = orderData.order;
-          // Ensure your printInvoice function matches the one we created earlier
-          // If you named it printOrderInvoice in previous steps, change this to printOrderInvoice(order)
-          // or ensure you have: window.printInvoice = window.printOrderInvoice;
           await printOrderInvoice(order.id, order);
         },
-        "Cancel" // Fixed syntax here (removed 'cancelText =')
+        "Cancel"
       );
 
       if (!isEditing) {
         orderState.cart = [];
         renderCart();
         document.getElementById("orderForm").reset();
+        document.getElementById("customerId").value = ""; 
+        document.getElementById("employeeId").value = ""; 
         document.getElementById("advanceInput").value = 0;
         setTodayDates();
         calculateDue();
@@ -826,13 +860,14 @@ window.submitSaleToDB = async function () {
     if (orderState.cart.length === 0)
     return showNotification("error", "No product selected");
 
-  const customerId = document.getElementById("customerSelect").value;
-  const salespersonId = document.getElementById("employeeSelect").value;
+  const customerId = document.getElementById("customerId").value;
+  const salespersonId = document.getElementById("employeeId").value;
+
   const paymentAccountId = document.getElementById("accountSelect").value;
   const memoNo = document.getElementById("memoNo").value;
   const advanceAmount =
     parseFloat(document.getElementById("advanceInput").value) || 0;
-  const isEditing = orderState.saleId !== null; // separate state for editing sales
+  const isEditing = orderState.saleId !== null;
 
   if (!customerId) return showNotification("error", "Please select a customer");
   if (!salespersonId)
@@ -841,20 +876,18 @@ window.submitSaleToDB = async function () {
     return showNotification("error", "Please select a payment account");
   if (!memoNo) return showNotification("error", "Please enter a Memo No.");
 
-  // --- Sale Date ---
   const rawSaleDate = document.getElementById("saleDate").value;
   if (!rawSaleDate)
     return showNotification("error", "Please select a Sale Date");
   const saleDate = new Date(rawSaleDate);
 
-  // --- Calculate totals ---
   let totalAmount = 0;
   orderState.cart.forEach((item) => {
-    totalAmount += parseFloat(item.price) * parseInt(item.qty);
+    // UPDATED: Use the stored total directly
+    totalAmount += item.total;
   });
   const receivedAmount = advanceAmount;
 
-  // --- Prepare payload matching SaleDB & OrderItemDB ---
   const payload = {
     ...(isEditing && { id: parseInt(orderState.saleId) }),
     branch_id: window.globalState.user.branch_id,
@@ -872,7 +905,8 @@ window.submitSaleToDB = async function () {
     items: orderState.cart.map((item) => ({
       product_id: parseInt(item.product_id),
       quantity: parseInt(item.qty),
-      subtotal: parseFloat(item.price) * parseInt(item.qty),
+      // UPDATED: Use the item.total directly
+      subtotal: item.total,
     })),
   };
 
@@ -882,7 +916,6 @@ window.submitSaleToDB = async function () {
   const method = isEditing ? "PATCH" : "POST";
   const action = isEditing ? "Updated" : "Confirmed";
 
-  
   try {
     const res = await fetch(url, {
       method: method,
@@ -899,31 +932,28 @@ window.submitSaleToDB = async function () {
         `Sale ${action} successfully!`,
         "Print Invoice",
         async () => {
-          // Use outer 'data' here safely
           const response = await fetch(
             `${window.globalState.apiBase}/products/sales/details/${
               isEditing ? orderState.saleId : data.sale_id
             }`
           );
 
-          // FIX: Rename this to 'saleData' to avoid conflict
           const saleData = await response.json();
 
           if (saleData.error) throw new Error(saleData.error);
 
           const sale = saleData.sale;
-          // Ensure your printInvoice function matches the one we created earlier
-          // If you named it printSaleInvoice in previous steps, change this to printSaleInvoice(sale)
-          // or ensure you have: window.printInvoice = window.printSaleInvoice;
           await printSaleInvoice(sale.id, sale);
         },
-        "Cancel" // Fixed syntax here (removed 'cancelText =')
+        "Cancel"
       );
 
       if (!isEditing) {
         orderState.cart = [];
         renderCart();
         document.getElementById("orderForm").reset();
+        document.getElementById("customerId").value = ""; 
+        document.getElementById("employeeId").value = ""; 
         document.getElementById("advanceInput").value = 0;
         setTodayDates();
         calculateDue();
