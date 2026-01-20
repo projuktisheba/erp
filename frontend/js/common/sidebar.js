@@ -64,7 +64,7 @@ const menuConfig = [
         action:
           "loadPage('employee_payment','Employee Advance Payment & Salary')",
         pageId: "employee_payment",
-        roles: ["chairman"],
+        roles: ["chairman", "manager"],
       },
     ],
   },

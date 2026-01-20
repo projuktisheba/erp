@@ -34,16 +34,20 @@ const BRANCH_CONTACTS_ALT = {
   3: "50298321",
 };
 window.GetUserRole = function (){
-  return (window.globalState.user.role) || "manager"
+  return (window.globalState.user.role) || "manager";
+}
+window.hasAccess = function(expectedRole){
+  const currentRole = window.globalState.user.role || "manager";
+  return (currentRole == expectedRole);
 }
 window.GetBranchName = function (){
-  return BRANCH_NAMES[(window.globalState.user.branch_id) || ""]
+  return BRANCH_NAMES[(window.globalState.user.branch_id) || ""];
 }
 window.GetBranchContact = function (){
-  return BRANCH_CONTACTS[(window.globalState.user.branch_id) || ""]
+  return BRANCH_CONTACTS[(window.globalState.user.branch_id) || ""];
 }
 window.GetBranchContactAlt = function (){
-  return BRANCH_CONTACTS_ALT[(window.globalState.user.branch_id) || "0"]
+  return BRANCH_CONTACTS_ALT[(window.globalState.user.branch_id) || "0"];
 }
 /* --- 1. INITIALIZATION (Check Session) --- */
 document.addEventListener("DOMContentLoaded", () => {

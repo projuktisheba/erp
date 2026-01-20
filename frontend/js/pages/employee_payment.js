@@ -12,7 +12,10 @@ window.employeePaymentState = {
    INITIALIZATION UPDATE
    ========================================================================== */
 // Modify your window.initEmployeePaymentPage function
-window.initEmployeePaymentPage = async function () {   
+window.initEmployeePaymentPage = async function () {  
+  if (GetUserRole() == "chairman"){
+    document.getElementById("employeeSalarySection").classList.remove("hidden")
+  }
   // 1. Fetch Initial Data
   await fetchEmployees();
   await fetchPaymentAccounts();

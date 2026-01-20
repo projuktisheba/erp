@@ -81,7 +81,6 @@ window.initOrderHistoryPage = async function () {
   orderHistoryState.paymentAccounts = Array.isArray(accountsData.accounts)
     ? accountsData.accounts
     : [];
-
 };
 
 // --- FETCH ORDERS ---
@@ -249,6 +248,7 @@ function renderOrders() {
         };
 
       const canDeliver = o.status === "pending" || o.status === "partial";
+      const canCancel = false && canDeliver && hasAccess("chairman");
       const canEdit = o.status === "pending";
 
       return `
@@ -333,18 +333,31 @@ function renderOrders() {
               class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus:outline-none active:scale-95" 
               title="Mark Delivered">
                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-            </button>
-        </td>
-        <td class="whitespace-nowrap text-center">
-
-            <button onclick="cancelOrder(${o.id})"
-              class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none active:scale-95"
-              title="Cancel Order">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>`
                 : ""
             }
-        </td>
+        <td class="whitespace-nowrap text-center">
+          ${
+            canCancel
+              ? `
+          <button 
+            onclick='showModalConfirm(
+                "error", 
+                "Are You Sure To Cancel Order?", 
+                "<div class=\\"text-left bg-zinc-50 border border-zinc-200 rounded-lg p-3\\"><div class=\\"flex items-center gap-2 mb-2\\"><svg class=\\"w-4 h-4 text-zinc-900\\" fill=\\"none\\" viewBox=\\"0 0 24 24\\" stroke=\\"currentColor\\"><path stroke-linecap=\\"round\\" stroke-linejoin=\\"round\\" stroke-width=\\"2\\" d=\\"M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z\\" /></svg><span class=\\"text-sm font-bold text-zinc-900\\">Irreversible Action</span></div><ul class=\\"text-sm text-zinc-600 list-disc list-inside space-y-1\\"><li>Customer due reduces by <span class=\\"font-bold text-zinc-900 bg-zinc-200 px-1.5 rounded\\">${due}</span></li><li>Manual stock addition required</li></ul></div>", 
+                "Yes, Cancel", 
+                ()=> deletePurchaseRecord(${o.id}), 
+                "No, Keep it"
+            )'
+            class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none active:scale-95" 
+            title="Cancel Order">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>`
+              : ""
+          }
+      </td>
       </tr>`;
     })
     .join("");
@@ -397,7 +410,6 @@ async function viewOrder(id) {
     setText("viewMemoNo", `#${order.memo_no}`); // Added # hash for style
     setText("viewCustomerName", order.customer?.name || "Unknown Customer");
     setText("viewCustomerMobile", order.customer?.mobile || "");
-
 
     setText("viewOrderDate", formatDateVal(order.order_date));
     setText("viewDeliveryDate", formatDateVal(order.delivery_date));
@@ -536,7 +548,7 @@ async function viewOrder(id) {
                 ${
                   t.transaction_type != "Advance Payment"
                     ? `<td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                    <button onclick='deleteOrderTransaction(${t.transaction_id})' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
+                    <button onclick='showModalConfirm("error", "Delete this record?", "This process is irreversible.", "Ok", () => deleteOrderTransaction(${t.transaction_id}))' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
                         <i class="ph ph-trash text-lg"></i>
                     </button>
                   </td>
@@ -725,7 +737,7 @@ window.deliverOrder = function (id) {
                             <span class="font-semibold text-slate-800 text-sm truncate pr-2">${
                               order.customer.name || "Unknown"
                             }</span>
-                            <span class="text-xs font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-blue-100">${
+                            <span class="text-xs text-slate-500 bg-white px-1.5 py-0.5 rounded border border-blue-100">${
                               order.customer.mobile || "No Contact"
                             }</span>
                         </div>
@@ -872,24 +884,22 @@ window.submitDelivery = async function () {
 
 /* --- 7. DELETE LOGIC --- */
 window.deleteOrderTransaction = async function (id) {
-  if (!confirm("Are you sure you want to delete this record?")) return;
-
   try {
     const response = await fetch(
       `${window.globalState.apiBase}/products/orders/delivery/delete/${id}`,
       {
         method: "DELETE",
         headers: window.getAuthHeaders(),
-      }
+      },
     );
 
     if (response.ok) {
-      showNotification('success', 'delivery record Deleted');
-      fetchReport();
+      showNotification("success", "delivery record Deleted");
+      fetchOrders();
     } else {
-      const data = await response.json()
-      showNotification('error', 'Failed to delete');
-      throw new Error("Failed to delete deliver record: ", data.message || "")
+      const data = await response.json();
+      showNotification("error", "Failed to delete");
+      throw new Error("Failed to delete deliver record: ", data.message || "");
     }
   } catch (error) {
     console.error(error);

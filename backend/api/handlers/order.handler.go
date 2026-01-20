@@ -44,7 +44,7 @@ func (o *OrderHandler) AddOrder(w http.ResponseWriter, r *http.Request) {
 
 	o.infoLog.Printf("Received order data: %+v\n", orderDetails)
 
-	orderID, err := o.DB.CreateOrder(r.Context(), &orderDetails);
+	orderID, err := o.DB.CreateOrder(r.Context(), &orderDetails)
 	if err != nil {
 		o.errorLog.Println("AddOrder_DB:", err)
 		if utils.IsUniqueViolation(err, "orders_memo_no_branch_id_key") {
@@ -63,9 +63,10 @@ func (o *OrderHandler) AddOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
+
 // UpdateOder handles PATCH /orders/update/{id}
 func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
-	id, err:= strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if id == 0 || err != nil {
 		utils.BadRequest(w, errors.New("Invalid order id"))
 		return
@@ -85,13 +86,13 @@ func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 	orderDetails.BranchID = branchID
 
 	// load old data
-	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderDetails.ID);
+	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderDetails.ID)
 	if err != nil {
 		o.errorLog.Println("UpdateOrder_DB:", err)
 		utils.ServerError(w, err)
 		return
 	}
-	err = o.DB.UpdateOrder(r.Context(), &orderDetails, oldOrderDetails);
+	err = o.DB.UpdateOrder(r.Context(), &orderDetails, oldOrderDetails)
 	if err != nil {
 		o.errorLog.Println("UpdateOrder_DB:", err)
 		utils.ServerError(w, err)
@@ -99,64 +100,65 @@ func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := map[string]any{
-		"error":    false,
-		"status":   "success",
-		"message":  "Order updated successfully",
+		"error":   false,
+		"status":  "success",
+		"message": "Order updated successfully",
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
 
 // CancelOrder handles DELETE /orders/cancel/{id}
 func (o *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
-	orderID, err:= strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	orderID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if orderID == 0 || err != nil {
 		utils.BadRequest(w, errors.New("Invalid order id"))
 		return
 	}
-	
+
 	branchID := utils.GetBranchID(r)
 	if branchID == 0 {
 		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
 		return
 	}
-	// load old data
-	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderID);
-	if err != nil {
-		o.errorLog.Println("UpdateOrder_DB:", err)
-		utils.ServerError(w, err)
-		return
-	}
-	err = o.DB.CancelOrder(r.Context(), oldOrderDetails);
-	if err != nil {
-		o.errorLog.Println("CancelOrder_DB:", err)
-		utils.ServerError(w, err)
-		return
-	}
+	// // load old data
+	// oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderID);
+	// if err != nil {
+	// 	o.errorLog.Println("UpdateOrder_DB:", err)
+	// 	utils.ServerError(w, err)
+	// 	return
+	// }
+	// err = o.DB.CancelOrder(r.Context(), oldOrderDetails);
+	// if err != nil {
+	// 	o.errorLog.Println("CancelOrder_DB:", err)
+	// 	utils.ServerError(w, err)
+	// 	return
+	// }
 
 	resp := map[string]any{
-		"error":    false,
-		"status":   "success",
-		"message":  "Order cancelled successfully",
+		"error":   false,
+		"status":  "success",
+		"message": "Order cancelled successfully",
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
+
 // OrderDelivery handles POST /orders/delivery
 func (o *OrderHandler) OrderDelivery(w http.ResponseWriter, r *http.Request) {
 	var orderTx models.OrderTransactionDB
 	err := utils.ReadJSON(w, r, &orderTx)
-	if  err != nil {
+	if err != nil {
 		o.errorLog.Println("OrderDelivery_ReadJSON:", err)
 		utils.BadRequest(w, err)
 		return
 	}
 	// load old data
-	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), *orderTx.OrderID);
+	oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), *orderTx.OrderID)
 	if err != nil {
 		o.errorLog.Println("OrderDelivery_DB => can't load old order info:", err)
 		utils.ServerError(w, err)
 		return
 	}
-	err = o.DB.OrderDelivery(r.Context(), orderTx, *oldOrderDetails);
+	err = o.DB.OrderDelivery(r.Context(), orderTx, *oldOrderDetails)
 	if err != nil {
 		o.errorLog.Println("OrderDelivery_DB:", err)
 		utils.ServerError(w, err)
@@ -164,12 +166,13 @@ func (o *OrderHandler) OrderDelivery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := map[string]any{
-		"error":    false,
-		"status":   "success",
-		"message":  "Order delivery recorded successfully",
+		"error":   false,
+		"status":  "success",
+		"message": "Order delivery recorded successfully",
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
+
 // DeleteOrderDeliveryRecord handles POST /orders/delivery
 func (o *OrderHandler) DeleteOrderDeliveryRecord(w http.ResponseWriter, r *http.Request) {
 	orderTxID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -183,7 +186,7 @@ func (o *OrderHandler) DeleteOrderDeliveryRecord(w http.ResponseWriter, r *http.
 		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
 		return
 	}
-	err = o.DB.DeleteOrderDeliveryRecord(r.Context(), orderTxID, branchID);
+	err = o.DB.DeleteOrderDeliveryRecord(r.Context(), orderTxID, branchID)
 	if err != nil {
 		o.errorLog.Println("DeleteOrderDeliveryRecord_DB:", err)
 		utils.ServerError(w, errors.New("Failed to delete record"))
@@ -191,9 +194,9 @@ func (o *OrderHandler) DeleteOrderDeliveryRecord(w http.ResponseWriter, r *http.
 	}
 
 	resp := map[string]any{
-		"error":    false,
-		"status":   "success",
-		"message":  "Delivery record deleted successfully",
+		"error":   false,
+		"status":  "success",
+		"message": "Delivery record deleted successfully",
 	}
 	utils.WriteJSON(w, http.StatusCreated, resp)
 }
