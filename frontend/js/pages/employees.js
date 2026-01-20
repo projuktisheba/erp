@@ -22,7 +22,7 @@ window.initEmployeesPage = async function () {
 /* --- 1. FETCH DATA --- */
 async function fetchEmployees() {
   const container = document.getElementById("employeeGrid"); // We use the same ID, but treat it as a table container
-  
+
   // Loading State
   container.innerHTML =
     '<div class="w-full text-center py-10"><i class="ph ph-spinner animate-spin text-3xl text-brand-600"></i></div>';
@@ -52,7 +52,8 @@ function renderEmployees(list) {
   const emptyState = document.getElementById("emptyState");
 
   // Reset container styles to be a Table Container instead of a Grid
-  container.className = "col-span-full overflow-x-auto bg-white rounded-lg shadow border border-slate-200";
+  container.className =
+    "col-span-full overflow-x-auto bg-white rounded-lg shadow border border-slate-200";
   container.innerHTML = "";
 
   if (list.length === 0) {
@@ -67,7 +68,7 @@ function renderEmployees(list) {
   // Build Table Structure
   const table = document.createElement("table");
   table.className = "min-w-full divide-y divide-slate-200";
-  
+
   // Table Header
   table.innerHTML = `
     <thead class="bg-slate-50">
@@ -103,10 +104,14 @@ function createEmployeeTableRow(emp) {
     worker: "bg-slate-50 text-slate-600 ring-slate-500",
     chairman: "bg-amber-50 text-amber-700 ring-amber-600",
   };
-  const badgeClass = roleColors[emp.role] || "bg-slate-50 text-slate-600 ring-slate-500/10";
+  const badgeClass =
+    roleColors[emp.role] || "bg-slate-50 text-slate-600 ring-slate-500/10";
 
   // 2. Status Logic
-  const statusColor = emp.status === "active" ? "text-emerald-700 bg-emerald-50 ring-emerald-600/20" : "text-slate-600 bg-slate-50 ring-slate-500/10";
+  const statusColor =
+    emp.status === "active"
+      ? "text-emerald-700 bg-emerald-50 ring-emerald-600/20"
+      : "text-slate-600 bg-slate-50 ring-slate-500/10";
 
   const tr = document.createElement("tr");
   tr.className = "hover:bg-slate-50 transition-colors duration-150";
@@ -119,7 +124,7 @@ function createEmployeeTableRow(emp) {
               </div>
               <div class="flex flex-col">
                   <div class="text-sm font-medium text-slate-900">${emp.name}</div>
-                  <div class="text-xs text-slate-400">${emp.passport_no || ''}</div>
+                  <div class="text-xs text-slate-400">${emp.passport_no || ""}</div>
               </div>
           </div>
       </td>
@@ -137,7 +142,7 @@ function createEmployeeTableRow(emp) {
                       ${emp.mobile}
                   </div>
                   <div class="text-[11px] text-slate-400 font-medium">
-                      ${emp.mobile_alt || 'No secondary'}
+                      ${emp.mobile_alt || "No secondary"}
                   </div>
               </div>
           </div>
@@ -146,7 +151,7 @@ function createEmployeeTableRow(emp) {
           <div class="flex items-center gap-4">
               <div class="flex flex-col">
                   <div class="text-xs text-slate-500 max-w-[180px] leading-tight truncate-2-lines">
-                      ${emp.address || 'N/A'}
+                      ${emp.address || "N/A"}
                   </div>
               </div>
           </div>
@@ -164,11 +169,15 @@ function createEmployeeTableRow(emp) {
           <div class="text-sm text-slate-900 font-medium">
              ${parseFloat(emp.base_salary).toLocaleString()}
           </div>
-          ${emp.overtime_rate > 0 ? `
+          ${
+            emp.overtime_rate > 0
+              ? `
             <div class="text-xs text-emerald-600 font-medium">
                 +${parseFloat(emp.overtime_rate).toLocaleString()} /hr
             </div>
-          ` : '<div class="text-xs text-slate-400"></div>'}
+          `
+              : '<div class="text-xs text-slate-400"></div>'
+          }
       </td>
 
       <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -184,7 +193,10 @@ function createEmployeeTableRow(emp) {
 
 /* --- 3. SEARCH & FILTER --- */
 function filterEmployees() {
-  const query = document.getElementById("employeeSearch").value.toLowerCase().trim();
+  const query = document
+    .getElementById("employeeSearch")
+    .value.toLowerCase()
+    .trim();
   const role = document.getElementById("roleFilter").value;
 
   // if (query.trim() === ""){
@@ -209,10 +221,10 @@ function openEmployeeModal() {
 
   if (window.globalState.user.role === "chairman") {
     let hasManager = Array.from(empRole.options).some(
-      (opt) => opt.value === "manager"
+      (opt) => opt.value === "manager",
     );
     let hasChairman = Array.from(empRole.options).some(
-      (opt) => opt.value === "chairman"
+      (opt) => opt.value === "chairman",
     );
 
     if (!hasManager) {
@@ -228,7 +240,7 @@ function openEmployeeModal() {
   document.getElementById("modalTitle").textContent = "Add New Employee";
   document.getElementById("empStatus").value = "active";
   document.getElementById("empRole").disabled = !["manager", "chairman"].some(
-    (role) => window.globalState.user?.role?.includes(role)
+    (role) => window.globalState.user?.role?.includes(role),
   );
   // Set default date to Today (Local Time)
   document.getElementById("empJoinDate").valueAsDate = new Date();
@@ -268,6 +280,18 @@ function closeEmployeeModal() {
 
 /* --- 5. SAVE (CREATE / UPDATE) --- */
 async function saveEmployee() {
+  const btn = document.getElementById("saveEmployeeBtn");
+  const spinner = document.getElementById("saveSpinner");
+  const icon = document.getElementById("saveIcon");
+  const text = document.getElementById("saveText");
+
+  // Start loading
+  btn.disabled = true;
+  btn.classList.add("animate-pulse");
+  spinner.classList.remove("hidden");
+  icon.classList.add("hidden");
+  text.textContent = "Saving...";
+
   const id = document.getElementById("empId").value;
   const branch_id = window.globalState.user.branch_id;
 
@@ -300,7 +324,8 @@ async function saveEmployee() {
     password: document.getElementById("empPassword").value,
     status: document.getElementById("empStatus").value,
     base_salary: parseFloat(document.getElementById("empSalary").value) || 0,
-    overtime_rate: parseFloat(document.getElementById("empOvertime").value) || 0,
+    overtime_rate:
+      parseFloat(document.getElementById("empOvertime").value) || 0,
     passport_no: document.getElementById("empPassport").value,
     address: document.getElementById("empAddress").value,
     joining_date: datePayload,
@@ -325,7 +350,7 @@ async function saveEmployee() {
     if (response.ok) {
       showNotification(
         "success",
-        id ? "Employee updated!" : "New employee added!"
+        id ? "Employee updated!" : "New employee added!",
       );
       closeEmployeeModal();
       fetchEmployees();
@@ -335,6 +360,12 @@ async function saveEmployee() {
   } catch (error) {
     console.error(error);
     showNotification("error", error.message);
+    
+    btn.disabled = false;
+    btn.classList.remove("animate-pulse");
+    spinner.classList.add("hidden");
+    icon.classList.remove("hidden");
+    text.textContent = "Save Employee";
   }
 }
 

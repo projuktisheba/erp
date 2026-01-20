@@ -663,6 +663,18 @@ window.calculateDue = function () {
 };
 
 window.submitData = async function () {
+  const btn = document.getElementById("saveOrderBtn");
+  const spinner = document.getElementById("saveSpinner");
+  const icon = document.getElementById("saveIcon");
+  const text = document.getElementById("saveText");
+
+  // Start loading
+  btn.disabled = true;
+  btn.classList.add("animate-pulse");
+  spinner.classList.remove("hidden");
+  icon.classList.add("hidden");
+  text.textContent = "Saving...";
+
   try {
     if (orderState.isOrderState) {
       await submitOrderToDB();
@@ -672,6 +684,12 @@ window.submitData = async function () {
   } catch (err) {
     console.error("Error submitting data:", err);
     showNotification("error", "Failed to submit data");
+  } finally{
+    btn.disabled = false;
+    btn.classList.remove("animate-pulse");
+    spinner.classList.add("hidden");
+    icon.classList.remove("hidden");
+    text.textContent = "Confirm Order";
   }
 };
 
