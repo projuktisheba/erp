@@ -1,24 +1,89 @@
 /* --- STATE MANAGEMENT --- */
 window.customerState = {
   list: [],
-  filtered: [],
+  // Pagination & Filter State
+  currentPage: 1,
+  pageLength: 10,
+  searchQuery: "",
+  dueFilter: "all", // 'all', 'due', 'no_due'
+  totalRecords: 0,
+  searchDebounce: null,
 };
 
 /* --- INITIALIZATION --- */
 window.initCustomersPage = async function () {
+  
+  // 1. Grab Elements
+  const searchInput = document.getElementById("searchCustomerInput");
+  const dueSelect = document.getElementById("dueFilterSelector");
+  const pageLengthSelect = document.getElementById("pageLengthSelector");
+
+  // 2. Search Listener (Debounced)
+  if (searchInput) {
+    searchInput.value = customerState.searchQuery;
+    searchInput.addEventListener("input", (e) => {
+      clearTimeout(customerState.searchDebounce);
+      customerState.searchDebounce = setTimeout(() => {
+        const newVal = e.target.value.trim();
+        if (customerState.searchQuery !== newVal) {
+          customerState.searchQuery = newVal;
+          customerState.currentPage = 1; // Reset to page 1
+          fetchCustomers();
+        }
+      }, 400);
+    });
+  }
+
+  // 3. Due Filter Listener
+  if (dueSelect) {
+    dueSelect.value = customerState.dueFilter;
+    dueSelect.addEventListener("change", (e) => {
+      customerState.dueFilter = e.target.value;
+      customerState.currentPage = 1;
+      fetchCustomers();
+    });
+  }
+
+  // 4. Page Length Listener
+  if (pageLengthSelect) {
+    pageLengthSelect.value = customerState.pageLength.toString();
+    pageLengthSelect.addEventListener("change", (e) => {
+      customerState.pageLength = parseInt(e.target.value);
+      customerState.currentPage = 1;
+      fetchCustomers();
+    });
+  }
+
+  // 5. Initial Fetch
   await fetchCustomers();
 };
 
 /* --- 1. FETCH DATA (READ) --- */
 async function fetchCustomers() {
   const tbody = document.getElementById("customerTableBody");
-  tbody.innerHTML =
-    '<tr><td colspan="6" class="text-center py-10">Loading...</td></tr>';
+  
+  // Loading State
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-400">Loading Customers...</td></tr>';
 
   try {
     const branchId = window.globalState.user.branch_id;
+    
+    // Build Query Params (Server-side Pagination & Filtering)
+    const params = new URLSearchParams();
+    params.append("branch_id", branchId);
+    params.append("page", customerState.currentPage);
+    params.append("limit", customerState.pageLength);
+    
+    if (customerState.searchQuery) {
+      params.append("search", customerState.searchQuery);
+    }
+    
+    if (customerState.dueFilter !== 'all') {
+      params.append("due_filter", customerState.dueFilter);
+    }
+
     const response = await fetch(
-      `${window.globalState.apiBase}/customers?branch_id=${branchId}`,
+      `${window.globalState.apiBase}/customers?${params.toString()}`,
       {
         method: "GET",
         headers: window.getAuthHeaders(),
@@ -28,9 +93,30 @@ async function fetchCustomers() {
     if (!response.ok) throw new Error("Failed to fetch");
 
     const data = await response.json();
+    
+    // Update State
     customerState.list = data.customers || [];
-    customerState.filtered = data.customers || [];
+    customerState.totalRecords = parseInt(data.total_count || data.totalRecords || 0);
+    
     renderTable();
+
+    // Render Pagination Controls
+    if (window.renderPagination) {
+      window.renderPagination(
+        "paginationContainer", // ID of button container
+        "paginationInfo",      // ID of text info
+        {
+          currentPage: customerState.currentPage,
+          totalRecords: customerState.totalRecords,
+          pageLength: customerState.pageLength,
+        },
+        (newPage) => {
+          customerState.currentPage = newPage;
+          fetchCustomers();
+        }
+      );
+    }
+
   } catch (error) {
     console.error("Error:", error);
     tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-red-500">Error loading data</td></tr>`;
@@ -44,16 +130,19 @@ function renderTable() {
   const emptyState = document.getElementById("emptyState");
   tbody.innerHTML = "";
 
-  if (customerState.filtered.length === 0) {
+  if (customerState.list.length === 0) {
     customerTable.classList.add("hidden");
     emptyState.classList.remove("hidden");
+    // Clear pagination info if empty
+    const pageInfo = document.getElementById("paginationInfo");
+    if (pageInfo) pageInfo.innerHTML = "";
     return;
   }
 
   customerTable.classList.remove("hidden");
   emptyState.classList.add("hidden");
 
-  customerState.filtered.forEach((customer) => {
+  customerState.list.forEach((customer) => {
     const statusBadge = customer.status
       ? `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Active</span>`
       : `<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">Inactive</span>`;
@@ -62,9 +151,8 @@ function renderTable() {
     const subInfo =
       [customer.address, customer.tax_id ? `Tax: ${customer.tax_id}` : null]
         .filter(Boolean)
-        .join("<br>") || // Creates a double line
-      "No Address";
-    /* --- Inside renderTable() --- */
+        .join("<br>") || "No Address";
+
     tbody.innerHTML += `
         <tr class="hover:bg-slate-50 border-b border-slate-50 transition">
             <td class="px-4 py-3 md:px-6 md:py-4 font-medium text-slate-900">
@@ -91,9 +179,7 @@ function renderTable() {
             
             <td class="px-4 py-3 md:px-6 md:py-4 text-center">
                 <div class="flex justify-center gap-2">
-                    <button onclick="editCustomer(${
-                      customer.id
-                    })" class="text-blue-600 hover:bg-blue-50 md:rounded">
+                    <button onclick="editCustomer(${customer.id})" class="text-blue-600 hover:bg-blue-50 md:rounded">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                     </button>                    
                 </div>
@@ -103,16 +189,7 @@ function renderTable() {
   });
 }
 
-/* --- 3. HANDLE SEARCH --- */
-window.handleSearch = function (query) {
-  const term = query.toLowerCase();
-  customerState.filtered = customerState.list.filter(
-    (c) => c.name.toLowerCase().includes(term) || c.mobile.includes(term)
-  );
-  renderTable();
-};
-
-/* --- 4. MODAL ACTIONS --- */
+/* --- 3. MODAL ACTIONS --- */
 window.openCustomerModal = function () {
   // Reset Form
   document.getElementById("customerId").value = "";
@@ -120,19 +197,9 @@ window.openCustomerModal = function () {
 
   // Clear Inputs
   const ids = [
-    "inputName",
-    "inputMobile",
-    "inputTaxId",
-    "inputAddress",
-    "measureLength",
-    "measureShoulder",
-    "measureBust",
-    "measureWaist",
-    "measureHip",
-    "measureArmHole",
-    "measureSleeveL",
-    "measureSleeveW",
-    "measureRoundW",
+    "inputName", "inputMobile", "inputTaxId", "inputAddress",
+    "measureLength", "measureShoulder", "measureBust", "measureWaist",
+    "measureHip", "measureArmHole", "measureSleeveL", "measureSleeveW", "measureRoundW",
   ];
   ids.forEach((id) => (document.getElementById(id).value = ""));
   document.getElementById("inputStatus").checked = true;
@@ -144,18 +211,17 @@ window.closeCustomerModal = function () {
   document.getElementById("customerModal").classList.add("hidden");
 };
 
-/* --- 5. CREATE / UPDATE LOGIC --- */
+/* --- 4. CREATE / UPDATE LOGIC --- */
 window.handleSaveCustomer = async function (e) {
   e.preventDefault();
 
-  //show submit spinner
-  document.getElementById(
-    "customerSubmitBtn"
-  ).innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Processing...`;
+  const btn = document.getElementById("customerSubmitBtn");
+  const originalBtnContent = btn.innerHTML;
+  btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Processing...`;
+  
   const id = document.getElementById("customerId").value;
   const isEdit = !!id;
 
-  // Construct Payload based on DB Schema
   const payload = {
     branch_id: window.globalState.user.branch_id,
     name: document.getElementById("inputName").value,
@@ -192,27 +258,24 @@ window.handleSaveCustomer = async function (e) {
     const result = await response.json();
 
     if (!response || response.ok) {
-      showNotification(
-        "success",
-        `${isEdit ? "Customer updated!" : "Customer created!"}`
-      );
-      fetchCustomers(); // Refresh list
+      showNotification("success", `${isEdit ? "Customer updated!" : "Customer created!"}`);
+      fetchCustomers(); // Refresh list to show changes
     } else {
-      showNotification(
-        "error",
-        `${"Error: " + (result.message || "Could not save customer")}`
-      );
+      showNotification("error", `${"Error: " + (result.message || "Could not save customer")}`);
     }
   } catch (error) {
     console.error(error);
     showNotification("error", "Server Error");
   } finally {
+    btn.innerHTML = originalBtnContent;
     closeCustomerModal();
   }
 };
 
-/* --- 6. EDIT PREP --- */
+/* --- 5. EDIT PREP --- */
 window.editCustomer = function (id) {
+  // We look in current list. If using server-side pagination, 
+  // the item to edit must be in the current page, which it is because we clicked it.
   const customer = customerState.list.find((c) => c.id === id);
   if (!customer) return;
 
@@ -227,27 +290,30 @@ window.editCustomer = function (id) {
   document.getElementById("inputStatus").checked = customer.status;
 
   // Populate Measurements
-  document.getElementById("measureLength").value = customer.length || "";
-  document.getElementById("measureShoulder").value = customer.shoulder || "";
-  document.getElementById("measureBust").value = customer.bust || "";
-  document.getElementById("measureWaist").value = customer.waist || "";
-  document.getElementById("measureHip").value = customer.hip || "";
-  document.getElementById("measureArmHole").value = customer.arm_hole || "";
-  document.getElementById("measureSleeveL").value =
-    customer.sleeve_length || "";
-  document.getElementById("measureSleeveW").value = customer.sleeve_width || "";
-  document.getElementById("measureRoundW").value = customer.round_width || "";
+  const fields = {
+      measureLength: customer.length,
+      measureShoulder: customer.shoulder,
+      measureBust: customer.bust,
+      measureWaist: customer.waist,
+      measureHip: customer.hip,
+      measureArmHole: customer.arm_hole,
+      measureSleeveL: customer.sleeve_length,
+      measureSleeveW: customer.sleeve_width,
+      measureRoundW: customer.round_width
+  };
+
+  for (const [key, val] of Object.entries(fields)) {
+      document.getElementById(key).value = val || "";
+  }
 
   document.getElementById("customerModal").classList.remove("hidden");
 };
 
-
-/* --- PRINT --- */
+/* --- 6. PRINT --- */
 window.printCustomerReport = function () {
   const branchName = GetBranchName();
 
   const columns = [
-    { label: "ID", key: "id", align: "left" },
     { label: "Name", key: "name", align: "left" },
     { label: "Mobile", key: "mobile", align: "left" },
     { label: "Address", key: "address", align: "left" },
@@ -257,13 +323,13 @@ window.printCustomerReport = function () {
   printReportGeneric({
     header: {
       companyName: branchName,
-      reportTitle: "Customer Report",
+      reportTitle: "Customer List",
       branchName: "",
       startDate: "",
       endDate: "",
     },
     columns: columns,
-    rows: customerState.filtered,
+    rows: customerState.list, // Prints current page view
     totals: null,
   });
 };

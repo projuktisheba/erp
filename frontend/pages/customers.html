@@ -1,34 +1,63 @@
 <div class="flex flex-col h-full fade-in space-y-4">
 
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white p-3 md:p-4 rounded-xl shadow-sm border border-slate-200">
+    <div class="bg-white p-2 md:p-2 rounded-xl shadow-sm border border-slate-200">
+        <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
 
-        <div class="relative w-full md:max-w-md">
-            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-            <input type="text" id="searchInput" oninput="handleSearch(this.value)"
-                placeholder="Search Name or Mobile..."
-                class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none">
-        </div>
+            <div class="flex flex-col md:flex-row gap-3 w-full xl:w-auto items-center">
+                
+                <div class="relative w-full md:w-64">
+                    <input id="searchCustomerInput" type="text" placeholder="Search Name or Mobile..."
+                        class="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none w-full transition-all shadow-sm">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                </div>
 
-        <div class="flex gap-2 w-full md:w-auto">
-            
-            <button onclick="printCustomerReport()" 
-                class="flex-1 md:flex-none bg-slate-600 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-slate-600/20 transition flex items-center justify-center gap-2 whitespace-nowrap">
-                <i class="ph ph-printer font-bold"></i>
-                <span>Print</span>
-            </button>
+                <div class="w-full md:w-40">
+                    <div class="relative">
+                        <select id="dueFilterSelector"
+                            class="appearance-none w-full border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm cursor-pointer font-medium text-slate-700">
+                            <option value="all">All Customers</option>
+                            <option value="due">Due Only</option>
+                            <option value="no_due">No Due</option>
+                        </select>
+                        <i class="ph ph-caret-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
+                    </div>
+                </div>
+            </div>
 
-            <button onclick="openCustomerModal()"
-                class="flex-1 md:flex-none bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-brand-600/20 transition flex items-center justify-center gap-2 whitespace-nowrap">
-                <i class="ph ph-plus font-bold"></i>
-                <span>Add Customer</span>
-            </button>
+            <div class="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
+
+                <div class="flex gap-2 w-full md:w-auto">
+                    <button onclick="printCustomerReport()" 
+                        class="flex-1 md:flex-none justify-center bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-slate-600/20 transition flex items-center gap-2 whitespace-nowrap">
+                        <i class="ph ph-printer font-bold"></i>
+                        <span>Print</span>
+                    </button>
+
+                    <button onclick="openCustomerModal()"
+                        class="flex-1 md:flex-none justify-center bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-brand-600/20 transition flex items-center gap-2 whitespace-nowrap">
+                        <i class="ph ph-plus font-bold"></i>
+                        <span>Add</span>
+                    </button>
+
+                    <div class="relative">
+                        <select id="pageLengthSelector"
+                            class="appearance-none w-20 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm cursor-pointer text-center font-medium text-slate-700">
+                            <option value="10" selected>10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <i class="ph ph-caret-down absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-        <div class="overflow-auto flex-1">
+        <div class="overflow-x-auto flex-1 w-full">
             <table id="customerTable" class="w-full text-left text-sm whitespace-nowrap">
-                <thead class="bg-slate-50 text-slate-500 sticky top-0 z-10 border-b border-slate-200">
+                <thead class="bg-slate-50 text-slate-500 sticky top-0 z-10 border-b border-slate-200 font-semibold uppercase text-xs tracking-wider">
                     <tr>
                         <th class="px-4 py-3 md:px-6">Customer</th>
                         <th class="px-4 py-3 md:px-6">Mobile</th>
@@ -49,6 +78,17 @@
                 <h3 class="text-lg font-bold text-slate-700">No customers found</h3>
                 <p class="text-slate-400 text-sm mt-1">Try adjusting your filters or add a new customer.</p>
             </div>
+        </div>
+    </div>
+
+    <div class="px-2 py-2 sm:p-2 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+        <p class="text-xs sm:text-sm text-slate-500 font-medium order-2 sm:order-1 text-center sm:text-left"
+            id="paginationInfo">
+            Showing 0-0 of 0 results
+        </p>
+
+        <div id="paginationContainer"
+            class="flex flex-wrap gap-1 sm:gap-2 items-center justify-center order-1 sm:order-2">
         </div>
     </div>
 </div>

@@ -235,57 +235,72 @@ func (s *CustomerRepo) FilterCustomersByName(ctx context.Context, branchID int64
 	return customers, nil
 }
 
-// 7. GetCustomers (with pagination or all)
-// 7. GetCustomers (with pagination, filtering, and search)
-// Added 'search' parameter to filter by Name or Mobile
-func (s *CustomerRepo) GetCustomers(ctx context.Context, page, limit int, branchID int64, search string) ([]*models.Customer, error) {
-    var rows pgx.Rows
-    var err error
+// GetCustomers (with pagination, filtering, and search)
+// Added 'dueFilter' to support filtering by due status
+// Returns: List of customers, Total count of matching records, Error
+func (s *CustomerRepo) GetCustomers(ctx context.Context, page, limit int, branchID int64, search, dueFilter string) ([]*models.Customer, int, error) {
+    
+    // 1. Build the Dynamic WHERE Clause
+    // Start with branch_id (always present)
+    whereQuery := `WHERE branch_id = $1`
+    args := []interface{}{branchID}
+    paramCounter := 1
 
-    // Basic columns to select
+    // Add Search condition (Name or Mobile)
+    if search != "" {
+        paramCounter++
+        // Note: We use the same parameter ($2) for both conditions
+        whereQuery += fmt.Sprintf(` AND (name ILIKE '%%' || $%d || '%%' OR mobile ILIKE '%%' || $%d || '%%')`, paramCounter, paramCounter)
+        args = append(args, search)
+    }
+
+    // Add Due Filter condition
+    if dueFilter == "due" {
+        whereQuery += ` AND due_amount > 0`
+    } else if dueFilter == "no_due" {
+        whereQuery += ` AND due_amount <= 0`
+    }
+
+    // 2. Get Total Count (Required for Frontend Pagination)
+    // We execute this BEFORE adding Limit/Offset to args
+    var totalCount int
+    countSQL := `SELECT count(*) FROM customers ` + whereQuery
+    
+    err := s.db.QueryRow(ctx, countSQL, args...).Scan(&totalCount)
+    if err != nil {
+        return nil, 0, fmt.Errorf("error fetching customer count: %w", err)
+    }
+
+    // 3. Prepare Data Query (Add Sorting & Pagination)
     baseQuery := `
         SELECT id, name, mobile, address, tax_id, branch_id, due_amount, status,
                length, shoulder, bust, waist, hip, arm_hole,
                sleeve_length, sleeve_width, round_width,
                created_at, updated_at
         FROM customers
-        WHERE branch_id = $1`
+    ` + whereQuery + ` ORDER BY created_at DESC`
 
-    // Add search condition if provided
-    var args []interface{}
-    args = append(args, branchID)
-
-    if search != "" {
-        // ILIKE is case-insensitive. We check Name OR Mobile.
-        // $2 becomes the search pattern
-        baseQuery += ` AND (name ILIKE '%' || $2 || '%' OR mobile ILIKE '%' || $2 || '%')`
-        args = append(args, search)
-    }
-
-    baseQuery += ` ORDER BY created_at DESC`
-
-    // Handle Pagination
+    // Add LIMIT and OFFSET
     if limit != -1 {
         offset := (page - 1) * limit
         
-        // Append LIMIT and OFFSET based on current arg count
-        // If search exists, args has 2 items, so LIMIT is $3, OFFSET is $4
-        // If search is empty, args has 1 item, so LIMIT is $2, OFFSET is $3
-        paramStart := len(args) + 1
-        baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", paramStart, paramStart+1)
+        paramCounter++
+        baseQuery += fmt.Sprintf(" LIMIT $%d", paramCounter)
+        args = append(args, limit)
         
-        args = append(args, limit, offset)
+        paramCounter++
+        baseQuery += fmt.Sprintf(" OFFSET $%d", paramCounter)
+        args = append(args, offset)
     }
 
-    // Execute Query
-    rows, err = s.db.Query(ctx, baseQuery, args...)
-
+    // 4. Execute Data Query
+    rows, err := s.db.Query(ctx, baseQuery, args...)
     if err != nil {
-        return nil, fmt.Errorf("error fetching customers: %w", err)
+        return nil, 0, fmt.Errorf("error fetching customers: %w", err)
     }
     defer rows.Close()
 
-    // Use a pre-allocated slice if we know the limit to reduce allocations
+    // Pre-allocate slice
     capacity := 0
     if limit > 0 {
         capacity = limit
@@ -300,22 +315,17 @@ func (s *CustomerRepo) GetCustomers(ctx context.Context, page, limit int, branch
             &c.SleeveLength, &c.SleeveWidth, &c.RoundWidth,
             &c.CreatedAt, &c.UpdatedAt,
         ); err != nil {
-            return nil, fmt.Errorf("error scanning customer: %w", err)
+            return nil, 0, fmt.Errorf("error scanning customer: %w", err)
         }
         customers = append(customers, &c)
     }
 
-    // If searching, an empty result is valid (not an error), 
-    // but the original code returned pgx.ErrNoRows. 
-    // Generally, for lists, returning an empty slice [] is preferred over an error.
-    // However, maintaining your original logic:
-    if len(customers) == 0 {
-        // Only return ErrNoRows if that's specifically required by your logic,
-        // otherwise return nil, nil
-        return nil, nil // Or return nil, pgx.ErrNoRows if your handler relies on it
+    // Return empty list instead of nil if no results, but keep totalCount correct
+    if customers == nil {
+        customers = []*models.Customer{}
     }
 
-    return customers, nil
+    return customers, totalCount, nil
 }
 
 // 8. GetCustomersNameAndID (active only)

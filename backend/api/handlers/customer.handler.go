@@ -282,62 +282,67 @@ func (c *CustomerHandler) FilterCustomersByName(w http.ResponseWriter, r *http.R
 }
 // GetCustomers returns a paginated list of customers with optional filters.
 func (c *CustomerHandler) GetCustomers(w http.ResponseWriter, r *http.Request) {
-	// Extract query params
-	pageStr := r.URL.Query().Get("page")
-	limitStr := r.URL.Query().Get("limit")
-	search := r.URL.Query().Get("search") // 1. Extract search param
+    // Extract query params
+    pageStr := r.URL.Query().Get("page")
+    limitStr := r.URL.Query().Get("limit")
+    search := r.URL.Query().Get("search")
+    dueFilter := r.URL.Query().Get("due_filter") // <--- 1. Get the new filter
 
-	page := 0
-	limit := -1
-	var err error
+    page := 0
+    limit := -1
+    var err error
 
-	if pageStr != "" {
-		page, err = strconv.Atoi(pageStr)
-		if err != nil || page < 1 {
-			utils.BadRequest(w, errors.New("invalid page number"))
-			return
-		}
-	}
+    if pageStr != "" {
+        page, err = strconv.Atoi(pageStr)
+        if err != nil || page < 1 {
+            utils.BadRequest(w, errors.New("invalid page number"))
+            return
+        }
+    }
 
-	if limitStr != "" {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil {
-			utils.BadRequest(w, errors.New("invalid limit"))
-			return
-		}
-	}
-	//read branch id
-	branchID := utils.GetBranchID(r)
-	if branchID == 0 {
-		c.errorLog.Println("ERROR_01_AddCustomer: Branch id not found")
-		utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header, e.g., X-Branch-ID: 1"))
-		return
-	}
-	
-	// Call DB repo
-	// 2. Pass the search term to the DB method
-	customers, err := c.DB.GetCustomers(r.Context(), page, limit, branchID, search)
+    if limitStr != "" {
+        limit, err = strconv.Atoi(limitStr)
+        if err != nil {
+            utils.BadRequest(w, errors.New("invalid limit"))
+            return
+        }
+    }
 
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		c.errorLog.Println("ERROR_01_GetCustomers:", err)
-		utils.ServerError(w, err)
-		return
-	}
+    // read branch id
+    branchID := utils.GetBranchID(r)
+    if branchID == 0 {
+        c.errorLog.Println("ERROR_01_AddCustomer: Branch id not found")
+        utils.BadRequest(w, errors.New("Branch ID not found. Please include 'X-Branch-ID' header"))
+        return
+    }
 
-	// Prepare response
-	var resp struct {
-		Error     bool               `json:"error"`
-		Status    string             `json:"status"`
-		Message   string             `json:"message"`
-		Customers []*models.Customer `json:"customers"`
-	}
+    // Call DB repo
+    // Note: You must update your DB method signature to accept 'dueFilter' 
+    // and return the total count of records (int) for pagination.
+    customers, totalCount, err := c.DB.GetCustomers(r.Context(), page, limit, branchID, search, dueFilter)
 
-	resp.Error = false
-	resp.Status = "success"
-	resp.Message = "Customer list fetched successfully"
-	resp.Customers = customers
+    if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+        c.errorLog.Println("ERROR_01_GetCustomers:", err)
+        utils.ServerError(w, err)
+        return
+    }
 
-	utils.WriteJSON(w, http.StatusOK, resp)
+    // Prepare response
+    var resp struct {
+        Error      bool               `json:"error"`
+        Status     string             `json:"status"`
+        Message    string             `json:"message"`
+        TotalCount int                `json:"total_count"` // <--- 2. Add TotalCount for pagination
+        Customers  []*models.Customer `json:"customers"`
+    }
+
+    resp.Error = false
+    resp.Status = "success"
+    resp.Message = "Customer list fetched successfully"
+    resp.TotalCount = totalCount
+    resp.Customers = customers
+
+    utils.WriteJSON(w, http.StatusOK, resp)
 }
 func (c *CustomerHandler) GetCustomersNameAndID(w http.ResponseWriter, r *http.Request) {
 	//read branch id

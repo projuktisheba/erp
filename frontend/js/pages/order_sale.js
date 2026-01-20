@@ -64,7 +64,7 @@ window.initOrderSalePage = async function () {
       "employeeId",
       "employeeSuggestions",
       `${window.globalState.apiBase}/hr/employees?role=salesperson`,
-      (e) => `${e.name} (${e.role})`
+      (e) => `${e.name} (${e.mobile})`
     );
 
     // Add Listener for Advance Input
