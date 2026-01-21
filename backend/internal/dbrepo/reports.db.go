@@ -322,7 +322,9 @@ func (r *ReportRepo) GetBranchReport(ctx context.Context, branchID int64, startD
             COALESCE(SUM(cash), 0),
             COALESCE(SUM(bank), 0),
             COALESCE(SUM(order_count), 0),
-            COALESCE(SUM(delivery), 0)
+            COALESCE(SUM(delivery), 0),
+            COALESCE(SUM(ready_made), 0),
+            COALESCE(SUM(sales_amount), 0)
     ` + baseQuery
 
 	err := r.db.QueryRow(ctx, totalsQuery, args...).Scan(
@@ -332,6 +334,8 @@ func (r *ReportRepo) GetBranchReport(ctx context.Context, branchID int64, startD
 		&totals.Bank,
 		&totals.Orders,
 		&totals.Delivery,
+		&totals.ReadyMade,
+		&totals.SalesAmount,
 	)
 	if err != nil {
 		return nil, 0, nil, err

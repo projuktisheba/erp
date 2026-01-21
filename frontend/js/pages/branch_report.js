@@ -12,7 +12,6 @@ window.reportState = {
 
 /* --- INITIALIZATION --- */
 window.initBranchReportPage = async function () {
-
   // 1. Grab Elements
   const searchInput = document.getElementById("searchReportInput"); // Assumed ID
   const pageLengthSelect = document.getElementById("pageLengthSelector");
@@ -198,7 +197,7 @@ async function fetchReport() {
 
 /* --- 3. CALCULATE TOTALS --- */
 function calculateTotals() {
-  let t = { expense: 0, cash: 0, bank: 0, balance: 0, orders: 0, delivery: 0 };
+  let t = { expense: 0, cash: 0, bank: 0, balance: 0, orders: 0, delivery: 0, ready_made:0, sales_amount:0};
 
   // Note: If paginated, this only sums the visible page unless backend sends aggregate totals
   reportState.data.forEach((row) => {
@@ -208,6 +207,8 @@ function calculateTotals() {
     t.balance += row.balance || 0;
     t.orders += row.order_count || 0;
     t.delivery += row.delivery || 0;
+    t.ready_made += row.ready_made || 0;
+    t.sales_amount += row.sales_amount || 0;
   });
 
   reportState.totals = t;
@@ -240,34 +241,48 @@ function renderReportTable() {
   // -- BODY ROWS --
   reportState.data.forEach((row) => {
     tbody.innerHTML += `
-            <tr class="hover:bg-slate-50 border-b border-slate-50 transition text-slate-700">
-                <td class="px-4 py-3 border-r border-slate-100 font-medium">${formatDateVal(
-                  row.sheet_date
-                )}</td>
-                <td class="px-4 py-3 text-right border-r border-slate-100">${
-                  row.order_count || "0"
-                }</td>
-                <td class="px-4 py-3 text-right border-r border-slate-100">${
-                  row.delivery || "0"
-                }</td>
-                
-                <td class="px-4 py-3 text-right text-emerald-600 border-r border-slate-100">
-                    ${formatMoney(row.cash)}
-                </td>
-                
-                <td class="px-4 py-3 text-right text-blue-600 border-r border-slate-100">
-                    ${formatMoney(row.bank)}
-                </td>
-                                
-                <td class="px-4 py-3 text-right text-red-500 border-r border-slate-100">
-                    ${formatMoney(row.expense)}
-                </td>
+    <tr class="group hover:bg-slate-50 border-b border-slate-200 text-sm transition-colors">
+        <td class="px-4 py-3 font-medium text-slate-600 whitespace-nowrap">
+            ${formatDateVal(row.sheet_date)}
+        </td>
 
-                <td class="px-4 py-3 text-right font-bold text-slate-800">
-                    ${formatMoney(row.balance)}
-                </td>
-            </tr>
-        `;
+        <td class="px-4 py-3 text-right text-slate-800 tabular-nums">
+            ${row.order_count || "0"}
+        </td>
+
+        <td class="px-4 py-3 text-right border-r border-slate-100 text-slate-800 tabular-nums">
+            ${row.delivery || "0"}
+        </td>
+
+        <td class="px-4 py-3 text-right border-r border-slate-100 text-slate-800 tabular-nums">
+            ${row.ready_made || "0"}
+        </td>
+
+        <td class="px-4 py-3 text-right border-r border-slate-100 text-slate-800 tabular-nums">
+            ${row.sales_amount || "0"}
+        </td>
+        
+        <td class="px-4 py-3 text-right border-r border-slate-100 text-emerald-600 font-medium tabular-nums bg-emerald-50/30">
+            ${formatMoney(row.cash)}
+        </td>
+        
+        <td class="px-4 py-3 text-right border-r border-slate-100 text-blue-600 font-medium tabular-nums bg-blue-50/30">
+            ${formatMoney(row.bank)}
+        </td>
+
+        <td class="px-4 py-3 text-right border-r border-slate-100 text-teal-700 font-medium bg-teal-50/50 tabular-nums">
+            ${formatMoney(row.cash + row.bank)}
+        </td>
+                    
+        <td class="px-4 py-3 text-right border-r border-slate-100 text-rose-600 font-medium tabular-nums">
+            ${formatMoney(row.expense)}
+        </td>
+
+        <td class="px-4 py-3 text-right text-slate-800 bg-slate-50/80 font-bold tabular-nums">
+            ${formatMoney(row.balance)}
+        </td>
+    </tr>
+`;
   });
 
   // -- FOOTER ROW (TOTALS) --
@@ -275,18 +290,23 @@ function renderReportTable() {
   tfoot.innerHTML = `
         <tr class="bg-slate-100 border-t-2 border-slate-200">
             <td class="px-4 py-3 text-right uppercase text-xs tracking-wider text-slate-500">Total</td>
-            <td class="px-4 py-3 text-right">${t.orders}</td>
-            <td class="px-4 py-3 text-right">${t.delivery}</td>
-            <td class="px-4 py-3 text-right text-emerald-700">${formatMoney(
+            <td class="px-4 py-3 text-right tabular-nums">${t.orders}</td>
+            <td class="px-4 py-3 text-right tabular-nums">${t.delivery}</td>
+            <td class="px-4 py-3 text-right tabular-nums">${t.ready_made}</td>
+            <td class="px-4 py-3 text-right tabular-nums">${t.sales_amount}</td>
+            <td class="px-4 py-3 text-right text-emerald-700 tabular-nums">${formatMoney(
               t.cash
             )}</td>
-            <td class="px-4 py-3 text-right text-blue-700">${formatMoney(
+            <td class="px-4 py-3 text-right text-blue-700 tabular-nums">${formatMoney(
               t.bank
             )}</td>
-            <td class="px-4 py-3 text-right text-red-600">${formatMoney(
-              t.expense
+            <td class="px-4 py-3 text-right text-teal-700 font-bold bg-teal-50/50 tabular-nums">${formatMoney(
+              t.cash + t.bank
             )}</td>
-            <td class="px-4 py-3 text-right text-slate-900 text-base">${formatMoney(
+            <td class="px-4 py-3 text-right text-red-600 tabular-nums">${formatMoney(
+              t.expense
+            )}</td>            
+            <td class="px-4 py-3 text-right text-slate-900 text-base tabular-nums">${formatMoney(
               t.balance
             )}</td>
         </tr>

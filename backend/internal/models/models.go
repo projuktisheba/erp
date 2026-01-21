@@ -289,30 +289,15 @@ type WorkerProgressReportDB struct {
 	TotalOvertimeHours   float64 `json:"total_overtime_hours"`
 }
 
-type TopSheet struct {
-	ID          int64     `json:"id"`
-	Date        time.Time `json:"date"`
-	BranchID    int64     `json:"branch_id"`
-	TotalAmount float64   `json:"total_amount"`
-	Expense     float64   `json:"expense"`
-	Cash        float64   `json:"cash"`
-	Bank        float64   `json:"bank"`
-	Balance     float64   `json:"balance"`
-	OrderCount  int64     `json:"order_count"`
-	Pending     int64     `json:"pending"`
-	Delivery    int64     `json:"delivery"`
-	Checkout    int64     `json:"checkout"`
-	Cancelled   int64     `json:"cancelled"`
-	ReadyMade   int64     `json:"ready_made"`
-}
-
 type BranchReportTotals struct {
-	Expense  float64 `json:"expense"`
-	Cash     float64 `json:"cash"`
-	Bank     float64 `json:"bank"`
-	Balance  float64 `json:"balance"`
-	Orders   int     `json:"orders"`
-	Delivery int     `json:"delivery"`
+	Expense     float64 `json:"expense"`
+	Cash        float64 `json:"cash"`
+	Bank        float64 `json:"bank"`
+	Balance     float64 `json:"balance"`
+	Orders      int64     `json:"orders"`
+	Delivery    int64     `json:"delivery"`
+	ReadyMade   int64     `json:"ready_made"`
+	SalesAmount float64 `json:"sales_amount"`
 }
 
 // Define a struct to hold the aggregate totals for Stock Report
@@ -340,24 +325,6 @@ type EmployeeProgressDB struct {
 	AdvancePayment   float64   `json:"advance_payment"`
 	Salary           float64   `json:"salary"`
 	PaymentAccountID int64     `json:"payment_account_id"`
-}
-
-type SalaryLogDB struct {
-	ID            int64     `json:"id"`
-	EmployeeName  string    `json:"employee_name"`
-	SheetDate     time.Time `json:"sheet_date"`
-	Amount        float64   `json:"amount"`
-	AdvanceAmount float64   `json:"advance_amount"`
-	Note          string    `json:"note"` // Populated manually or via DB if column exists
-}
-
-type WorkerLogDB struct {
-	ID              int64     `json:"id"`
-	EmployeeName    string    `json:"employee_name"`
-	SheetDate       time.Time `json:"sheet_date"`
-	ProductionUnits int64     `json:"production_units"`
-	OvertimeHours   float64   `json:"overtime_hours"`
-	AdvancePayment  float64   `json:"advance_payment"`
 }
 
 type SalaryRecord struct {

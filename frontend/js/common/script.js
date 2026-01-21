@@ -15,6 +15,7 @@ window.globalState = {
     email: "",
   },
   currentPage: "",
+  currentPageTitle: "",
 };
 
 // Map Branch IDs to Names (For display purposes)
@@ -254,6 +255,7 @@ window.handleBranchSwitch = function (newBranchId) {
 
   // 3. Identify Current Page
   const pageName = window.globalState.currentPage;
+  const pageTitle = window.globalState.currentPageTitle;
   if (!pageName) return;
 
   // 4. Re-run the Init Function for the current page
@@ -263,13 +265,14 @@ window.handleBranchSwitch = function (newBranchId) {
   if (typeof window[initFunctionName] === "function") {
     window[initFunctionName]();
   } else {
-    loadPage(pageName);
+    loadPage(pageName, pageTitle);
   }
 };
 
 /* --- 5. DYNAMIC PAGE ROUTER --- */
 async function loadPage(pageName, pageTitle) {
     window.globalState.currentPage = pageName;
+    window.globalState.currentPageTitle = pageTitle;
     const container = document.getElementById("dynamic-content");
 
     // 1. UPDATE SIDEBAR UI
