@@ -152,12 +152,15 @@ VALUES
 -- =========================
 CREATE TABLE public.products (
     id BIGSERIAL PRIMARY KEY,
-    product_name character varying(255) DEFAULT ''::character varying NOT NULL,
-    quantity BIGINT NOT NULL DEFAULT 0,
-    branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    product_name VARCHAR(255) NOT NULL DEFAULT '',
+    quantity BIGINT NOT NULL DEFAULT 0
+        CHECK (quantity >= 0),
+    branch_id BIGINT NOT NULL
+        REFERENCES branches(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
 INSERT INTO public.products (product_name, branch_id) 
 VALUES 
   ('Abayat Shela (L)',1),

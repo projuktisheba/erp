@@ -110,8 +110,8 @@ func (s *ProductRepo) DeleteStockProducts(ctx context.Context, stockID, branchID
 	defer tx.Rollback(ctx)
 
 	//Load old data
-	var productID, productQuantity int64 
-	err = tx.QueryRow(ctx, `SELECT product_id, quantity FROM product_stock_registry WHERE id=$1 AND branch_id=$2`, stockID, branchID).Scan(&productID, &productQuantity) 
+	var productID, productQuantity int64
+	err = tx.QueryRow(ctx, `SELECT product_id, quantity FROM product_stock_registry WHERE id=$1 AND branch_id=$2`, stockID, branchID).Scan(&productID, &productQuantity)
 
 	// Update stock and insert restock record
 	_, err = tx.Exec(ctx, `
@@ -264,7 +264,13 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback(ctx)
+
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	// --------------------
 	// Basic validations
@@ -278,22 +284,33 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 	if sale.ReceivedAmount > sale.TotalAmount {
 		return 0, fmt.Errorf("received amount cannot exceed total amount")
 	}
+	if sale.ReceivedAmount > 0 && sale.PaymentAccountID == 0 {
+		return 0, fmt.Errorf("payment account is required when received amount > 0")
+	}
 
 	if sale.MemoNo == "" {
 		sale.MemoNo = utils.GenerateMemoNo()
 	}
+
 	// --------------------
-	// Step 0: Reduce stock  & calculate total items
+	// Step 0: Reduce stock & calculate total items
 	// --------------------
+	sale.TotalItems = 0
+
 	for _, item := range sale.Items {
-		_, err = tx.Exec(ctx, `
+		res, err := tx.Exec(ctx, `
 			UPDATE products
 			SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP
-			WHERE id = $2;
-		`, item.Quantity, item.ID)
+			WHERE id = $2 AND quantity >= $1;
+		`, item.Quantity, item.ProductID)
 		if err != nil {
 			return 0, fmt.Errorf("update stock: %w", err)
 		}
+
+		if res.RowsAffected() == 0 {
+			return 0, fmt.Errorf("insufficient stock for product %d", item.ProductID)
+		}
+
 		sale.TotalItems += int64(item.Quantity)
 	}
 
@@ -352,8 +369,8 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 	topSheet := &models.TopSheetDB{
 		SheetDate:   sale.SaleDate,
 		BranchID:    sale.BranchID,
-		SalesAmount: sale.TotalAmount, // total amount
-		ReadyMade:   sale.TotalItems,  // total items
+		SalesAmount: sale.TotalAmount,
+		ReadyMade:   sale.TotalItems,
 	}
 
 	var acctType string
@@ -382,11 +399,11 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 	// Step 4: Payment transactions
 	// --------------------
 	if sale.ReceivedAmount > 0 {
-		// lock account row
-		_, err := tx.Exec(ctx,
+		var dummy int64
+		err := tx.QueryRow(ctx,
 			`SELECT id FROM accounts WHERE id=$1 FOR UPDATE`,
 			sale.PaymentAccountID,
-		)
+		).Scan(&dummy)
 		if err != nil {
 			return 0, fmt.Errorf("lock account failed: %w", err)
 		}
@@ -394,8 +411,8 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 		// 4a: sale payment transaction
 		_, err = tx.Exec(ctx, `
 			INSERT INTO sale_transactions(
-				sale_id, transaction_date, payment_account_id, memo_no, delivered_by, quantity_delivered,
-				amount, transaction_type
+				sale_id, transaction_date, payment_account_id, memo_no,
+				delivered_by, quantity_delivered, amount, transaction_type
 			)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 		`,
@@ -404,7 +421,7 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 			sale.PaymentAccountID,
 			sale.MemoNo,
 			sale.SalespersonID,
-			sale.TotalAmount,
+			sale.TotalItems,
 			sale.ReceivedAmount,
 			models.PAYMENT,
 		)
@@ -438,7 +455,7 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 		}
 
 		// 4c: update account balance
-		_, err = tx.Exec(ctx, `
+		res, err := tx.Exec(ctx, `
 			UPDATE accounts
 			SET current_balance = current_balance + $1
 			WHERE id = $2
@@ -449,6 +466,9 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 		if err != nil {
 			return 0, fmt.Errorf("update account balance failed: %w", err)
 		}
+		if res.RowsAffected() == 0 {
+			return 0, fmt.Errorf("account not found: %d", sale.PaymentAccountID)
+		}
 	}
 
 	// --------------------
@@ -456,16 +476,16 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 	// --------------------
 	dueAmount := sale.TotalAmount - sale.ReceivedAmount
 	if dueAmount > 0 {
-		// lock customer row
-		_, err := tx.Exec(ctx,
+		var dummy int64
+		err := tx.QueryRow(ctx,
 			`SELECT id FROM customers WHERE id=$1 FOR UPDATE`,
 			sale.CustomerID,
-		)
+		).Scan(&dummy)
 		if err != nil {
 			return 0, fmt.Errorf("lock customer failed: %w", err)
 		}
 
-		_, err = tx.Exec(ctx, `
+		res, err := tx.Exec(ctx, `
 			UPDATE customers
 			SET due_amount = due_amount + $1
 			WHERE id = $2
@@ -475,6 +495,9 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 		)
 		if err != nil {
 			return 0, fmt.Errorf("update customer due failed: %w", err)
+		}
+		if res.RowsAffected() == 0 {
+			return 0, fmt.Errorf("customer not found: %d", sale.CustomerID)
 		}
 	}
 
@@ -492,7 +515,16 @@ func (r *ProductRepo) SaleProducts(ctx context.Context, sale *models.SaleDB) (in
 		return 0, fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 
-	return saleID, tx.Commit(ctx)
+	// --------------------
+	// Commit
+	// --------------------
+	err = tx.Commit(ctx)
+	if err != nil {
+		return 0, err
+	}
+	committed = true
+
+	return saleID, nil
 }
 
 // ============================== UPDATE SALE TRANSACTIONS ==============================
@@ -526,7 +558,7 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 		_, err = tx.Exec(ctx, `
 			UPDATE products
 			SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP
-			WHERE id = $2
+			WHERE id = $2;
 		`, item.Quantity, item.ProductID)
 		if err != nil {
 			return fmt.Errorf("restore stock failed: %w", err)
@@ -541,10 +573,12 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 		_, err = tx.Exec(ctx, `
 			UPDATE products
 			SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP
-			WHERE id = $2
+			WHERE id = $2;
 		`, item.Quantity, item.ProductID)
 		if err != nil {
-			return fmt.Errorf("apply stock failed: %w", err)
+			if strings.Contains(err.Error(), "products_quantity_non_negative") {
+				return fmt.Errorf("insufficient stock for product %d", item.ProductID)
+			}
 		}
 		sale.TotalItems += int64(item.Quantity)
 	}
