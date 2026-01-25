@@ -26,15 +26,14 @@ window.initOrderSalePage = async function () {
   // Set Input Values (YYYY-MM-DD)
   try {
     // Load static data (products, accounts only)
-    const [productsRes, accountsRes] =
-      await Promise.all([
-        fetch(`${window.globalState.apiBase}/products`, {
-          headers: window.getAuthHeaders(),
-        }),
-        fetch(`${window.globalState.apiBase}/accounts`, {
-          headers: window.getAuthHeaders(),
-        }),
-      ]);
+    const [productsRes, accountsRes] = await Promise.all([
+      fetch(`${window.globalState.apiBase}/products`, {
+        headers: window.getAuthHeaders(),
+      }),
+      fetch(`${window.globalState.apiBase}/accounts`, {
+        headers: window.getAuthHeaders(),
+      }),
+    ]);
 
     const productsData = await productsRes.json();
     orderState.products = productsData.products || [];
@@ -45,7 +44,7 @@ window.initOrderSalePage = async function () {
       "Account",
       (await accountsRes.json()).accounts || [],
       (a) => `${a.name} (${a.type})`,
-      "id"
+      "id",
     );
 
     // --- SETUP AUTOCOMPLETE ---
@@ -55,7 +54,7 @@ window.initOrderSalePage = async function () {
       "customerId",
       "customerSuggestions",
       `${window.globalState.apiBase}/customers`,
-      (c) => `${c.name} - ${c.mobile}`
+      (c) => `${c.name} - ${c.mobile}`,
     );
 
     // Salesperson Search
@@ -64,7 +63,7 @@ window.initOrderSalePage = async function () {
       "employeeId",
       "employeeSuggestions",
       `${window.globalState.apiBase}/hr/employees?role=salesperson`,
-      (e) => `${e.name} (${e.mobile})`
+      (e) => `${e.name} (${e.mobile})`,
     );
 
     // Add Listener for Advance Input
@@ -77,7 +76,9 @@ window.initOrderSalePage = async function () {
       if (product && orderState.editingIndex === null) {
         // UPDATED: Just set the base price. No calculation with Qty.
         // User enters the final Total manually.
-        document.getElementById("priceInput").value = (product.sell_price || 0).toFixed(2);
+        document.getElementById("priceInput").value = (
+          product.sell_price || 0
+        ).toFixed(2);
       }
     });
 
@@ -115,21 +116,23 @@ window.initOrderSalePage = async function () {
     }
 
     // --- Toggle Listener and Initialization ---
-    const stateToggleContainer = document.getElementById("stateToggleContainer");
+    const stateToggleContainer = document.getElementById(
+      "stateToggleContainer",
+    );
     const stateToggle = document.getElementById("stateToggle");
     if (stateToggle) {
-      stateToggle.checked = orderState.isOrderState; 
+      stateToggle.checked = orderState.isOrderState;
       stateToggle.addEventListener("change", () => {
         updateOrderState();
         renderProductOptions();
       });
-      updateOrderState(); 
+      updateOrderState();
       // Disable toggle if editing
       if (orderState.orderId || orderState.saleId) stateToggle.disabled = true;
       if (orderState.orderId || orderState.saleId) {
-        stateToggleContainer.classList.add("bg-slate-100")
+        stateToggleContainer.classList.add("bg-slate-100");
       } else {
-        stateToggleContainer.classList.remove("bg-slate-100")
+        stateToggleContainer.classList.remove("bg-slate-100");
       }
     }
 
@@ -169,7 +172,7 @@ function setupAutocomplete(inputId, hiddenId, listId, apiBase, labelFn) {
 
         const res = await fetch(url, { headers: window.getAuthHeaders() });
         const data = await res.json();
-        
+
         // Handle different response structures (customers vs employees)
         const items = data.customers || data.employees || [];
 
@@ -179,11 +182,12 @@ function setupAutocomplete(inputId, hiddenId, listId, apiBase, labelFn) {
         } else {
           items.forEach((item) => {
             const li = document.createElement("li");
-            li.className = "px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors";
+            li.className =
+              "px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors";
             li.textContent = labelFn(item);
             li.onclick = () => {
               input.value = labelFn(item); // Set visual text
-              hidden.value = item.id;      // Set actual ID
+              hidden.value = item.id; // Set actual ID
               list.classList.add("hidden"); // Hide list
               list.innerHTML = "";
             };
@@ -212,18 +216,18 @@ window.loadOrderForEdit = async function (orderId) {
       `${window.globalState.apiBase}/products/orders/${orderId}`,
       {
         headers: window.getAuthHeaders(),
-      }
+      },
     );
 
     if (!res.ok) throw new Error("Failed to fetch order details");
 
     const data = await res.json();
-    const order = data.order; 
+    const order = data.order;
 
     // 1. Map Items to Cart
     window.orderState.cart = (order.items || []).map((item) => {
       const product = window.orderState.products.find(
-        (p) => p.id == item.product_id
+        (p) => p.id == item.product_id,
       );
 
       return {
@@ -249,22 +253,26 @@ window.loadOrderForEdit = async function (orderId) {
 
     // 3. Populate Form Fields
     if (document.getElementById("customerId")) {
-        document.getElementById("customerId").value = order.customer_id || (order.customer ? order.customer.id : "");
-        if (order.customer) {
-             document.getElementById("customerSearchInput").value = `${order.customer.name} - ${order.customer.mobile}`;
-        }
+      document.getElementById("customerId").value =
+        order.customer_id || (order.customer ? order.customer.id : "");
+      if (order.customer) {
+        document.getElementById("customerSearchInput").value =
+          `${order.customer.name} - ${order.customer.mobile}`;
+      }
     }
-    
+
     if (document.getElementById("employeeId")) {
-        document.getElementById("employeeId").value = order.salesperson_id || (order.salesperson ? order.salesperson.id : "");
-        if (order.salesperson) {
-            document.getElementById("employeeSearchInput").value = `${order.salesperson.name} (${order.salesperson.role})`;
-        }
+      document.getElementById("employeeId").value =
+        order.salesperson_id || (order.salesperson ? order.salesperson.id : "");
+      if (order.salesperson) {
+        document.getElementById("employeeSearchInput").value =
+          `${order.salesperson.name} (${order.salesperson.role})`;
+      }
     }
 
     if (document.getElementById("accountSelect")) {
       document.getElementById("accountSelect").value = String(
-        order.order_transactions?.[0]?.payment_account_id || ""
+        order.order_transactions?.[0]?.payment_account_id || "",
       );
     }
 
@@ -273,9 +281,11 @@ window.loadOrderForEdit = async function (orderId) {
     document.getElementById("orderNotes").value = order.notes || "";
 
     // 4. Populate Dates
-    document.getElementById("orderDate").value = formatDateVal(order.order_date);
+    document.getElementById("orderDate").value = formatDateVal(
+      order.order_date,
+    );
     document.getElementById("deliveryDate").value = formatDateVal(
-      order.delivery_date
+      order.delivery_date,
     );
 
     // 5. Update UI
@@ -292,7 +302,7 @@ window.loadSaleForEdit = async function (saleId) {
   try {
     const res = await fetch(
       `${window.globalState.apiBase}/products/sales/details/${saleId}`,
-      { headers: window.getAuthHeaders() }
+      { headers: window.getAuthHeaders() },
     );
 
     if (!res.ok) throw new Error("Failed to fetch sale");
@@ -302,9 +312,7 @@ window.loadSaleForEdit = async function (saleId) {
 
     // --- CART MAPPING ---
     orderState.cart = (sale.items || []).map((item) => {
-      const product = orderState.products.find(
-        (p) => p.id == item.product_id
-      );
+      const product = orderState.products.find((p) => p.id == item.product_id);
 
       return {
         product_id: item.product_id,
@@ -328,18 +336,20 @@ window.loadSaleForEdit = async function (saleId) {
 
     // --- FORM FIELDS ---
     document.getElementById("customerId").value = sale.customer_id;
-    if(sale.customer) {
-        document.getElementById("customerSearchInput").value = `${sale.customer.name} - ${sale.customer.mobile}`;
+    if (sale.customer) {
+      document.getElementById("customerSearchInput").value =
+        `${sale.customer.name} - ${sale.customer.mobile}`;
     }
-    
+
     document.getElementById("employeeId").value = sale.salesperson_id;
-    if(sale.salesperson) {
-        document.getElementById("employeeSearchInput").value = `${sale.salesperson.name} (${sale.salesperson.role})`;
+    if (sale.salesperson) {
+      document.getElementById("employeeSearchInput").value =
+        `${sale.salesperson.name} (${sale.salesperson.role})`;
     }
 
     if (document.getElementById("accountSelect")) {
       document.getElementById("accountSelect").value = String(
-        sale.sale_transactions?.[0]?.payment_account_id || ""
+        sale.sale_transactions?.[0]?.payment_account_id || "",
       );
     }
 
@@ -373,12 +383,13 @@ window.updateOrderState = function () {
   const stateRightColTitle = document.getElementById("rightColTitle");
   const statePageTitle = document.getElementById("pageTitle");
   const confirmButton = document.querySelector(
-    "button[onclick='submitData()']"
+    "button[onclick='submitData()']",
   );
 
   window.orderState.isOrderState = stateToggle.checked;
 
-  const actionText = orderState.orderId || orderState.saleId ? "Update" : "Confirm";
+  const actionText =
+    orderState.orderId || orderState.saleId ? "Update" : "Confirm";
 
   if (window.orderState.isOrderState) {
     // ORDER MODE
@@ -444,7 +455,7 @@ function populateSelect(elementId, labelName, data, labelFn, valueKey) {
   } else {
     data.forEach((item) => {
       select.innerHTML += `<option value="${item[valueKey]}">${labelFn(
-        item
+        item,
       )}</option>`;
     });
   }
@@ -453,7 +464,7 @@ function populateSelect(elementId, labelName, data, labelFn, valueKey) {
 // --- Render Product Options ---
 window.renderProductOptions = function () {
   const select = document.getElementById("productSelect");
-  const currentSelection = select.value; 
+  const currentSelection = select.value;
 
   let editingProductId = null;
   if (
@@ -499,7 +510,7 @@ window.handleAddToCart = function (e) {
       "Please fill all fields correctly",
       "",
       "Ok",
-      () => {}
+      () => {},
     );
     return;
   }
@@ -507,7 +518,7 @@ window.handleAddToCart = function (e) {
   // Find product details
   const product = orderState.products.find((p) => p.id == pid);
   const pName = product ? product.product_name : "Unknown Item";
-  
+
   // Calculate Unit Price for display only (approximate)
   const unitPrice = totalEntered / qty;
   // UPDATED: Line total is exactly what user typed. No calculation.
@@ -515,19 +526,18 @@ window.handleAddToCart = function (e) {
 
   // LOGIC: Check for Duplicates
   const existingIndex = orderState.cart.findIndex(
-    (item) => item.product_id == pid
+    (item) => item.product_id == pid,
   );
 
   if (
-    !window.orderState.isOrderState &&
-    parseInt(qty) > product.current_stock_level
+    !window.orderState.isOrderState && orderState.saleId == null && parseInt(qty) > product.current_stock_level
   ) {
     showModalConfirm(
       "error",
       "Maximum quantity exceed!",
       "Please select item with less quantity",
       "Ok",
-      () => {}
+      () => {},
     );
     return;
   }
@@ -539,7 +549,7 @@ window.handleAddToCart = function (e) {
       "This product is already in the cart.",
       "",
       "Ok",
-      () => {}
+      () => {},
     );
     return;
   }
@@ -580,18 +590,18 @@ window.editCartItem = function (index) {
 
   orderState.editingIndex = index;
   renderProductOptions();
-  
+
   const productSelect = document.getElementById("productSelect");
   productSelect.value = item.product_id;
   productSelect.disabled = true;
 
   document.getElementById("qtyInput").value = item.qty;
-  
+
   // NEW: Fill input with the Total Price, not the unit price
   document.getElementById("priceInput").value = item.total.toFixed(2);
 
   const submitBtn = document.querySelector(
-    "form[onsubmit='handleAddToCart(event)'] button"
+    "form[onsubmit='handleAddToCart(event)'] button",
   );
   submitBtn.innerHTML = `<i class="ph ph-check font-bold"></i> Update`;
   submitBtn.classList.remove("bg-slate-900", "hover:bg-slate-800");
@@ -608,7 +618,7 @@ function resetFormState() {
   document.getElementById("priceInput").value = "";
 
   const submitBtn = document.querySelector(
-    "form[onsubmit='handleAddToCart(event)'] button"
+    "form[onsubmit='handleAddToCart(event)'] button",
   );
   submitBtn.innerHTML = `<i class="ph ph-plus font-bold"></i> Add`;
   submitBtn.classList.remove("bg-brand-600", "hover:bg-brand-700");
@@ -664,8 +674,7 @@ window.renderCart = function () {
 window.removeCartItem = function (index) {
   if (orderState.editingIndex === index) {
     resetFormState();
-  }
-  else if (
+  } else if (
     orderState.editingIndex !== null &&
     index < orderState.editingIndex
   ) {
@@ -724,7 +733,7 @@ window.submitData = async function () {
   } catch (err) {
     console.error("Error submitting data:", err);
     showNotification("error", "Failed to submit data");
-  } finally{
+  } finally {
     btn.disabled = false;
     btn.classList.remove("animate-pulse");
     spinner.classList.add("hidden");
@@ -735,12 +744,12 @@ window.submitData = async function () {
 
 // --- SUBMIT LOGIC ---
 window.submitOrderToDB = async function () {
-    if (orderState.cart.length === 0)
+  if (orderState.cart.length === 0)
     return showNotification("error", "No product selected");
 
   const customerId = document.getElementById("customerId").value;
   const salespersonId = document.getElementById("employeeId").value;
-  
+
   const paymentAccountId = document.getElementById("accountSelect").value;
   const memoNo = document.getElementById("memoNo").value;
   const advanceAmount =
@@ -819,7 +828,7 @@ window.submitOrderToDB = async function () {
           const response = await fetch(
             `${window.globalState.apiBase}/products/orders/${
               isEditing ? orderState.orderId : data.order_id
-            }`
+            }`,
           );
 
           const orderData = await response.json();
@@ -829,15 +838,15 @@ window.submitOrderToDB = async function () {
           const order = orderData.order;
           await printOrderInvoice(order.id, order);
         },
-        "Cancel"
+        "Cancel",
       );
 
       if (!isEditing) {
         orderState.cart = [];
         renderCart();
         document.getElementById("orderForm").reset();
-        document.getElementById("customerId").value = ""; 
-        document.getElementById("employeeId").value = ""; 
+        document.getElementById("customerId").value = "";
+        document.getElementById("employeeId").value = "";
         document.getElementById("advanceInput").value = 0;
         setTodayDates();
         calculateDue();
@@ -847,7 +856,7 @@ window.submitOrderToDB = async function () {
     } else {
       showNotification(
         "error",
-        "Error: " + (data.message || "Could not save Order")
+        "Error: " + (data.message || "Could not save Order"),
       );
     }
   } catch (e) {
@@ -857,7 +866,7 @@ window.submitOrderToDB = async function () {
 };
 
 window.submitSaleToDB = async function () {
-    if (orderState.cart.length === 0)
+  if (orderState.cart.length === 0)
     return showNotification("error", "No product selected");
 
   const customerId = document.getElementById("customerId").value;
@@ -935,7 +944,7 @@ window.submitSaleToDB = async function () {
           const response = await fetch(
             `${window.globalState.apiBase}/products/sales/details/${
               isEditing ? orderState.saleId : data.sale_id
-            }`
+            }`,
           );
 
           const saleData = await response.json();
@@ -945,15 +954,15 @@ window.submitSaleToDB = async function () {
           const sale = saleData.sale;
           await printSaleInvoice(sale.id, sale);
         },
-        "Cancel"
+        "Cancel",
       );
 
       if (!isEditing) {
         orderState.cart = [];
         renderCart();
         document.getElementById("orderForm").reset();
-        document.getElementById("customerId").value = ""; 
-        document.getElementById("employeeId").value = ""; 
+        document.getElementById("customerId").value = "";
+        document.getElementById("employeeId").value = "";
         document.getElementById("advanceInput").value = 0;
         setTodayDates();
         calculateDue();
@@ -963,7 +972,7 @@ window.submitSaleToDB = async function () {
     } else {
       showNotification(
         "error",
-        "Error: " + (data.message || "Could not save Sale")
+        "Error: " + (data.message || "Could not save Sale"),
       );
     }
   } catch (e) {
