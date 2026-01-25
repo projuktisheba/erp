@@ -2,11 +2,13 @@ package dbrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/projuktisheba/erp-mini-api/internal/models"
 	"github.com/projuktisheba/erp-mini-api/internal/utils"
@@ -55,85 +57,167 @@ func (s *ProductRepo) GetProducts(ctx context.Context, branchID int64) ([]*model
 // ============================== ADD PRODUCTS TO STOCK ==============================
 // RestockProducts increments stock quantities for given products and logs the operation.
 // (V2)
-func (s *ProductRepo) RestockProducts(ctx context.Context, date time.Time, memoNo string, branchID int64, products []models.Product) (string, error) {
-	// Begin transaction
+func (s *ProductRepo) RestockProducts(
+	ctx context.Context,
+	date time.Time,
+	memoNo string,
+	branchID int64,
+	products []models.Product,
+) (string, error) {
+
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return "", fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	if len(products) == 0 {
+		return "", fmt.Errorf("no products provided for restock")
+	}
 
 	// Generate next memo number if not provided
 	if memoNo == "" {
 		memoNo = utils.GenerateMemoNo()
 	}
 
-	// Update stock and insert restock record
+	// --------------------
+	// Update stock + insert registry rows
+	// --------------------
 	for _, item := range products {
-		// Update product stock
-		_, err := tx.Exec(ctx, `
+
+		if item.Quantity <= 0 {
+			return "", fmt.Errorf("invalid restock quantity for product %d", item.ID)
+		}
+
+		// Update product stock (lock row to avoid race)
+		res, err := tx.Exec(ctx, `
 			UPDATE products
 			SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP
 			WHERE id = $2;
 		`, item.Quantity, item.ID)
+
 		if err != nil {
 			return "", fmt.Errorf("update stock for product %d: %w", item.ID, err)
 		}
 
-		// Log in product_stock_registry (if table exists)
+		if res.RowsAffected() == 0 {
+			return "", fmt.Errorf("product not found: %d", item.ID)
+		}
+
+		// Log in product_stock_registry
 		_, err = tx.Exec(ctx, `
 			INSERT INTO product_stock_registry (
 				memo_no, stock_date, branch_id, product_id, quantity, created_at
 			) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP);
 		`, memoNo, date, branchID, item.ID, item.Quantity)
+
 		if err != nil {
-			return "", fmt.Errorf("insert stock registry: %w", err)
+			return "", fmt.Errorf("insert stock registry for product %d: %w", item.ID, err)
 		}
 	}
 
-	// Commit transaction
+	// --------------------
+	// Commit
+	// --------------------
 	if err := tx.Commit(ctx); err != nil {
 		return "", fmt.Errorf("commit tx: %w", err)
 	}
 
+	committed = true
 	return memoNo, nil
 }
+
 
 // DeleteStockProducts reduce stock quantities for given products and remove corresponded logs.
 // (V2)
 func (s *ProductRepo) DeleteStockProducts(ctx context.Context, stockID, branchID int64) error {
-	// Begin transaction
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
 
-	//Load old data
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	// --------------------
+	// Load old data (lock row)
+	// --------------------
 	var productID, productQuantity int64
-	err = tx.QueryRow(ctx, `SELECT product_id, quantity FROM product_stock_registry WHERE id=$1 AND branch_id=$2`, stockID, branchID).Scan(&productID, &productQuantity)
+	err = tx.QueryRow(ctx, `
+		SELECT product_id, quantity
+		FROM product_stock_registry
+		WHERE id=$1 AND branch_id=$2
+		FOR UPDATE
+	`, stockID, branchID).Scan(&productID, &productQuantity)
 
-	// Update stock and insert restock record
-	_, err = tx.Exec(ctx, `
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("stock registry not found: %d", stockID)
+		}
+		return fmt.Errorf("load stock registry: %w", err)
+	}
+
+	if productQuantity <= 0 {
+		return fmt.Errorf("invalid stock quantity: %d", productQuantity)
+	}
+
+	// --------------------
+	// Update stock (prevent negative)
+	// --------------------
+	res, err := tx.Exec(ctx, `
 		UPDATE products
 		SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $2;
 	`, productQuantity, productID)
+
 	if err != nil {
-		return fmt.Errorf("update stock for product %w", err)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == "23514" && pgErr.ConstraintName == "products_quantity_non_negative" {
+				return fmt.Errorf("insufficient stock for product %d", productID)
+			}
+		}
+		return fmt.Errorf("update stock for product %d: %w", productID, err)
 	}
 
-	// Log in product_stock_registry (if table exists)
-	_, err = tx.Exec(ctx, `DELETE FROM product_stock_registry WHERE id=$1 AND branch_id=$2;`, stockID, branchID)
-	if err != nil {
-		return fmt.Errorf("insert stock registry: %w", err)
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("insufficient stock for product %d", productID)
 	}
 
-	// Commit transaction
+	// --------------------
+	// Delete registry row
+	// --------------------
+	res, err = tx.Exec(ctx, `
+		DELETE FROM product_stock_registry
+		WHERE id=$1 AND branch_id=$2
+	`, stockID, branchID)
+
+	if err != nil {
+		return fmt.Errorf("delete stock registry: %w", err)
+	}
+
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("stock registry not found during delete: %d", stockID)
+	}
+
+	// --------------------
+	// Commit
+	// --------------------
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
 
+	committed = true
 	return nil
 }
 
