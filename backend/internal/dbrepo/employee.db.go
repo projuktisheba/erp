@@ -203,7 +203,12 @@ func (user *EmployeeRepo) SaveSalaryRecord(ctx context.Context, salaryDate time.
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	employeeSalary := &models.EmployeeProgressDB{
 		SheetDate:  salaryDate,
@@ -248,7 +253,11 @@ func (user *EmployeeRepo) SaveSalaryRecord(ctx context.Context, salaryDate time.
 		return err
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 // (V2)
@@ -260,7 +269,12 @@ func (user *EmployeeRepo) UpdateSalaryRecord(ctx context.Context, salaryDate tim
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 	//-------------------------------------
 	// 1. Retrieve old info
 	//-------------------------------------
@@ -349,7 +363,11 @@ func (user *EmployeeRepo) UpdateSalaryRecord(ctx context.Context, salaryDate tim
 		return err
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 func (e *EmployeeRepo) SaveWorkerProgress(ctx context.Context, workerProgress models.EmployeeProgressDB) error {
@@ -357,7 +375,12 @@ func (e *EmployeeRepo) SaveWorkerProgress(ctx context.Context, workerProgress mo
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	workerProgressDB := &models.EmployeeProgressDB{
 		SheetDate:       workerProgress.SheetDate,
@@ -399,7 +422,11 @@ func (e *EmployeeRepo) SaveWorkerProgress(ctx context.Context, workerProgress mo
 		}
 		CreateTransactionTx(ctx, tx, transaction) // silently add transaction
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 // UpdateSalaryRecord generates and give employee salary
@@ -410,7 +437,12 @@ func (user *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, progressID i
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 	//-------------------------------------
 	// 1. Retrieve old info
 	//-------------------------------------
@@ -506,7 +538,11 @@ func (user *EmployeeRepo) UpdateWorkerProgress(ctx context.Context, progressID i
 		return err
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 // UpdateEmployeeStatus updates employee role and status
@@ -580,113 +616,113 @@ func (e *EmployeeRepo) GetEmployeesNameAndIDByBranchAndRole(ctx context.Context,
 func (e *EmployeeRepo) PaginatedEmployeeList(ctx context.Context, page, limit int, branchID int64, role, status, search, sortBy, sortOrder string,
 ) ([]*models.Employee, int, error) {
 
-    // 1. Build the Base constraints
-    // Start with the hard constraint (excluding chairman) which applies to EVERYTHING
-    whereClause := " WHERE role <> 'chairman'"
-    args := []interface{}{}
-    argIdx := 1
+	// 1. Build the Base constraints
+	// Start with the hard constraint (excluding chairman) which applies to EVERYTHING
+	whereClause := " WHERE role <> 'chairman'"
+	args := []interface{}{}
+	argIdx := 1
 
-    // 2. Dynamic Filters
-    
-    // -- Search (Name or Mobile) --
-    if search != "" {
-        // Uses the same argument ($x) twice for efficient parameter binding
-        whereClause += fmt.Sprintf(" AND (name ILIKE '%%' || $%d || '%%' OR mobile ILIKE '%%' || $%d || '%%')", argIdx, argIdx)
-        args = append(args, search)
-        argIdx++
-    }
+	// 2. Dynamic Filters
 
-    // -- Branch --
-    if branchID != 0 {
-        whereClause += fmt.Sprintf(" AND branch_id = $%d", argIdx)
-        args = append(args, branchID)
-        argIdx++
-    }
+	// -- Search (Name or Mobile) --
+	if search != "" {
+		// Uses the same argument ($x) twice for efficient parameter binding
+		whereClause += fmt.Sprintf(" AND (name ILIKE '%%' || $%d || '%%' OR mobile ILIKE '%%' || $%d || '%%')", argIdx, argIdx)
+		args = append(args, search)
+		argIdx++
+	}
 
-    // -- Role --
-    if role != "" {
-        whereClause += fmt.Sprintf(" AND role = $%d", argIdx)
-        args = append(args, role)
-        argIdx++
-    }
+	// -- Branch --
+	if branchID != 0 {
+		whereClause += fmt.Sprintf(" AND branch_id = $%d", argIdx)
+		args = append(args, branchID)
+		argIdx++
+	}
 
-    // -- Status --
-    if status != "" {
-        whereClause += fmt.Sprintf(" AND status = $%d", argIdx)
-        args = append(args, status)
-        argIdx++
-    }
+	// -- Role --
+	if role != "" {
+		whereClause += fmt.Sprintf(" AND role = $%d", argIdx)
+		args = append(args, role)
+		argIdx++
+	}
 
-    // 3. Execute Count Query
-    // We do this BEFORE adding Sort/Limit/Offset logic
-    countQuery := `SELECT COUNT(*) FROM employees` + whereClause
-    
-    var total int
-    if err := e.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
-        var pgErr *pgconn.PgError
-        if errors.As(err, &pgErr) {
-            return nil, 0, fmt.Errorf("database error: %s", pgErr.Message)
-        }
-        return nil, 0, err
-    }
+	// -- Status --
+	if status != "" {
+		whereClause += fmt.Sprintf(" AND status = $%d", argIdx)
+		args = append(args, status)
+		argIdx++
+	}
 
-    // 4. Prepare Main Query (Sort + Pagination)
-    query := `SELECT id, name, role, status, mobile, mobile_alt, email, password, passport_no, joining_date, address,
+	// 3. Execute Count Query
+	// We do this BEFORE adding Sort/Limit/Offset logic
+	countQuery := `SELECT COUNT(*) FROM employees` + whereClause
+
+	var total int
+	if err := e.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, 0, fmt.Errorf("database error: %s", pgErr.Message)
+		}
+		return nil, 0, err
+	}
+
+	// 4. Prepare Main Query (Sort + Pagination)
+	query := `SELECT id, name, role, status, mobile, mobile_alt, email, password, passport_no, joining_date, address,
                      base_salary, overtime_rate, branch_id, created_at, updated_at
               FROM employees` + whereClause
 
-    // Sorting
-    if sortBy == "" {
-        sortBy = "created_at"
-    }
-    // Whitelist sort order to prevent injection
-    if sortOrder != "ASC" && sortOrder != "DESC" {
-        sortOrder = "DESC"
-    }
-    query += fmt.Sprintf(" ORDER BY %s %s", sortBy, sortOrder)
+	// Sorting
+	if sortBy == "" {
+		sortBy = "created_at"
+	}
+	// Whitelist sort order to prevent injection
+	if sortOrder != "ASC" && sortOrder != "DESC" {
+		sortOrder = "DESC"
+	}
+	query += fmt.Sprintf(" ORDER BY %s %s", sortBy, sortOrder)
 
-    // Pagination
-    // Only apply if limit is provided (limit > 0)
-    if limit > 0 {
-        offset := 0
-        if page > 1 {
-            offset = (page - 1) * limit
-        }
-        query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
-        args = append(args, limit, offset)
-    }
+	// Pagination
+	// Only apply if limit is provided (limit > 0)
+	if limit > 0 {
+		offset := 0
+		if page > 1 {
+			offset = (page - 1) * limit
+		}
+		query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+		args = append(args, limit, offset)
+	}
 
-    // 5. Execute Main Query
-    rows, err := e.db.Query(ctx, query, args...)
-    if err != nil {
-        var pgErr *pgconn.PgError
-        if errors.As(err, &pgErr) {
-            return nil, 0, fmt.Errorf("database error: %s", pgErr.Message)
-        }
-        return nil, 0, err
-    }
-    defer rows.Close()
+	// 5. Execute Main Query
+	rows, err := e.db.Query(ctx, query, args...)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, 0, fmt.Errorf("database error: %s", pgErr.Message)
+		}
+		return nil, 0, err
+	}
+	defer rows.Close()
 
-    // Optimization: Pre-allocate slice capacity if limit is known to reduce allocations
-    capacity := 0
-    if limit > 0 {
-        capacity = limit
-    }
-    employees := make([]*models.Employee, 0, capacity)
+	// Optimization: Pre-allocate slice capacity if limit is known to reduce allocations
+	capacity := 0
+	if limit > 0 {
+		capacity = limit
+	}
+	employees := make([]*models.Employee, 0, capacity)
 
-    for rows.Next() {
-        var emp models.Employee
-        err := rows.Scan(
-            &emp.ID, &emp.Name, &emp.Role, &emp.Status,
-            &emp.Mobile, &emp.MobileAlt, &emp.Email, &emp.Password, &emp.PassportNo,
-            &emp.JoiningDate, &emp.Address, &emp.BaseSalary, &emp.OvertimeRate,
-            &emp.BranchID, &emp.CreatedAt, &emp.UpdatedAt,
-        )
-        if err != nil {
-            return nil, 0, err
-        }
-        employees = append(employees, &emp)
-    }
+	for rows.Next() {
+		var emp models.Employee
+		err := rows.Scan(
+			&emp.ID, &emp.Name, &emp.Role, &emp.Status,
+			&emp.Mobile, &emp.MobileAlt, &emp.Email, &emp.Password, &emp.PassportNo,
+			&emp.JoiningDate, &emp.Address, &emp.BaseSalary, &emp.OvertimeRate,
+			&emp.BranchID, &emp.CreatedAt, &emp.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+		employees = append(employees, &emp)
+	}
 
-    return employees, total, nil
+	return employees, total, nil
 }

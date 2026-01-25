@@ -27,7 +27,12 @@ func (r *OrderRepo) CreateOrder(ctx context.Context, order *models.OrderDB) (int
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	// --------------------
 	// Basic validations
@@ -264,7 +269,12 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	// --------------------
 	// 1. Basic Validations
@@ -526,7 +536,11 @@ func (r *OrderRepo) UpdateOrder(ctx context.Context, order, oldOrder *models.Ord
 		}
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 // CancelOrder revert all the records of an order
@@ -535,7 +549,12 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, order *models.OrderDB) erro
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	// --------------------
 	// 1. Basic Validations
@@ -553,7 +572,7 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, order *models.OrderDB) erro
 			status = $1, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $2
 	`,
-		models.ORDER_CANCELLED ,order.ID,
+		models.ORDER_CANCELLED, order.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update order header failed: %w", err)
@@ -649,8 +668,8 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, order *models.OrderDB) erro
 	// oldDue := oldOrder.TotalAmount - oldOrder.ReceivedAmount
 	// if oldDue != 0 {
 	// 	_, err = tx.Exec(ctx, `
-	// 		UPDATE customers 
-	// 		SET due_amount = due_amount - $1 
+	// 		UPDATE customers
+	// 		SET due_amount = due_amount - $1
 	// 		WHERE id = $2
 	// 	`, oldDue, oldOrder.CustomerID) // OLD Customer ID
 	// 	if err != nil {
@@ -663,8 +682,8 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, order *models.OrderDB) erro
 	// newDue := order.TotalAmount - order.ReceivedAmount
 	// if newDue != 0 {
 	// 	_, err = tx.Exec(ctx, `
-	// 		UPDATE customers 
-	// 		SET due_amount = due_amount + $1 
+	// 		UPDATE customers
+	// 		SET due_amount = due_amount + $1
 	// 		WHERE id = $2
 	// 	`, newDue, order.CustomerID) // NEW Customer ID
 	// 	if err != nil {
@@ -715,7 +734,7 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, order *models.OrderDB) erro
 	// 	var orderTxId int64
 	// 	err = tx.QueryRow(ctx, `
 	// 		INSERT INTO order_transactions(
-	// 			order_id, transaction_date, payment_account_id, memo_no, 
+	// 			order_id, transaction_date, payment_account_id, memo_no,
 	// 			delivered_by, quantity_delivered, amount, transaction_type
 	// 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING transaction_id
 	// 	`,
@@ -744,7 +763,11 @@ func (r *OrderRepo) CancelOrder(ctx context.Context, order *models.OrderDB) erro
 	// 	}
 	// }
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 // OrderDelivery record an order delivery, payment transaction,
@@ -754,7 +777,12 @@ func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTrans
 	if err != nil {
 		return fmt.Errorf("ERROR_0: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	// --------------------
 	// 1.  Basic validations
@@ -927,7 +955,11 @@ func (r *OrderRepo) OrderDelivery(ctx context.Context, orderTx models.OrderTrans
 		}
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 // DeleteOrderDeliveryRecord delete all the records correspond to order delivery
@@ -938,7 +970,12 @@ func (r *OrderRepo) DeleteOrderDeliveryRecord(ctx context.Context, orderTxID, br
 	if err != nil {
 		return fmt.Errorf("ERROR_0: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	// load order delivery details
 	var orderTx models.OrderTransactionDB
@@ -1151,7 +1188,11 @@ func (r *OrderRepo) DeleteOrderDeliveryRecord(ctx context.Context, orderTxID, br
 		}
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 func (r *OrderRepo) GetOrders(

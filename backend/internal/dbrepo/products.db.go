@@ -133,7 +133,6 @@ func (s *ProductRepo) RestockProducts(
 	return memoNo, nil
 }
 
-
 // DeleteStockProducts reduce stock quantities for given products and remove corresponded logs.
 // (V2)
 func (s *ProductRepo) DeleteStockProducts(ctx context.Context, stockID, branchID int64) error {
@@ -620,7 +619,12 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	// --------------------
 	// 1. Validations
@@ -865,7 +869,11 @@ func (r *ProductRepo) UpdateSale(ctx context.Context, sale, oldSale *models.Sale
 		return fmt.Errorf("update salesperson progress failed: %w", err)
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 // ============================== SALE RETRIEVAL ==============================
@@ -1133,271 +1141,4 @@ func (r *ProductRepo) GetSales(
 	}
 
 	return sales, totalCount, nil
-}
-
-// UpdateSoldProducts updates an existing sale and all related records
-func (s *ProductRepo) UpdateSoldProducts(ctx context.Context, branchID int64, sale models.Sale) error {
-	tx, err := s.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	// =========================================================================
-	// STEP 0: Fetch Previous Sale Data
-	// We need this to know what to reverse (stock, accounts, employee progress)
-	// =========================================================================
-	var prevSale models.Sale
-	err = tx.QueryRow(ctx, `
-        SELECT memo_no, sale_date, customer_id, salesperson_id, payment_account_id, total_payable_amount, paid_amount
-        FROM sales_history
-        WHERE memo_no = $1 AND branch_id = $2
-    `, sale.MemoNo, branchID).Scan(
-		&prevSale.MemoNo,
-		&prevSale.SaleDate,
-		&prevSale.CustomerID,
-		&prevSale.SalespersonID,
-		&prevSale.PaymentAccountID,
-		&prevSale.TotalPayableAmount,
-		&prevSale.PaidAmount,
-	)
-	if err != nil {
-		return fmt.Errorf("fetch previous sale: %w", err)
-	}
-
-	// =========================================================================
-	// PHASE 1: REVERSE OLD DATA ("The Undo")
-	// =========================================================================
-
-	// 1.1: Restore Stock (Add back quantity) and Calculate Total Items for TopSheet Reversal
-	rows, err := tx.Query(ctx, `SELECT product_id, quantity FROM sold_items_history WHERE memo_no = $1`, sale.MemoNo)
-	if err != nil {
-		return fmt.Errorf("fetch prev sold items: %w", err)
-	}
-
-	oldTotalItems := int64(0)
-
-	// We scan into a slice first to close rows before executing updates inside a loop
-	type soldItem struct {
-		ProductID int64
-		Quantity  int64
-	}
-	var prevItems []soldItem
-
-	for rows.Next() {
-		var item soldItem
-		if err := rows.Scan(&item.ProductID, &item.Quantity); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan prev item: %w", err)
-		}
-		prevItems = append(prevItems, item)
-	}
-	rows.Close()
-
-	for _, item := range prevItems {
-		_, err = tx.Exec(ctx, `
-            UPDATE products 
-            SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP 
-            WHERE id = $2
-        `, item.Quantity, item.ProductID)
-		if err != nil {
-			return fmt.Errorf("restore stock: %w", err)
-		}
-		oldTotalItems += item.Quantity
-	}
-
-	// 1.2: Reverse Financials (Account Balance & Customer Due)
-	if prevSale.PaidAmount > 0 {
-		_, err = tx.Exec(ctx, `
-            UPDATE accounts 
-            SET current_balance = current_balance - $1 
-            WHERE id = $2
-        `, prevSale.PaidAmount, prevSale.PaymentAccountID)
-		if err != nil {
-			return fmt.Errorf("reverse account balance: %w", err)
-		}
-	}
-	prevDue := prevSale.TotalPayableAmount - prevSale.PaidAmount
-	if prevDue > 0 {
-		_, err = tx.Exec(ctx, `
-            UPDATE customers 
-            SET due_amount = due_amount - $1 
-            WHERE id = $2
-        `, prevDue, prevSale.CustomerID)
-		if err != nil {
-			return fmt.Errorf("reverse customer due: %w", err)
-		}
-	}
-
-	// 1.3: Reverse Top Sheet (Pass Negative Values)
-	// We need the account type of the PREVIOUS account
-	var prevAcctType string
-	err = tx.QueryRow(ctx, `SELECT type FROM accounts WHERE id=$1`, prevSale.PaymentAccountID).Scan(&prevAcctType)
-	if err != nil {
-		return fmt.Errorf("lookup prev account type: %w", err)
-	}
-
-	prevTopSheet := &models.TopSheetDB{
-		SheetDate: prevSale.SaleDate,
-		BranchID:  branchID,
-		ReadyMade: -oldTotalItems, // Negative to reverse count
-	}
-	if prevAcctType == "bank" {
-		prevTopSheet.Bank = -prevSale.PaidAmount
-	} else {
-		prevTopSheet.Cash = -prevSale.PaidAmount
-	}
-
-	if err := SaveTopSheetTx(tx, ctx, prevTopSheet); err != nil {
-		return fmt.Errorf("reverse top sheet: %w", err)
-	}
-
-	// 1.4: Reverse Salesperson Progress (Negative Amount)
-	prevProgress := models.EmployeeProgressDB{
-		SheetDate:  prevSale.SaleDate,
-		BranchID:   branchID,
-		EmployeeID: prevSale.SalespersonID,
-		SaleAmount: -prevSale.TotalPayableAmount,
-	}
-	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, &prevProgress); err != nil {
-		return fmt.Errorf("reverse salesperson progress: %w", err)
-	}
-
-	// 1.5: Delete Old Transaction
-	// We delete it entirely. A new one will be created if paid_amount > 0.
-	_, err = tx.Exec(ctx, `DELETE FROM transactions WHERE memo_no = $1 AND transaction_type = 'payment'`, sale.MemoNo)
-	if err != nil {
-		return fmt.Errorf("delete old transaction: %w", err)
-	}
-
-	// 1.6: Delete Old Sold Items History
-	_, err = tx.Exec(ctx, `DELETE FROM sold_items_history WHERE memo_no = $1`, sale.MemoNo)
-	if err != nil {
-		return fmt.Errorf("delete old sold items: %w", err)
-	}
-
-	// =========================================================================
-	// PHASE 2: APPLY NEW DATA ("The Redo")
-	// =========================================================================
-
-	// 2.1: Update Sales History Record
-	_, err = tx.Exec(ctx, `
-        UPDATE sales_history
-        SET customer_id=$1, salesperson_id=$2, payment_account_id=$3, 
-            total_payable_amount=$4, paid_amount=$5, sale_date=$6, updated_at=CURRENT_TIMESTAMP
-        WHERE memo_no=$7 AND branch_id=$8
-    `, sale.CustomerID, sale.SalespersonID, sale.PaymentAccountID,
-		sale.TotalPayableAmount, sale.PaidAmount, sale.SaleDate, sale.MemoNo, branchID)
-	if err != nil {
-		return fmt.Errorf("update sales_history: %w", err)
-	}
-
-	// 2.2: Insert New Sold Items & Deduct Stock
-	newTotalItems := int64(0)
-	for _, item := range sale.Items {
-		_, err = tx.Exec(ctx, `
-            INSERT INTO sold_items_history (
-                memo_no, branch_id, product_id, quantity, total_prices, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `, sale.MemoNo, branchID, item.ID, item.Quantity, item.TotalPrices)
-		if err != nil {
-			return fmt.Errorf("insert new sold item: %w", err)
-		}
-
-		_, err = tx.Exec(ctx, `
-            UPDATE products 
-            SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP 
-            WHERE id = $2
-        `, item.Quantity, item.ID)
-		if err != nil {
-			return fmt.Errorf("deduct new stock: %w", err)
-		}
-		newTotalItems += item.Quantity
-	}
-
-	// 2.3: Update Financials (Account & Customer Due)
-	if sale.PaidAmount > 0 {
-		_, err = tx.Exec(ctx, `
-            UPDATE accounts 
-            SET current_balance = current_balance + $1 
-            WHERE id = $2
-        `, sale.PaidAmount, sale.PaymentAccountID)
-		if err != nil {
-			return fmt.Errorf("update account balance: %w", err)
-		}
-	}
-	newDue := sale.TotalPayableAmount - sale.PaidAmount
-	if newDue > 0 {
-		_, err = tx.Exec(ctx, `
-            UPDATE customers 
-            SET due_amount = due_amount + $1 
-            WHERE id = $2
-        `, newDue, sale.CustomerID)
-		if err != nil {
-			return fmt.Errorf("update customer due: %w", err)
-		}
-	}
-
-	// 2.4: Update Top Sheet (Positive Values)
-	var newAcctType string
-	err = tx.QueryRow(ctx, `SELECT type FROM accounts WHERE id=$1`, sale.PaymentAccountID).Scan(&newAcctType)
-	if err != nil {
-		return fmt.Errorf("lookup new account type: %w", err)
-	}
-
-	newTopSheet := &models.TopSheetDB{
-		SheetDate: sale.SaleDate,
-		BranchID:  branchID,
-		ReadyMade: newTotalItems,
-	}
-	if newAcctType == "bank" {
-		newTopSheet.Bank = sale.PaidAmount
-	} else {
-		newTopSheet.Cash = sale.PaidAmount
-	}
-
-	if err := SaveTopSheetTx(tx, ctx, newTopSheet); err != nil {
-		return fmt.Errorf("update top sheet: %w", err)
-	}
-
-	// 2.5: Create New Transaction (if paid amount > 0)
-	if sale.PaidAmount > 0 {
-		transaction := &models.Transaction{
-			BranchID:        branchID,
-			MemoNo:          sale.MemoNo,
-			FromID:          sale.CustomerID,
-			FromType:        "customers",
-			ToID:            sale.PaymentAccountID,
-			ToType:          "accounts",
-			Amount:          sale.PaidAmount,
-			TransactionType: "payment",
-			CreatedAt:       sale.SaleDate,
-			Notes:           "Sales Collection (Updated)", // Updated note
-		}
-		// Assuming CreateTransactionTx is available as per your Create func
-		_, err = CreateTransactionTx(ctx, tx, transaction)
-		if err != nil {
-			return fmt.Errorf("create new transaction: %w", err)
-		}
-	}
-
-	// 2.6: Update Salesperson Progress (Positive Amount)
-	newProgress := models.EmployeeProgressDB{
-		SheetDate:  sale.SaleDate,
-		BranchID:   branchID,
-		EmployeeID: sale.SalespersonID,
-		SaleAmount: sale.TotalPayableAmount,
-	}
-	if _, err := UpdateEmployeeProgressReportTx(tx, ctx, &newProgress); err != nil {
-		return fmt.Errorf("update salesperson progress: %w", err)
-	}
-
-	// =========================================================================
-	// COMMIT
-	// =========================================================================
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit tx: %w", err)
-	}
-
-	return nil
 }
