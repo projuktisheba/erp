@@ -546,7 +546,7 @@ async function viewOrder(id) {
                     ${t.amount > 0 ? formatMoney(t.amount) : "-"}
                 </td>
                 ${
-                  t.transaction_type != "Advance Payment"
+                  (t.transaction_type != "Advance Payment")&&(GetUserRole()==="chairman")
                     ? `<td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                     <button onclick='showModalConfirm("error", "Delete this record?", "This process is irreversible.", "Ok", () => deleteOrderTransaction(${t.transaction_id}))' class="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-full">
                         <i class="ph ph-trash text-lg"></i>
