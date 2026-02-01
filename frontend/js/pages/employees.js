@@ -287,6 +287,7 @@ function closeEmployeeModal() {
 /* --- 5. SAVE (CREATE / UPDATE) --- */
 async function saveEmployee() {
   const btn = document.getElementById("saveEmployeeBtn");
+  const btnHtml = document.getElementById("saveEmployeeBtn");
   const spinner = document.getElementById("saveSpinner");
   const icon = document.getElementById("saveIcon");
   const text = document.getElementById("saveText");
@@ -358,6 +359,11 @@ async function saveEmployee() {
         "success",
         id ? "Employee updated!" : "New employee added!",
       );
+      btn.disabled = false;
+      btn.classList.remove("animate-pulse");
+      spinner.classList.add("hidden");
+      icon.classList.remove("hidden");
+      text.textContent = "Save Employee";
       closeEmployeeModal();
       fetchEmployees();
     } else {
