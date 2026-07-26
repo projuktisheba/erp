@@ -2,7 +2,7 @@
 window.GetBaseAPI = function (){
   const host = window.location.hostname;
   const isLocal = host === "localhost" || host === "127.0.0.1";
-  return isLocal ? "http://localhost:8080/api/v1" : "https://erp-qatar-api.pssoft.xyz/api/v1";
+  return isLocal ? "http://localhost:8080/api/v1" : "https://erpqatar.pserp.xyz/api/v1/api/v1";
 }
 window.globalState = {
   apiBase: GetBaseAPI(), // Backend URL
