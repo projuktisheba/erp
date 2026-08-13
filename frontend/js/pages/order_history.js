@@ -310,9 +310,9 @@ function renderOrders() {
         <td class="px-6 py-4 whitespace-nowrap text-center">
           <div class="relative flex justify-center items-center">
             <button onclick="toggleActionMenu(event, 'order-menu-${o.id}')"
-              class="action-menu-btn inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100/90 text-slate-700 hover:bg-indigo-600 hover:text-white transition-all duration-200 border border-slate-300/80 shadow-xs hover:shadow-md hover:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 group active:scale-95"
+              class="action-menu-btn inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100 text-slate-800 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all duration-150 border border-slate-300 shadow-xs focus:outline-none focus:ring-2 focus:ring-slate-400 active:scale-95"
               title="Actions">
-              <i class="ph ph-dots-three-vertical text-xl font-bold text-slate-700 group-hover:text-white transition-colors"></i>
+              <i class="ph ph-dots-three-vertical text-xl font-bold"></i>
             </button>
 
             <div id="order-menu-${o.id}" class="action-menu-dropdown hidden absolute right-0 top-full mt-1.5 z-[999] w-56 p-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl shadow-slate-900/15 text-left transition-all duration-200" style="background-color: #ffffff !important; opacity: 1 !important;">

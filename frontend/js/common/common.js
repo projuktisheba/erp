@@ -926,16 +926,14 @@ window.sendWhatsAppInvoice = async function (type, itemOrId) {
     const cleanMemoNo = String(memoNo).replace(/^INV-/, "");
     const invoiceUrl = `${origin}${invoicePath}?type=${type}&memo_no=${encodeURIComponent(cleanMemoNo)}`;
     const total = Number(item.total_amount || 0).toFixed(2);
-    const customerName = customer.name || item.customer_name || "Valued Customer";
-
-    const msg = `Dear *${customerName}*,
+    
+    const msg = `Dear Valued Client,
 
 Thank you for your business! Here is your official invoice details:
 
 • *Invoice No:* #${memoNo}
-• *Total Amount:* QAR ${total}
 
-👇 *Click link to view & download official invoice:*
+*Click link to view & download official invoice:*
 ${invoiceUrl}`;
 
     const waUrl = `https://wa.me/${cleanMobile}?text=${encodeURIComponent(msg)}`;
@@ -1043,6 +1041,7 @@ window.toggleActionMenu = function (e, menuId) {
   const menu = document.getElementById(menuId);
   if (!menu) return;
   const isHidden = menu.classList.contains("hidden");
+  const btn = (e && (e.currentTarget || (e.target && e.target.closest(".action-menu-btn"))));
 
   window.closeAllActionMenus();
 
@@ -1052,6 +1051,10 @@ window.toggleActionMenu = function (e, menuId) {
     if (tr) {
       tr.style.zIndex = "99";
       tr.style.position = "relative";
+    }
+    if (btn) {
+      btn.classList.add("bg-slate-900", "text-white", "border-slate-900");
+      btn.classList.remove("bg-slate-100", "text-slate-800");
     }
   }
 };
@@ -1065,6 +1068,12 @@ window.closeAllActionMenus = function () {
       tr.style.zIndex = "";
       tr.style.position = "";
     }
+  });
+
+  const btns = document.querySelectorAll(".action-menu-btn");
+  btns.forEach((btn) => {
+    btn.classList.remove("bg-slate-900", "text-white", "border-slate-900");
+    btn.classList.add("bg-slate-100", "text-slate-800");
   });
 };
 
