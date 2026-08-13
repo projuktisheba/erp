@@ -25,14 +25,29 @@ const BRANCH_NAMES = {
   3: "EID AL ABAYAT",
 };
 const BRANCH_CONTACTS = {
-  1: "55016898",
-  2: "33079655",
-  3: "50294046",
+  1: "+974 55016898",
+  2: "+974 33079655",
+  3: "+974 50294046",
 };
 const BRANCH_CONTACTS_ALT = {
-  1: "50036274",
-  2: "51051407",
-  3: "50298321",
+  1: "+974 50036274",
+  2: "+974 51051407",
+  3: "+974 50298321",
+};
+const BRANCH_ARABIC_NAMES = {
+  1: "(الفنار للعبايات)",
+  2: "(ديفا عبايات)",
+  3: "(عيد العبايات)",
+};
+const BRANCH_ARABIC_CONTACTS = {
+  1: "٥٥٠١٦٨٩٨ ٩٧٤+ | ٥٠٠٣٦٢٧٤ ٩٧٤+",
+  2: "٣٣٠٧٩٦٥٥ ٩٧٤+ | ٥١٠٥١٤٠٧ ٩٧٤+",
+  3: "٥٠٢٩٤٠٤٦ ٩٧٤+ | ٥٠٢٩٨٣٢١ ٩٧٤+",
+};
+const BRANCH_FAWRAN_CR = {
+  1: "FAWRAN: CR-119412",
+  2: "FAWRAN: CR-119419",
+  3: "FAWRAN: CR-207986",
 };
 window.GetUserRole = function (){
   return (window.globalState.user.role) || "manager";
@@ -41,14 +56,29 @@ window.hasAccess = function(expectedRole){
   const currentRole = window.globalState.user.role || "manager";
   return (currentRole == expectedRole);
 }
-window.GetBranchName = function (){
-  return BRANCH_NAMES[(window.globalState.user.branch_id) || ""];
+window.GetBranchName = function (branchId){
+  const id = branchId || (window.globalState.user && window.globalState.user.branch_id) || "";
+  return BRANCH_NAMES[id] || "AL FANAR ABAYAT";
 }
-window.GetBranchContact = function (){
-  return BRANCH_CONTACTS[(window.globalState.user.branch_id) || ""];
+window.GetBranchContact = function (branchId){
+  const id = branchId || (window.globalState.user && window.globalState.user.branch_id) || "";
+  return BRANCH_CONTACTS[id] || "+974 55016898";
 }
-window.GetBranchContactAlt = function (){
-  return BRANCH_CONTACTS_ALT[(window.globalState.user.branch_id) || "0"];
+window.GetBranchContactAlt = function (branchId){
+  const id = branchId || (window.globalState.user && window.globalState.user.branch_id) || "";
+  return BRANCH_CONTACTS_ALT[id] || "+974 50036274";
+}
+window.GetBranchArabicName = function (branchId){
+  const id = branchId || (window.globalState.user && window.globalState.user.branch_id) || "";
+  return BRANCH_ARABIC_NAMES[id] || "(الفنار للعبايات)";
+}
+window.GetBranchArabicContact = function (branchId){
+  const id = branchId || (window.globalState.user && window.globalState.user.branch_id) || "";
+  return BRANCH_ARABIC_CONTACTS[id] || "٥٥٠١٦٨٩٨ ٩٧٤+ | ٥٠٠٣٦٢٧٤ ٩٧٤+";
+}
+window.GetBranchFawranCR = function (branchId){
+  const id = branchId || (window.globalState.user && window.globalState.user.branch_id) || "";
+  return BRANCH_FAWRAN_CR[id] || "FAWRAN: CR-119412";
 }
 /* --- 1. INITIALIZATION (Check Session) --- */
 document.addEventListener("DOMContentLoaded", () => {

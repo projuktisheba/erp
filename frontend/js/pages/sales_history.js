@@ -252,7 +252,9 @@ function renderSales() {
         };
 
       const canDeliver = o.status === "pending" || o.status === "partial";
-      const canEdit = hasAccess("chairman") && o.status !== "cancelled";
+      const isChairmanUser = hasAccess("chairman");
+      const isManagerUser = hasAccess("manager");
+      const canEdit = (isChairmanUser && o.status !== "cancelled") || (isManagerUser && o.status === "pending");
       const canCancel = hasAccess("chairman") && o.status !== "cancelled";
       const canUndoCancel = hasAccess("chairman") && o.status === "cancelled";
 
@@ -454,8 +456,16 @@ window.undoCancelSale = async function (id, memoNo) {
 // These need to be on the window object so the HTML 'onclick' attributes can find them
 
 window.editSale = function (id) {
-  if (!hasAccess("chairman")) {
-    showModalConfirm("error", "Access Denied", "Only Chairman can edit sales.", "Ok", () => {});
+  const sale = (saleHistoryState.list || []).find((s) => s.id === id);
+  const isChairmanUser = hasAccess("chairman");
+  const isManagerUser = hasAccess("manager");
+
+  if (!isChairmanUser && !isManagerUser) {
+    showModalConfirm("error", "Access Denied", "You do not have permission to edit sales.", "Ok", () => {});
+    return;
+  }
+  if (isManagerUser && sale && sale.status !== "pending") {
+    showModalConfirm("error", "Access Denied", "Invoice cannot be modified from Manager site after partial status.", "Ok", () => {});
     return;
   }
   localStorage.setItem("saleID", id);

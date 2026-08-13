@@ -12,9 +12,13 @@ window.printOrderInvoice = async function (id, order) {
       return isNaN(date.getTime()) ? d : date.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
     };
 
-    const branchName = GetBranchName();
-    const branchContact = GetBranchContact();
-    const branchContactAlt = GetBranchContactAlt();
+    const targetBranchId = order.branch_id || (order.branch && order.branch.id) || (window.globalState.user && window.globalState.user.branch_id) || 1;
+    const branchName = GetBranchName(targetBranchId);
+    const branchContact = GetBranchContact(targetBranchId);
+    const branchContactAlt = GetBranchContactAlt(targetBranchId);
+    const arabicBranchName = GetBranchArabicName(targetBranchId);
+    const arabicBranchContact = GetBranchArabicContact(targetBranchId);
+    const branchFawranCR = GetBranchFawranCR(targetBranchId);
 
     const itemsRows = order.items
       .map((item, index) => {
@@ -70,15 +74,16 @@ window.printOrderInvoice = async function (id, order) {
 
               <div class="logo-name-section">
                   <h1>${branchName}</h1>
-                  <h2>Abayat - Shelat - Hijabat - Niqabat &amp; Jalabia</h2>
+                  <h2>Abayat - Shelat - Hijabat - Naqabat &amp; Jalabia</h2>
                   <p>عبايات - شيلات - حجابات - نقابات و جلابيات</p>
-                  <span class="arabic-logo">(يوم العبايات)</span>
+                  <span class="arabic-logo">${arabicBranchName}</span>
               </div>
 
               <div class="contact-info right" style="text-align: right;">
-                  <p>جوال: ٥٠٢٩٤٠٤٦ | ٥٠٢٩٨٣٢١</p>
+                  <p>جوال: ${arabicBranchContact}</p>
                   <p>شارع الشافي، مقابل البنك التجاري</p>
                   <p>الريان الجديد، الدوحة - قطر</p>
+                  <p style="font-weight: 800; font-size: 10.5px; margin-top: 2px; color: #000000; letter-spacing: 0.5px;">${branchFawranCR}</p>
               </div>
           </header>
 
@@ -151,6 +156,10 @@ window.printOrderInvoice = async function (id, order) {
                   <div class="signature-line"></div>
               </div>
           </footer>
+
+          <div class="disclaimer-banner">
+              We are not responsible. If you do not take the abaya within 3 months | لسنا مسؤولين. إذا لم تستلمي العباية خلال ٣ أشهر
+          </div>
       </div>
     `;
 
@@ -174,25 +183,38 @@ window.printOrderInvoice = async function (id, order) {
                         width: 100%;
                         display: flex;
                         flex-direction: column;
-                        gap: 0;
+                        gap: 2mm;
+                    }
+                    .cut-divider {
+                        text-align: center;
+                        font-size: 10px;
+                        color: #64748b;
+                        margin: 1mm 0;
+                        user-select: none;
+                        font-family: monospace;
+                        font-weight: bold;
                     }
                     .invoice-container {
                         width: 100%;
+                        height: 138mm;
                         background: white;
-                        padding: 6px 10px;
-                        border: 1px solid #88929e;
-                        font-size: 9.5px;
+                        padding: 6px 12px;
+                        border: 1.5px solid #334155;
+                        font-size: 12.5px;
                         position: relative;
                         overflow: hidden;
                         box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
                     }
                     .watermark {
                         position: absolute;
                         top: 50%;
                         left: 50%;
-                        transform: translate(-50%, -50%) rotate(-35deg);
-                        font-size: 40px;
-                        font-weight: 900;
+                        transform: translate(-50%, -50%) rotate(-30deg);
+                        font-size: 64px;
+                        font-weight: 700;
                         color: rgba(0, 0, 0, 0.04);
                         z-index: 0;
                         white-space: nowrap;
@@ -202,67 +224,72 @@ window.printOrderInvoice = async function (id, order) {
                     .invoice-header {
                         position: relative; z-index: 1;
                         display: flex; justify-content: space-between; align-items: flex-start;
-                        border-bottom: 1px solid #94a3b8;
-                        padding-bottom: 3px; margin-bottom: 5px;
+                        border-bottom: 1.5px solid #475569;
+                        padding-bottom: 2px; margin-bottom: 3px;
                     }
-                    .contact-info p { margin: 0; line-height: 1.15; font-size: 8px; color: #475569; }
+                    .contact-info p { margin: 0; line-height: 1.35; font-size: 12px; font-weight: 500; color: #0f172a; }
                     .logo-name-section { text-align: center; }
-                    .logo-name-section h1 { font-size: 15px; color: #800000; margin: 0; font-weight: 700; line-height: 1.1; }
-                    .logo-name-section h2 { font-size: 8px; margin: 1px 0 0 0; font-weight: 700; color: #1e293b; line-height: 1.1; }
-                    .logo-name-section p { margin: 1px 0 0 0; font-size: 7.5px; font-weight: 500; color: #475569; }
+                    .logo-name-section h1 { font-size: 26px; color: #800000; margin: 0; font-weight: 700; line-height: 1.1; }
+                    .logo-name-section h2 { font-size: 13px; margin: 1px 0 0 0; font-weight: 600; color: #0f172a; line-height: 1.1; }
+                    .logo-name-section p { margin: 1px 0 0 0; font-size: 12px; font-weight: 500; color: #1e293b; }
                     .logo-name-section .arabic-logo {
-                        border: 1px solid #94a3b8; color: #475569;
-                        padding: 0 5px; display: inline-block; margin-top: 1px; border-radius: 3px; font-weight: 600; font-size: 7.5px;
+                        border: 1px solid #475569; color: #0f172a;
+                        padding: 1px 8px; display: inline-block; margin-top: 2px; border-radius: 3px; font-weight: 600; font-size: 12px;
                     }
-                    .invoice-details { margin-bottom: 5px; position: relative; z-index: 1; }
+                    .invoice-details { margin-bottom: 3px; position: relative; z-index: 1; }
                     .invoice-row { display: flex; justify-content: space-between; align-items: center; }
                     .invoice-row .no {
-                        font-size: 10.5px; font-weight: bold; color: #000000;
-                        padding: 1px 6px; border: 1px solid #94a3b8;
+                        font-size: 15px; font-weight: 700; color: #000000;
+                        padding: 2px 10px; border: 1.5px solid #334155;
                         background-color: #f8fafc; border-radius: 3px;
                     }
                     .invoice-row .type {
-                        background: white; color: #475569; border: 1px solid #88929e;
-                        padding: 1px 6px; font-size: 8.5px; font-weight: 600; border-radius: 3px;
+                        background: white; color: #0f172a; border: 1.5px solid #334155;
+                        padding: 2px 10px; font-size: 13px; font-weight: 600; border-radius: 3px;
                     }
                     .info-grid {
                         position: relative; z-index: 1;
                         display: grid; grid-template-columns: repeat(2, 1fr);
-                        gap: 2px 12px; font-size: 9px; margin-bottom: 5px;
+                        gap: 2px 14px; font-size: 12.5px; margin-bottom: 3px;
                     }
                     .info-item { display: flex; align-items: center; gap: 4px; }
-                    .info-item label { white-space: nowrap; font-weight: 700; color: #475569; min-width: 45px; font-size: 8.5px; }
-                    .info-item .arabic-label { font-weight: 600; color: #64748b; font-size: 8px; }
+                    .info-item label { white-space: nowrap; font-weight: 600; color: #0f172a; min-width: 62px; font-size: 13px; }
+                    .info-item .arabic-label { font-weight: 600; color: #1e293b; font-size: 12px; }
                     .info-item .thin-line {
-                        flex-grow: 1; border: none; border-bottom: 1px dashed #94a3b8;
-                        padding: 0 2px; background: transparent; font-family: inherit;
-                        font-size: 9px; color: #1e293b; font-weight: 600; height: 14px;
+                        flex-grow: 1; border: none; border-bottom: 1.5px dashed #475569;
+                        padding: 0 4px; background: transparent; font-family: inherit;
+                        font-size: 13.5px; color: #000000; font-weight: 600; height: 20px;
                     }
                     .info-item.full-width { grid-column: span 2; }
-                    .item-table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 5px; }
+                    .item-table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 3px; }
                     .item-table thead th {
                         background-color: #f1f5f9; color: #000000;
-                        padding: 2px 2px; text-align: center; font-weight: 700;
-                        border: 1px solid #88929e; font-size: 8px; white-space: nowrap;
+                        padding: 4px 3px; text-align: center; font-weight: 700;
+                        border: 1.5px solid #334155; font-size: 12.5px; white-space: nowrap;
                     }
-                    .item-table td { border: 1px solid #88929e; height: 15px; padding: 0 3px; vertical-align: middle; color: #000000; font-size: 8.5px; }
+                    .item-table td { border: 1.5px solid #334155; height: 22px; padding: 1px 6px; vertical-align: middle; color: #000000; font-size: 12.5px; font-weight: 500; }
                     .total-row .total-label-cell, .total-row .total-amount-cell {
-                        background-color: white; text-align: right; font-weight: 600; padding-right: 6px; border-color: #88929e; color: #475569; font-size: 8.5px;
+                        background-color: white; text-align: right; font-weight: 600; padding-right: 8px; border-color: #334155; color: #0f172a; font-size: 12.5px;
                     }
-                    .total-row.final-total .total-label-cell { background-color: #f8fafc; color: #0f172a; font-weight: 700; }
-                    .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #0f172a; font-size: 9.5px; font-weight: 700; }
-                    .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 8px; }
+                    .total-row.final-total .total-label-cell { background-color: #f8fafc; color: #000000; font-weight: 700; font-size: 13.5px; }
+                    .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #000000; font-size: 16px; font-weight: 700; }
+                    .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 3px; }
                     .invoice-footer .signature { width: 38%; text-align: center; }
-                    .invoice-footer .signature-line { border-bottom: 1px solid #94a3b8; height: 1px; margin-top: 10px; }
-                    .invoice-footer p { font-weight: 600; color: #64748b; font-size: 8px; margin: 0; }
+                    .invoice-footer .signature-line { border-bottom: 1px solid #475569; height: 1px; margin-top: 14px; }
+                    .invoice-footer p { font-weight: 600; color: #1e293b; font-size: 11.5px; margin: 0; }
+                    .disclaimer-banner {
+                        position: relative; z-index: 1; text-align: center; margin-top: 3px;
+                        font-size: 10.5px; font-weight: 500; color: #1e293b;
+                        border-top: 1px solid #94a3b8; padding-top: 2px;
+                    }
 
                     @media print {
                         @page {
                             size: A4 portrait;
-                            margin: 0;
+                            margin: 3mm 4mm;
                         }
-                        body { background-color: white !important; padding: 6mm 8mm !important; margin: 0 !important; }
-                        .invoice-container { max-height: 135mm !important; page-break-inside: avoid !important; }
+                        body { background-color: white !important; padding: 0 !important; margin: 0 !important; }
+                        .invoice-container { height: 138mm !important; page-break-inside: avoid !important; }
                         .item-table thead th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
                         .total-row.final-total td { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; }
                         .watermark { color: rgba(0, 0, 0, 0.04) !important; -webkit-print-color-adjust: exact; }
@@ -331,9 +358,13 @@ window.printSaleInvoice = async function (id, sale) {
       return isNaN(date.getTime()) ? d : date.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
     };
 
-    const branchName = GetBranchName();
-    const branchContact = GetBranchContact();
-    const branchContactAlt = GetBranchContactAlt();
+    const targetBranchId = sale.branch_id || (sale.branch && sale.branch.id) || (window.globalState.user && window.globalState.user.branch_id) || 1;
+    const branchName = GetBranchName(targetBranchId);
+    const branchContact = GetBranchContact(targetBranchId);
+    const branchContactAlt = GetBranchContactAlt(targetBranchId);
+    const arabicBranchName = GetBranchArabicName(targetBranchId);
+    const arabicBranchContact = GetBranchArabicContact(targetBranchId);
+    const branchFawranCR = GetBranchFawranCR(targetBranchId);
 
     const itemsRows = sale.items
       .map((item, index) => {
@@ -375,15 +406,16 @@ window.printSaleInvoice = async function (id, sale) {
 
               <div class="logo-name-section">
                   <h1>${branchName}</h1>
-                  <h2>Abayat - Shelat - Hijabat - Niqabat &amp; Jalabia</h2>
+                  <h2>Abayat - Shelat - Hijabat - Naqabat &amp; Jalabia</h2>
                   <p>عبايات - شيلات - حجابات - نقابات و جلابيات</p>
-                  <span class="arabic-logo">(يوم العبايات)</span>
+                  <span class="arabic-logo">${arabicBranchName}</span>
               </div>
 
               <div class="contact-info right" style="text-align: right;">
-                  <p>جوال: ٥٠٢٩٤٠٤٦ | ٥٠٢٩٨٣٢١</p>
+                  <p>جوال: ${arabicBranchContact}</p>
                   <p>شارع الشافي، مقابل البنك التجاري</p>
                   <p>الريان الجديد، الدوحة - قطر</p>
+                  <p style="font-weight: 800; font-size: 10.5px; margin-top: 2px; color: #000000; letter-spacing: 0.5px;">${branchFawranCR}</p>
               </div>
           </header>
 
@@ -456,6 +488,10 @@ window.printSaleInvoice = async function (id, sale) {
                   <div class="signature-line"></div>
               </div>
           </footer>
+
+          <div class="disclaimer-banner">
+              We are not responsible. If you do not take the abaya within 3 months | لسنا مسؤولين. إذا لم تستلمي العباية خلال ٣ أشهر
+          </div>
       </div>
     `;
 
@@ -479,25 +515,38 @@ window.printSaleInvoice = async function (id, sale) {
                         width: 100%;
                         display: flex;
                         flex-direction: column;
-                        gap: 0;
+                        gap: 2mm;
+                    }
+                    .cut-divider {
+                        text-align: center;
+                        font-size: 10px;
+                        color: #64748b;
+                        margin: 1mm 0;
+                        user-select: none;
+                        font-family: monospace;
+                        font-weight: bold;
                     }
                     .invoice-container {
                         width: 100%;
+                        height: 138mm;
                         background: white;
-                        padding: 6px 10px;
-                        border: 1px solid #88929e;
-                        font-size: 9.5px;
+                        padding: 6px 12px;
+                        border: 1.5px solid #334155;
+                        font-size: 12.5px;
                         position: relative;
                         overflow: hidden;
                         box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
                     }
                     .watermark {
                         position: absolute;
                         top: 50%;
                         left: 50%;
-                        transform: translate(-50%, -50%) rotate(-35deg);
-                        font-size: 40px;
-                        font-weight: 900;
+                        transform: translate(-50%, -50%) rotate(-30deg);
+                        font-size: 64px;
+                        font-weight: 700;
                         color: rgba(0, 0, 0, 0.04);
                         z-index: 0;
                         white-space: nowrap;
@@ -507,67 +556,76 @@ window.printSaleInvoice = async function (id, sale) {
                     .invoice-header {
                         position: relative; z-index: 1;
                         display: flex; justify-content: space-between; align-items: flex-start;
-                        border-bottom: 1px solid #94a3b8;
-                        padding-bottom: 3px; margin-bottom: 5px;
+                        border-bottom: 1.5px solid #475569;
+                        padding-bottom: 2px; margin-bottom: 3px;
                     }
-                    .contact-info p { margin: 0; line-height: 1.15; font-size: 8px; color: #475569; }
+                    .contact-info p { margin: 0; line-height: 1.35; font-size: 12px; font-weight: 500; color: #0f172a; }
                     .logo-name-section { text-align: center; }
-                    .logo-name-section h1 { font-size: 15px; color: #800000; margin: 0; font-weight: 700; line-height: 1.1; }
-                    .logo-name-section h2 { font-size: 8px; margin: 1px 0 0 0; font-weight: 700; color: #1e293b; line-height: 1.1; }
-                    .logo-name-section p { margin: 1px 0 0 0; font-size: 7.5px; font-weight: 500; color: #475569; }
+                    .logo-name-section h1 { font-size: 26px; color: #800000; margin: 0; font-weight: 700; line-height: 1.1; }
+                    .logo-name-section h2 { font-size: 13px; margin: 1px 0 0 0; font-weight: 600; color: #0f172a; line-height: 1.1; }
+                    .logo-name-section p { margin: 1px 0 0 0; font-size: 12px; font-weight: 500; color: #1e293b; }
                     .logo-name-section .arabic-logo {
-                        border: 1px solid #94a3b8; color: #475569;
-                        padding: 0 5px; display: inline-block; margin-top: 1px; border-radius: 3px; font-weight: 600; font-size: 7.5px;
+                        border: 1px solid #475569; color: #0f172a;
+                        padding: 1px 8px; display: inline-block; margin-top: 2px; border-radius: 3px; font-weight: 600; font-size: 12px;
                     }
-                    .invoice-details { margin-bottom: 5px; position: relative; z-index: 1; }
+                    .invoice-details { margin-bottom: 3px; position: relative; z-index: 1; }
                     .invoice-row { display: flex; justify-content: space-between; align-items: center; }
                     .invoice-row .no {
-                        font-size: 10.5px; font-weight: bold; color: #000000;
-                        padding: 1px 6px; border: 1px solid #94a3b8;
+                        font-size: 15px; font-weight: 700; color: #000000;
+                        padding: 2px 10px; border: 1.5px solid #334155;
                         background-color: #f8fafc; border-radius: 3px;
                     }
                     .invoice-row .type {
-                        background: white; color: #475569; border: 1px solid #88929e;
-                        padding: 1px 6px; font-size: 8.5px; font-weight: 600; border-radius: 3px;
+                        background: white; color: #0f172a; border: 1.5px solid #334155;
+                        padding: 2px 10px; font-size: 13px; font-weight: 600; border-radius: 3px;
                     }
                     .info-grid {
                         position: relative; z-index: 1;
                         display: grid; grid-template-columns: repeat(2, 1fr);
-                        gap: 2px 12px; font-size: 9px; margin-bottom: 5px;
+                        gap: 2px 14px; font-size: 12.5px; margin-bottom: 3px;
                     }
                     .info-item { display: flex; align-items: center; gap: 4px; }
-                    .info-item label { white-space: nowrap; font-weight: 700; color: #475569; min-width: 45px; font-size: 8.5px; }
-                    .info-item .arabic-label { font-weight: 600; color: #64748b; font-size: 8px; }
+                    .info-item label { white-space: nowrap; font-weight: 600; color: #0f172a; min-width: 62px; font-size: 13px; }
+                    .info-item .arabic-label { font-weight: 600; color: #1e293b; font-size: 12px; }
                     .info-item .thin-line {
-                        flex-grow: 1; border: none; border-bottom: 1px dashed #94a3b8;
-                        padding: 0 2px; background: transparent; font-family: inherit;
-                        font-size: 9px; color: #1e293b; font-weight: 600; height: 14px;
+                        flex-grow: 1; border: none; border-bottom: 1.5px dashed #475569;
+                        padding: 0 4px; background: transparent; font-family: inherit;
+                        font-size: 13.5px; color: #000000; font-weight: 600; height: 20px;
                     }
                     .info-item.full-width { grid-column: span 2; }
-                    .item-table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 5px; }
+                    .item-table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 3px; }
                     .item-table thead th {
                         background-color: #f1f5f9; color: #000000;
-                        padding: 2px 2px; text-align: center; font-weight: 700;
-                        border: 1px solid #88929e; font-size: 8px; white-space: nowrap;
+                        padding: 4px 3px; text-align: center; font-weight: 700;
+                        border: 1.5px solid #334155; font-size: 12.5px; white-space: nowrap;
                     }
-                    .item-table td { border: 1px solid #88929e; height: 15px; padding: 0 3px; vertical-align: middle; color: #000000; font-size: 8.5px; }
+                    .item-table td { border: 1.5px solid #334155; height: 22px; padding: 1px 6px; vertical-align: middle; color: #000000; font-size: 12.5px; font-weight: 500; }
                     .total-row .total-label-cell, .total-row .total-amount-cell {
-                        background-color: white; text-align: right; font-weight: 600; padding-right: 6px; border-color: #88929e; color: #475569; font-size: 8.5px;
+                        background-color: white; text-align: right; font-weight: 600; padding-right: 8px; border-color: #334155; color: #0f172a; font-size: 12.5px;
                     }
-                    .total-row.final-total .total-label-cell { background-color: #f8fafc; color: #0f172a; font-weight: 700; }
-                    .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #0f172a; font-size: 9.5px; font-weight: 700; }
-                    .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 8px; }
+                    .total-row.final-total .total-label-cell { background-color: #f8fafc; color: #000000; font-weight: 700; font-size: 13.5px; }
+                    .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #000000; font-size: 16px; font-weight: 700; }
+                    .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 3px; }
                     .invoice-footer .signature { width: 38%; text-align: center; }
-                    .invoice-footer .signature-line { border-bottom: 1px solid #94a3b8; height: 1px; margin-top: 10px; }
-                    .invoice-footer p { font-weight: 600; color: #64748b; font-size: 8px; margin: 0; }
+                    .invoice-footer .signature-line { border-bottom: 1px solid #475569; height: 1px; margin-top: 14px; }
+                    .invoice-footer p { font-weight: 600; color: #1e293b; font-size: 11.5px; margin: 0; }
+                    .disclaimer-banner {
+                        position: relative; z-index: 1; text-align: center; margin-top: 3px;
+                        font-size: 10.5px; font-weight: 500; color: #1e293b;
+                        border-top: 1px solid #94a3b8; padding-top: 2px;
+                    }
 
                     @media print {
                         @page {
                             size: A4 portrait;
-                            margin: 0;
+                            margin: 3mm 4mm;
                         }
-                        body { background-color: white !important; padding: 6mm 8mm !important; margin: 0 !important; }
-                        .invoice-container { max-height: 135mm !important; page-break-inside: avoid !important; }
+                        body { background-color: white !important; padding: 0 !important; margin: 0 !important; }
+                        .invoice-container { height: 138mm !important; page-break-inside: avoid !important; }
+                        .item-table thead th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
+                        .total-row.final-total td { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; }
+                        .watermark { color: rgba(0, 0, 0, 0.04) !important; -webkit-print-color-adjust: exact; }
+                    }
                         .item-table thead th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
                         .total-row.final-total td { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; }
                         .watermark { color: rgba(0, 0, 0, 0.04) !important; -webkit-print-color-adjust: exact; }
@@ -895,6 +953,11 @@ window.sendWhatsAppInvoice = async function (type, itemOrId) {
       cleanMobile = cleanCountryCode + cleanMobile;
     }
 
+    const targetBranchId = item.branch_id || (item.branch && item.branch.id) || (window.globalState.user && window.globalState.user.branch_id) || 1;
+    const branchName = GetBranchName(targetBranchId);
+    const branchContact = GetBranchContact(targetBranchId);
+    const companyAddress = "Al Shafee St, Opp. Commercial Bank, New Rayyan, Doha - Qatar";
+
     const origin = window.location.origin;
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     const invoicePath = isLocalhost ? "/frontend/public_invoice.html" : "/public_invoice.html";
@@ -903,14 +966,15 @@ window.sendWhatsAppInvoice = async function (type, itemOrId) {
     const invoiceUrl = `${origin}${invoicePath}?type=${type}&memo_no=${encodeURIComponent(cleanMemoNo)}`;
     const total = Number(item.total_amount || 0).toFixed(2);
     
-    const msg = `Dear Valued Client,
+    const msg = `*Dear valued customer*
+Thank you for shopping at *${branchName}*! Your invoice is ready.
 
-Thank you for your business! Here is your official invoice details:
+*View & Download Invoice:*
+${invoiceUrl}
 
-• *Invoice No:* #${memoNo}
-
-*Click link to view & download official invoice:*
-${invoiceUrl}`;
+*${branchName}*
+*Contact:* ${branchContact}
+*Address:* ${companyAddress}`;
 
     const waUrl = `https://wa.me/${cleanMobile}?text=${encodeURIComponent(msg)}`;
 

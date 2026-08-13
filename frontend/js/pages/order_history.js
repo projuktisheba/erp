@@ -250,7 +250,9 @@ function renderOrders() {
       const canDeliver = o.status === "pending" || o.status === "partial";
       const canCancel = hasAccess("chairman") && o.status !== "cancelled";
       const canUndoCancel = hasAccess("chairman") && o.status === "cancelled";
-      const canEdit = hasAccess("chairman") && o.status === "pending";
+      const isChairmanUser = hasAccess("chairman");
+      const isManagerUser = hasAccess("manager");
+      const canEdit = (isChairmanUser && o.status !== "cancelled") || (isManagerUser && o.status === "pending");
 
       return `
       <tr class="group border-b border-slate-100 last:border-0 hover:bg-slate-50/80 transition-all duration-200">
@@ -651,8 +653,16 @@ async function viewOrder(id) {
 }
 
 window.editOrder = function (id) {
-  if (!hasAccess("chairman")) {
-    showModalConfirm("error", "Access Denied", "Only Chairman can edit orders.", "Ok", () => {});
+  const order = (orderHistoryState.orders || []).find((o) => o.id === id);
+  const isChairmanUser = hasAccess("chairman");
+  const isManagerUser = hasAccess("manager");
+
+  if (!isChairmanUser && !isManagerUser) {
+    showModalConfirm("error", "Access Denied", "You do not have permission to edit orders.", "Ok", () => {});
+    return;
+  }
+  if (isManagerUser && order && order.status !== "pending") {
+    showModalConfirm("error", "Access Denied", "Invoice cannot be modified from Manager site after partial status.", "Ok", () => {});
     return;
   }
   localStorage.setItem("orderID", id);

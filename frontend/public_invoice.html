@@ -47,14 +47,14 @@
 
         /* HALF A4 HEIGHT INVOICE CONTAINER */
         .invoice-container {
-            width: 680px;
+            width: 760px;
             max-width: 100%;
             background: white;
             padding: 10px 14px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            border: 1px solid #cbd5e1;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border: 1.5px solid #334155;
             border-radius: 6px;
-            font-size: 9.5px;
+            font-size: 12.5px;
             position: relative;
             overflow: hidden;
             box-sizing: border-box;
@@ -65,10 +65,10 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%) rotate(-35deg);
-            font-size: 40px;
-            font-weight: 900;
-            color: rgba(148, 163, 184, 0.07);
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 64px;
+            font-weight: 700;
+            color: rgba(0, 0, 0, 0.04);
             z-index: 0;
             white-space: nowrap;
             pointer-events: none;
@@ -80,95 +80,100 @@
         .invoice-header {
             position: relative; z-index: 1;
             display: flex; justify-content: space-between; align-items: flex-start;
-            border-bottom: 1px solid #94a3b8;
-            padding-bottom: 3px; margin-bottom: 5px;
+            border-bottom: 1.5px solid #475569;
+            padding-bottom: 2px; margin-bottom: 3px;
         }
-        .contact-info p { margin: 0; line-height: 1.15; font-size: 8px; color: #475569; }
+        .contact-info p { margin: 0; line-height: 1.35; font-size: 12px; font-weight: 500; color: #0f172a; }
 
         .logo-name-section { text-align: center; }
-        .logo-name-section h1 { font-size: 15px; color: #800000; margin: 0; font-weight: 700; line-height: 1.1; }
-        .logo-name-section h2 { font-size: 8px; margin: 1px 0 0 0; font-weight: 700; color: #1e293b; line-height: 1.1; }
-        .logo-name-section p { margin: 1px 0 0 0; font-size: 7.5px; font-weight: 500; color: #475569; }
+        .logo-name-section h1 { font-size: 26px; color: #800000; margin: 0; font-weight: 700; line-height: 1.1; }
+        .logo-name-section h2 { font-size: 13px; margin: 1px 0 0 0; font-weight: 600; color: #0f172a; line-height: 1.1; }
+        .logo-name-section p { margin: 1px 0 0 0; font-size: 12px; font-weight: 500; color: #1e293b; }
         .logo-name-section .arabic-logo {
-            border: 1px solid #94a3b8; color: #475569;
-            padding: 0 5px; display: inline-block; margin-top: 1px; border-radius: 3px; font-weight: 600; font-size: 7.5px;
+            border: 1px solid #475569; color: #0f172a;
+            padding: 1px 8px; display: inline-block; margin-top: 2px; border-radius: 3px; font-weight: 600; font-size: 12px;
         }
 
         /* Details Row */
-        .invoice-details { margin-bottom: 5px; position: relative; z-index: 1; }
+        .invoice-details { margin-bottom: 3px; position: relative; z-index: 1; }
         .invoice-row { display: flex; justify-content: space-between; align-items: center; }
 
         .invoice-row .no {
-            font-size: 10.5px; font-weight: bold; color: #000000;
-            padding: 1px 6px; border: 1px solid #94a3b8;
+            font-size: 15px; font-weight: 700; color: #000000;
+            padding: 2px 10px; border: 1.5px solid #334155;
             background-color: #f8fafc; border-radius: 3px;
         }
         .invoice-row .type {
-            background: white; color: #475569; border: 1px solid #88929e;
-            padding: 1px 6px; font-size: 8.5px; font-weight: 600; border-radius: 3px;
+            background: white; color: #0f172a; border: 1.5px solid #334155;
+            padding: 2px 10px; font-size: 13px; font-weight: 600; border-radius: 3px;
         }
 
         .status-badge-cancelled {
-            background-color: #fee2e2; color: #dc2626; border: 1px solid #fca5a5;
-            padding: 1px 6px; border-radius: 3px; font-weight: 700; font-size: 8.5px;
+            background-color: #fee2e2; color: #dc2626; border: 1.5px solid #fca5a5;
+            padding: 2px 10px; border-radius: 3px; font-weight: 600; font-size: 12px;
         }
 
         /* Info Grid */
         .info-grid {
             position: relative; z-index: 1;
             display: grid; grid-template-columns: repeat(2, 1fr);
-            gap: 2px 12px; font-size: 9px; margin-bottom: 5px;
+            gap: 2px 14px; font-size: 12.5px; margin-bottom: 3px;
         }
         .info-item { display: flex; align-items: center; gap: 4px; }
-        .info-item label { white-space: nowrap; font-weight: 700; color: #475569; min-width: 45px; font-size: 8.5px; }
-        .info-item .arabic-label { font-weight: 600; color: #64748b; font-size: 8px; }
+        .info-item label { white-space: nowrap; font-weight: 600; color: #0f172a; min-width: 62px; font-size: 13px; }
+        .info-item .arabic-label { font-weight: 600; color: #1e293b; font-size: 12px; }
         .info-item .thin-line {
-            flex-grow: 1; border: none; border-bottom: 1px dashed #94a3b8;
-            padding: 0 2px; background: transparent; font-family: inherit;
-            font-size: 9px; color: #1e293b; font-weight: 600; height: 14px;
+            flex-grow: 1; border: none; border-bottom: 1.5px dashed #475569;
+            padding: 0 4px; background: transparent; font-family: inherit;
+            font-size: 13.5px; color: #000000; font-weight: 600; height: 20px;
         }
         .info-item.full-width { grid-column: span 2; }
 
         /* Table */
-        .item-table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 5px; }
+        .item-table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 3px; }
         .item-table thead th {
             background-color: #f1f5f9; color: #000000;
-            padding: 2px 2px; text-align: center; font-weight: 700;
-            border: 1px solid #88929e; font-size: 8px; white-space: nowrap;
+            padding: 4px 3px; text-align: center; font-weight: 700;
+            border: 1.5px solid #334155; font-size: 12.5px; white-space: nowrap;
         }
-        .item-table td { border: 1px solid #88929e; height: 15px; padding: 0 3px; vertical-align: middle; color: #000000; font-size: 8.5px; }
+        .item-table td { border: 1.5px solid #334155; height: 22px; padding: 1px 6px; vertical-align: middle; color: #000000; font-size: 12.5px; font-weight: 500; }
 
         /* Totals */
         .total-row .total-label-cell, .total-row .total-amount-cell {
-            background-color: white; text-align: right; font-weight: 600; padding-right: 6px; border-color: #88929e; color: #475569; font-size: 8.5px;
+            background-color: white; text-align: right; font-weight: 600; padding-right: 8px; border-color: #334155; color: #0f172a; font-size: 12.5px;
         }
-        .total-row.final-total .total-label-cell { background-color: #f8fafc; color: #0f172a; font-weight: 700; }
-        .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #0f172a; font-size: 9.5px; font-weight: 700; }
+        .total-row.final-total .total-label-cell { background-color: #f8fafc; color: #000000; font-weight: 700; font-size: 13.5px; }
+        .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #000000; font-size: 16px; font-weight: 700; }
 
         /* Footer Signatures */
-        .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 8px; }
+        .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 3px; }
         .invoice-footer .signature { width: 38%; text-align: center; }
-        .invoice-footer .signature-line { border-bottom: 1px solid #94a3b8; height: 1px; margin-top: 10px; }
-        .invoice-footer p { font-weight: 600; color: #64748b; font-size: 8px; margin: 0; }
+        .invoice-footer .signature-line { border-bottom: 1px solid #475569; height: 1px; margin-top: 14px; }
+        .invoice-footer p { font-weight: 600; color: #1e293b; font-size: 11.5px; margin: 0; }
+        .disclaimer-banner {
+            position: relative; z-index: 1; text-align: center; margin-top: 3px;
+            font-size: 10.5px; font-weight: 500; color: #1e293b;
+            border-top: 1px solid #94a3b8; padding-top: 2px;
+        }
 
         /* PRINT STYLES - SINGLE INVOICE TAKING TOP HALF OF A4 PAGE */
         @media print {
             @page {
                 size: A4 portrait;
-                margin: 0; /* Hides browser headers (URL/title) and footers (date/pages) by default */
+                margin: 3mm 4mm;
             }
             body {
                 background-color: white !important;
-                padding: 6mm 8mm !important;
+                padding: 0 !important;
                 margin: 0 !important;
             }
             .no-print-bar { display: none !important; }
             .invoice-container {
                 width: 100% !important;
-                max-height: 135mm !important;
+                height: 138mm !important;
                 box-shadow: none !important;
-                border: 1px solid #88929e !important;
-                padding: 6px 10px !important;
+                border: 1.5px solid #334155 !important;
+                padding: 6px 12px !important;
                 border-radius: 0 !important;
                 page-break-inside: avoid !important;
             }
@@ -273,9 +278,25 @@
                 const customer = item.customer || item.Customer || {};
                 const items = item.items || [];
 
-                const branchName = branch.name || "YOM AL ABAYAT";
-                const branchContact = branch.mobile || "50294046";
-                const branchContactAlt = "50298321";
+                const targetBranchId = branch.id || item.branch_id || (item.branch && item.branch.id) || 1;
+
+                const BRANCH_NAMES = { 1: "AL FANAR ABAYAT", 2: "DIVA ABAYAT", 3: "EID AL ABAYAT" };
+                const BRANCH_CONTACTS = { 1: "+974 55016898", 2: "+974 33079655", 3: "+974 50294046" };
+                const BRANCH_CONTACTS_ALT = { 1: "+974 50036274", 2: "+974 51051407", 3: "+974 50298321" };
+                const BRANCH_ARABIC_NAMES = { 1: "(الفنار للعبايات)", 2: "(ديفا عبايات)", 3: "(عيد العبايات)" };
+                const BRANCH_ARABIC_CONTACTS = {
+                    1: "٥٥٠١٦٨٩٨ ٩٧٤+ | ٥٠٠٣٦٢٧٤ ٩٧٤+",
+                    2: "٣٣٠٧٩٥٥ ٩٧٤+ | ٥١٠٥١٤٠٧ ٩٧٤+",
+                    3: "٥٠٢٩٤٠٤٦ ٩٧٤+ | ٥٠٢٩٨٣٢١ ٩٧٤+"
+                };
+                const BRANCH_FAWRAN_CR = { 1: "FAWRAN: CR-119412", 2: "FAWRAN: CR-119419", 3: "FAWRAN: CR-207986" };
+
+                const branchName = branch.name || BRANCH_NAMES[targetBranchId] || "AL FANAR ABAYAT";
+                const branchContact = branch.mobile || BRANCH_CONTACTS[targetBranchId] || "+974 55016898";
+                const branchContactAlt = BRANCH_CONTACTS_ALT[targetBranchId] || "+974 50036274";
+                const arabicBranchName = BRANCH_ARABIC_NAMES[targetBranchId] || "(الفنار للعبايات)";
+                const arabicBranchContact = BRANCH_ARABIC_CONTACTS[targetBranchId] || "٥٥٠١٦٨٩٨ ٩٧٤+ | ٥٠٠٣٦٢٧٤ ٩٧٤+";
+                const branchFawranCR = BRANCH_FAWRAN_CR[targetBranchId] || "FAWRAN: CR-119412";
 
                 const itemsRows = items.map((it, idx) => {
                     const unitPrice = it.quantity > 0 ? it.subtotal / it.quantity : 0;
@@ -317,15 +338,16 @@
 
                         <div class="logo-name-section">
                             <h1>${branchName}</h1>
-                            <h2>Abayat - Shelat - Hijabat - Niqabat &amp; Jalabia</h2>
+                            <h2>Abayat - Shelat - Hijabat - Naqabat &amp; Jalabia</h2>
                             <p>عبايات - شيلات - حجابات - نقابات و جلابيات</p>
-                            <span class="arabic-logo">(يوم العبايات)</span>
+                            <span class="arabic-logo">${arabicBranchName}</span>
                         </div>
 
                         <div class="contact-info right" style="text-align: right;">
-                            <p>جوال: ٥٠٢٩٤٠٤٦ | ٥٠٢٩٨٣٢١</p>
+                            <p>جوال: ${arabicBranchContact}</p>
                             <p>شارع الشافي، مقابل البنك التجاري</p>
                             <p>الريان الجديد، الدوحة - قطر</p>
+                            <p style="font-weight: 800; font-size: 10.5px; margin-top: 2px; color: #000000; letter-spacing: 0.5px;">${branchFawranCR}</p>
                         </div>
                     </header>
 

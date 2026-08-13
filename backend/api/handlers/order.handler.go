@@ -86,10 +86,19 @@ func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, ok := GetUserFromContext(r)
-	if !ok || user == nil || strings.ToLower(user.Role) != "chairman" {
+	if !ok || user == nil {
 		utils.WriteJSON(w, http.StatusForbidden, models.Response{
 			Error:   true,
-			Message: "Only Chairman can edit an order",
+			Message: "Unauthorized",
+		})
+		return
+	}
+
+	role := strings.ToLower(user.Role)
+	if role != "chairman" && role != "super_admin" && role != "manager" {
+		utils.WriteJSON(w, http.StatusForbidden, models.Response{
+			Error:   true,
+			Message: "Only Chairman or Manager can edit an order",
 		})
 		return
 	}
@@ -114,6 +123,18 @@ func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 		utils.ServerError(w, err)
 		return
 	}
+
+	if role == "manager" {
+		oldStatus := strings.ToLower(oldOrderDetails.Status)
+		if oldStatus != "pending" {
+			utils.WriteJSON(w, http.StatusForbidden, models.Response{
+				Error:   true,
+				Message: "Invoice cannot be modified from Manager site after partial status",
+			})
+			return
+		}
+	}
+
 	err = o.DB.UpdateOrder(r.Context(), &orderDetails, oldOrderDetails)
 	if err != nil {
 		o.errorLog.Println("UpdateOrder_DB:", err)
