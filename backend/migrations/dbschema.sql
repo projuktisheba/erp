@@ -101,6 +101,8 @@ VALUES ('EID AL ABAYAT', 'manager', 'active', '003', 'eidal', '$2a$12$fY1Ixpvx/R
 CREATE TABLE customers (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    country VARCHAR(100) NOT NULL DEFAULT 'Qatar',
+    country_code VARCHAR(10) NOT NULL DEFAULT '974',
     mobile VARCHAR(20) NOT NULL,
     address TEXT NOT NULL DEFAULT '',
     tax_id VARCHAR(100) DEFAULT '',

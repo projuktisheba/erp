@@ -247,13 +247,14 @@ function renderSales() {
         };
       else if (o.status === "cancelled")
         st = {
-          css: "bg-rose-50 text-rose-700 border-rose-200",
-          dot: "bg-rose-500",
+          css: "bg-red-100 text-red-700 border-red-300 font-bold shadow-sm",
+          dot: "bg-red-600",
         };
 
       const canDeliver = o.status === "pending" || o.status === "partial";
-      // const canEdit = o.status === "pending";
-      const canEdit = true;
+      const canEdit = o.status !== "cancelled";
+      const canCancel = hasAccess("chairman") && o.status !== "cancelled";
+      const canUndoCancel = hasAccess("chairman") && o.status === "cancelled";
 
       return `
       <tr class="group border-b border-slate-100 last:border-0 hover:bg-slate-50/80 transition-all duration-200">
@@ -311,20 +312,81 @@ function renderSales() {
         </td>
 
         <td class="px-6 py-4 whitespace-nowrap text-center">
-          <div class="flex items-center justify-center space-x-3 opacity-80 group-hover:opacity-100 transition-opacity">
-            <button onclick="viewSale(${
-              o.id
-            })" class="p-2 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200 hover:shadow-sm" title="View">
-               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+          <div class="relative flex justify-center items-center">
+            <button onclick="toggleActionMenu(event, 'sale-menu-${o.id}')"
+              class="action-menu-btn inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100/90 text-slate-700 hover:bg-indigo-600 hover:text-white transition-all duration-200 border border-slate-300/80 shadow-xs hover:shadow-md hover:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 group active:scale-95"
+              title="Actions">
+              <i class="ph ph-dots-three-vertical text-xl font-bold text-slate-700 group-hover:text-white transition-colors"></i>
             </button>
-            ${
-              canEdit
-                ? `
-            <button onclick="editSale(${o.id})" class="p-2 text-slate-400 hover:text-amber-600 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200 hover:shadow-sm" title="Edit">
-               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-            </button>`
-                : `<div class="w-9"></div>`
-            }
+
+            <div id="sale-menu-${o.id}" class="action-menu-dropdown hidden absolute right-0 top-full mt-1.5 z-[999] w-56 p-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl shadow-slate-900/15 text-left transition-all duration-200" style="background-color: #ffffff !important; opacity: 1 !important;">
+              <div class="space-y-0.5">
+                <button onclick="viewSale(${o.id}); closeAllActionMenus();"
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-indigo-50/70 hover:text-indigo-600 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center text-indigo-600 transition-colors shrink-0">
+                    <i class="ph ph-eye text-base"></i>
+                  </span>
+                  <span class="truncate">View Details</span>
+                </button>
+
+                ${
+                  canEdit
+                    ? `
+                <button onclick="editSale(${o.id}); closeAllActionMenus();"
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-amber-50/70 hover:text-amber-600 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center text-amber-600 transition-colors shrink-0">
+                    <i class="ph ph-pencil-line text-base"></i>
+                  </span>
+                  <span class="truncate">Edit Sale</span>
+                </button>`
+                    : ""
+                }
+              </div>
+
+              <div class="my-1 border-t border-slate-100 pt-1 space-y-0.5">
+                <button onclick="printSaleById(${o.id}); closeAllActionMenus();"
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-colors shrink-0">
+                    <i class="ph ph-printer text-base"></i>
+                  </span>
+                  <span class="truncate">Print Invoice</span>
+                </button>
+
+                <button onclick="sendWhatsAppInvoice('sale', ${o.id}); closeAllActionMenus();"
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-700 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-emerald-100/80 group-hover:bg-emerald-200/80 flex items-center justify-center text-emerald-700 transition-colors shrink-0">
+                    <i class="ph ph-whatsapp-logo text-base"></i>
+                  </span>
+                  <span class="truncate">WhatsApp Invoice</span>
+                </button>
+              </div>
+
+              ${
+                canCancel
+                  ? `
+              <div class="my-1 border-t border-slate-100 pt-1">
+                <button onclick='closeAllActionMenus(); showModalConfirm("warning", "Cancel Sale #${o.memo_no || o.id}?", "Are you sure you want to cancel Sale Memo #${o.memo_no || o.id}? Status will be set to Cancelled.", "Yes, Cancel Sale", ()=> cancelSale(${o.id}, "${o.memo_no || o.id}"), "No, Keep Sale");'
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-red-50 group-hover:bg-red-100 flex items-center justify-center text-red-600 transition-colors shrink-0">
+                    <i class="ph ph-x-circle text-base"></i>
+                  </span>
+                  <span class="truncate">Cancel Sale</span>
+                </button>
+              </div>`
+                  : canUndoCancel
+                  ? `
+              <div class="my-1 border-t border-slate-100 pt-1">
+                <button onclick='closeAllActionMenus(); showModalConfirm("warning", "Undo Cancellation #${o.memo_no || o.id}?", "Are you sure you want to restore Sale Memo #${o.memo_no || o.id} back to Pending status?", "Yes, Restore Sale", ()=> undoCancelSale(${o.id}, "${o.memo_no || o.id}"), "No, Keep Cancelled");'
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-amber-700 hover:bg-amber-50 hover:text-amber-800 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-amber-100/80 group-hover:bg-amber-200/80 flex items-center justify-center text-amber-700 transition-colors shrink-0">
+                    <i class="ph ph-arrow-counter-clockwise text-base"></i>
+                  </span>
+                  <span class="truncate">Undo Cancellation</span>
+                </button>
+              </div>`
+                  : ""
+              }
+            </div>
           </div>
         </td>
       </tr>`;
@@ -333,6 +395,62 @@ function renderSales() {
 }
 
 // --- GLOBAL ACTIONS ---
+// These need to be on the window object so the HTML 'onclick' attributes can find them
+
+window.cancelSale = async function (id, memoNo) {
+  const displayMemo = memoNo ? `#${memoNo}` : `ID #${id}`;
+  try {
+    const url = `${window.globalState.apiBase}/products/sales/cancel/${id}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: window.getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || "Could not cancel sale");
+    }
+
+    showModalConfirm(
+      "success",
+      "Sale Cancelled",
+      `Sale Memo ${displayMemo} has been cancelled successfully.`,
+      "Ok",
+      () => {
+        fetchSales();
+      }
+    );
+  } catch (error) {
+    console.error("Cancel Sale Error:", error);
+    showModalConfirm("error", "Unable to cancel sale", error.message || error, "Ok", () => {});
+  }
+};
+
+window.undoCancelSale = async function (id, memoNo) {
+  const displayMemo = memoNo ? `#${memoNo}` : `ID #${id}`;
+  try {
+    window.showActionSpinner && window.showActionSpinner(`Restoring Sale ${displayMemo}...`);
+    const url = `${window.globalState.apiBase}/products/sales/undo-cancel/${id}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: window.getAuthHeaders ? window.getAuthHeaders() : {},
+    });
+    const data = await response.json();
+    window.hideActionSpinner && window.hideActionSpinner();
+
+    if (!response.ok || data.error) {
+      showModalConfirm("error", "Unable to undo cancellation", data.message || "Failed to restore sale", "Ok", () => {});
+      return;
+    }
+
+    showModalConfirm("success", "Sale Restored", `Sale Memo ${displayMemo} has been restored to Pending status.`, "Ok", () => {
+      fetchSales();
+    });
+  } catch (error) {
+    window.hideActionSpinner && window.hideActionSpinner();
+    console.error("Undo Cancel Sale Error:", error);
+    showModalConfirm("error", "Unable to undo cancellation", error.message || error, "Ok", () => {});
+  }
+};
 // These need to be on the window object so the HTML 'onclick' attributes can find them
 
 window.editSale = function (id) {
@@ -344,8 +462,6 @@ window.editSale = function (id) {
 async function viewSale(id) {
   const modal = document.getElementById("viewSaleModal");
   if (!modal) return;
-
-  modal.classList.remove("hidden");
 
   // Helper to safely set text
   const setText = (id, text) => {
@@ -365,10 +481,15 @@ async function viewSale(id) {
     transBody.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-slate-500 animate-pulse">Loading history...</td></tr>`;
 
   try {
+    window.showActionSpinner && window.showActionSpinner("Loading sale details...");
     const response = await fetch(
-      `${window.globalState.apiBase}/products/sales/details/${id}`
+      `${window.globalState.apiBase}/products/sales/details/${id}`,
+      {
+        headers: window.getAuthHeaders ? window.getAuthHeaders() : {},
+      }
     );
     const data = await response.json();
+    window.hideActionSpinner && window.hideActionSpinner();
 
     if (data.error) throw new Error("Server returned error");
     const sale = data.sale;
@@ -380,6 +501,8 @@ async function viewSale(id) {
     }
     //assign value to selected sale
     saleHistoryState.selectedSale = sale;
+
+    window.openModalAnimated && window.openModalAnimated("viewSaleModal");
 
     // --- 1. POPULATE HEADER & INFO ---
     setText("viewMemoNo", `#${sale.memo_no}`); // Added # hash for style
@@ -564,8 +687,8 @@ async function viewSale(id) {
 
     window.currentViewingSaleId = id;
   } catch (error) {
+    window.hideActionSpinner && window.hideActionSpinner();
     console.error("View Sale Error:", error);
-    // User friendly error in the modal
     if (itemsBody)
       itemsBody.innerHTML = `<tr><td colspan="3" class="px-4 py-4 text-center text-red-500">Error loading data.</td></tr>`;
   }
@@ -578,8 +701,32 @@ window.printSelectedSale = async function () {
   );
 };
 
+window.printSaleById = async function (id) {
+  try {
+    window.showActionSpinner && window.showActionSpinner("Preparing invoice for print...");
+    const res = await fetch(`${window.globalState.apiBase}/products/sales/details/${id}`, {
+      headers: window.getAuthHeaders ? window.getAuthHeaders() : {},
+    });
+    const data = await res.json();
+    window.hideActionSpinner && window.hideActionSpinner();
+    if (data && data.sale) {
+      printOrderInvoice(data.sale.id, data.sale);
+    } else {
+      if (window.showNotification) window.showNotification("error", "Sale details not found.");
+    }
+  } catch (e) {
+    window.hideActionSpinner && window.hideActionSpinner();
+    console.error("printSaleById error:", e);
+    if (window.showNotification) window.showNotification("error", "Failed to load sale for printing.");
+  }
+};
+
 window.closeViewModal = function () {
-  document.getElementById("viewSaleModal").classList.add("hidden");
+  if (window.closeModalAnimated) {
+    window.closeModalAnimated("viewSaleModal");
+  } else {
+    document.getElementById("viewSaleModal").classList.add("hidden");
+  }
 };
 
 // --- DYNAMIC PAYMENT MODAL LOGIC ---

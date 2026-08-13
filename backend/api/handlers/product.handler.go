@@ -346,3 +346,67 @@ func (o *ProductHandler) GetSalesHandler(w http.ResponseWriter, r *http.Request)
 
 	utils.WriteJSON(w, http.StatusOK, response)
 }
+
+// CancelSale handles DELETE /sales/cancel/{id}
+func (h *ProductHandler) CancelSale(w http.ResponseWriter, r *http.Request) {
+	saleID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if saleID == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid sale id"))
+		return
+	}
+
+	user, ok := GetUserFromContext(r)
+	if !ok || user == nil || strings.ToLower(user.Role) != "chairman" {
+		utils.WriteJSON(w, http.StatusForbidden, models.Response{
+			Error:   true,
+			Message: "Only Chairman can cancel a sale",
+		})
+		return
+	}
+
+	err = h.DB.CancelSale(r.Context(), saleID)
+	if err != nil {
+		h.errorLog.Println("CancelSale_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
+
+	resp := map[string]any{
+		"error":   false,
+		"status":  "success",
+		"message": "Sale cancelled successfully",
+	}
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+// UndoCancelSale handles POST /sales/undo-cancel/{id}
+func (h *ProductHandler) UndoCancelSale(w http.ResponseWriter, r *http.Request) {
+	saleID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if saleID == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid sale id"))
+		return
+	}
+
+	user, ok := GetUserFromContext(r)
+	if !ok || user == nil || strings.ToLower(user.Role) != "chairman" {
+		utils.WriteJSON(w, http.StatusForbidden, models.Response{
+			Error:   true,
+			Message: "Only Chairman can undo sale cancellation",
+		})
+		return
+	}
+
+	err = h.DB.UndoCancelSale(r.Context(), saleID)
+	if err != nil {
+		h.errorLog.Println("UndoCancelSale_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
+
+	resp := map[string]any{
+		"error":   false,
+		"status":  "success",
+		"message": "Sale cancellation undone successfully",
+	}
+	utils.WriteJSON(w, http.StatusOK, resp)
+}

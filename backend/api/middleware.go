@@ -118,14 +118,22 @@ func (app *application) AuthUser(next http.Handler) http.Handler {
 		}
 
 		// attach user to context using consistent key
-		ctx := context.WithValue(r.Context(), userContextKey, tokenUser)
+		ctx := context.WithValue(r.Context(), models.UserContextKey, tokenUser)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 // ========================= CONTEXT HELPERS ==============================
 func (app *application) UserFromContext(ctx context.Context) (*models.JWT, bool) {
-	u, ok := ctx.Value(userContextKey).(*models.JWT)
+	u, ok := ctx.Value(models.UserContextKey).(*models.JWT)
+	if !ok || u == nil {
+		return nil, false
+	}
+	return u, true
+}
+
+func GetUserFromContext(r *http.Request) (*models.JWT, bool) {
+	u, ok := r.Context().Value(models.UserContextKey).(*models.JWT)
 	if !ok || u == nil {
 		return nil, false
 	}

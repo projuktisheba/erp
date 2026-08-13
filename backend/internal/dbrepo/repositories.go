@@ -10,7 +10,7 @@ type DBRepository struct {
 	CustomerRepo    *CustomerRepo
 	OrderRepo       *OrderRepo
 	TransactionRepo *TransactionRepo
-	// BranchRepo      *BranchRepo
+	BranchRepo      *BranchRepo
 	AccountRepo     *AccountRepo
 	ProductRepo     *ProductRepo
 	ReportRepo      *ReportRepo
@@ -25,7 +25,7 @@ func NewDBRepository(db *pgxpool.Pool) *DBRepository {
 		CustomerRepo:    NewCustomerRepo(db),
 		OrderRepo:       NewOrderRepo(db),
 		TransactionRepo: NewTransactionRepo(db),
-		// BranchRepo:      NewBranchRepo(db),
+		BranchRepo:      NewBranchRepo(db),
 		AccountRepo:     NewAccountRepo(db),
 		ProductRepo:     NewProductRepo(db),
 		ReportRepo:      NewReportRepo(db),

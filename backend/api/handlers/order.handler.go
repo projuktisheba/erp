@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/projuktisheba/erp-mini-api/internal/dbrepo"
@@ -13,16 +14,28 @@ import (
 )
 
 type OrderHandler struct {
-	DB       *dbrepo.OrderRepo
-	infoLog  *log.Logger
-	errorLog *log.Logger
+	DB        *dbrepo.OrderRepo
+	ProductDB *dbrepo.ProductRepo
+	BranchDB  *dbrepo.BranchRepo
+	infoLog   *log.Logger
+	errorLog  *log.Logger
 }
 
-func NewOrderHandler(db *dbrepo.OrderRepo, infoLog *log.Logger, errorLog *log.Logger) *OrderHandler {
+func GetUserFromContext(r *http.Request) (*models.JWT, bool) {
+	u, ok := r.Context().Value(models.UserContextKey).(*models.JWT)
+	if !ok || u == nil {
+		return nil, false
+	}
+	return u, true
+}
+
+func NewOrderHandler(db *dbrepo.OrderRepo, productDB *dbrepo.ProductRepo, branchDB *dbrepo.BranchRepo, infoLog *log.Logger, errorLog *log.Logger) *OrderHandler {
 	return &OrderHandler{
-		DB:       db,
-		infoLog:  infoLog,
-		errorLog: errorLog,
+		DB:        db,
+		ProductDB: productDB,
+		BranchDB:  branchDB,
+		infoLog:   infoLog,
+		errorLog:  errorLog,
 	}
 }
 
@@ -115,31 +128,60 @@ func (o *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	branchID := utils.GetBranchID(r)
-	if branchID == 0 {
-		utils.BadRequest(w, errors.New("Branch ID not found. Include 'X-Branch-ID' header"))
+	user, ok := GetUserFromContext(r)
+	if !ok || user == nil || strings.ToLower(user.Role) != "chairman" {
+		utils.WriteJSON(w, http.StatusForbidden, models.Response{
+			Error:   true,
+			Message: "Only Chairman can cancel an order",
+		})
 		return
 	}
-	// // load old data
-	// oldOrderDetails, err := o.DB.GetOrderDetailsByID(r.Context(), orderID);
-	// if err != nil {
-	// 	o.errorLog.Println("UpdateOrder_DB:", err)
-	// 	utils.ServerError(w, err)
-	// 	return
-	// }
-	// err = o.DB.CancelOrder(r.Context(), oldOrderDetails);
-	// if err != nil {
-	// 	o.errorLog.Println("CancelOrder_DB:", err)
-	// 	utils.ServerError(w, err)
-	// 	return
-	// }
+
+	err = o.DB.CancelOrder(r.Context(), orderID)
+	if err != nil {
+		o.errorLog.Println("CancelOrder_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
 
 	resp := map[string]any{
 		"error":   false,
 		"status":  "success",
 		"message": "Order cancelled successfully",
 	}
-	utils.WriteJSON(w, http.StatusCreated, resp)
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+// UndoCancelOrder handles POST /orders/undo-cancel/{id}
+func (o *OrderHandler) UndoCancelOrder(w http.ResponseWriter, r *http.Request) {
+	orderID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if orderID == 0 || err != nil {
+		utils.BadRequest(w, errors.New("Invalid order id"))
+		return
+	}
+
+	user, ok := GetUserFromContext(r)
+	if !ok || user == nil || strings.ToLower(user.Role) != "chairman" {
+		utils.WriteJSON(w, http.StatusForbidden, models.Response{
+			Error:   true,
+			Message: "Only Chairman can undo order cancellation",
+		})
+		return
+	}
+
+	err = o.DB.UndoCancelOrder(r.Context(), orderID)
+	if err != nil {
+		o.errorLog.Println("UndoCancelOrder_DB:", err)
+		utils.ServerError(w, err)
+		return
+	}
+
+	resp := map[string]any{
+		"error":   false,
+		"status":  "success",
+		"message": "Order cancellation undone successfully",
+	}
+	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
 // OrderDelivery handles POST /orders/delivery
@@ -257,6 +299,54 @@ func (o *OrderHandler) GetOrderDetailsByID(w http.ResponseWriter, r *http.Reques
 		"error":  false,
 		"status": "success",
 		"order":  order,
+	}
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+// GetPublicInvoice handles GET /api/v1/public/invoice?type=order|sale&memo_no=234234
+func (o *OrderHandler) GetPublicInvoice(w http.ResponseWriter, r *http.Request) {
+	invoiceType := strings.ToLower(r.URL.Query().Get("type"))
+	memoNo := r.URL.Query().Get("memo_no")
+
+	if memoNo == "" {
+		utils.BadRequest(w, errors.New("Invoice memo_no is required"))
+		return
+	}
+
+	var data any
+	var branchID int64
+
+	if invoiceType == "sale" {
+		sale, err := o.ProductDB.GetSaleDetailsByMemoNo(r.Context(), memoNo)
+		if err != nil {
+			o.errorLog.Println("GetPublicInvoice_Sale:", err)
+			utils.NotFound(w, "Sale invoice not found")
+			return
+		}
+		data = sale
+		branchID = sale.BranchID
+	} else {
+		order, err := o.DB.GetOrderDetailsByMemoNo(r.Context(), memoNo)
+		if err != nil {
+			o.errorLog.Println("GetPublicInvoice_Order:", err)
+			utils.NotFound(w, "Order invoice not found")
+			return
+		}
+		data = order
+		branchID = order.BranchID
+	}
+
+	var branch *models.Branch
+	if branchID > 0 && o.BranchDB != nil {
+		branch, _ = o.BranchDB.GetBranchByID(r.Context(), branchID)
+	}
+
+	resp := map[string]any{
+		"error":  false,
+		"status": "success",
+		"type":   invoiceType,
+		"data":   data,
+		"branch": branch,
 	}
 	utils.WriteJSON(w, http.StatusOK, resp)
 }

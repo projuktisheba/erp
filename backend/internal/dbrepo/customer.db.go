@@ -23,16 +23,24 @@ func NewCustomerRepo(db *pgxpool.Pool) *CustomerRepo {
 
 // 1. CreateNewCustomer adds a new customer to the database.
 func (s *CustomerRepo) CreateNewCustomer(ctx context.Context, customer *models.Customer) error {
+	if customer.Country == "" {
+		customer.Country = "Qatar"
+	}
+	if customer.CountryCode == "" {
+		customer.CountryCode = "974"
+	}
 	query := `
 		INSERT INTO customers 
-		(name, mobile, address, tax_id, branch_id,
+		(name, country, country_code, mobile, address, tax_id, branch_id,
 		 length, shoulder, bust, waist, hip,
 		 arm_hole, sleeve_length, sleeve_width, round_width)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING id, status, due_amount, created_at, updated_at;`
 
 	args := []interface{}{
 		customer.Name,
+		customer.Country,
+		customer.CountryCode,
 		customer.Mobile,
 		customer.Address,
 		customer.TaxID,
@@ -73,18 +81,24 @@ func (s *CustomerRepo) CreateNewCustomer(ctx context.Context, customer *models.C
 
 // 2. UpdateCustomerInfo updates a customer's basic information.
 func (s *CustomerRepo) UpdateCustomerInfo(ctx context.Context, customer *models.Customer) (*time.Time, error) {
+	if customer.Country == "" {
+		customer.Country = "Qatar"
+	}
+	if customer.CountryCode == "" {
+		customer.CountryCode = "974"
+	}
 	query := `
 		UPDATE customers
-		SET name = $1, mobile = $2, address = $3, tax_id = $4,
-		    length = $5, shoulder = $6, bust = $7, waist = $8, hip = $9,
-		    arm_hole = $10, sleeve_length = $11, sleeve_width = $12, round_width = $13,
+		SET name = $1, country = $2, country_code = $3, mobile = $4, address = $5, tax_id = $6,
+		    length = $7, shoulder = $8, bust = $9, waist = $10, hip = $11,
+		    arm_hole = $12, sleeve_length = $13, sleeve_width = $14, round_width = $15,
 		    updated_at = NOW()
-		WHERE id = $14
+		WHERE id = $16
 		RETURNING updated_at;`
 
 	var updatedAt time.Time
 	err := s.db.QueryRow(ctx, query,
-		customer.Name, customer.Mobile, customer.Address, customer.TaxID,
+		customer.Name, customer.Country, customer.CountryCode, customer.Mobile, customer.Address, customer.TaxID,
 		customer.Length, customer.Shoulder, customer.Bust, customer.Waist, customer.Hip,
 		customer.ArmHole, customer.SleeveLength, customer.SleeveWidth, customer.RoundWidth,
 		customer.ID,
@@ -170,7 +184,7 @@ func (s *CustomerRepo) GetCustomerByTaxID(ctx context.Context, taxID string) (*m
 // getCustomerBy helper
 func (s *CustomerRepo) getCustomerBy(ctx context.Context, field string, value any) (*models.Customer, error) {
 	query := fmt.Sprintf(`
-		SELECT id, name, mobile, address, tax_id, branch_id, due_amount, status,
+		SELECT id, name, country, country_code, mobile, address, tax_id, branch_id, due_amount, status,
 		       length, shoulder, bust, waist, hip, arm_hole,
 		       sleeve_length, sleeve_width, round_width,
 		       created_at, updated_at
@@ -179,7 +193,7 @@ func (s *CustomerRepo) getCustomerBy(ctx context.Context, field string, value an
 
 	c := &models.Customer{}
 	err := s.db.QueryRow(ctx, query, value).Scan(
-		&c.ID, &c.Name, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
+		&c.ID, &c.Name, &c.Country, &c.CountryCode, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
 		&c.Length, &c.Shoulder, &c.Bust, &c.Waist, &c.Hip, &c.ArmHole,
 		&c.SleeveLength, &c.SleeveWidth, &c.RoundWidth,
 		&c.CreatedAt, &c.UpdatedAt,
@@ -196,7 +210,7 @@ func (s *CustomerRepo) getCustomerBy(ctx context.Context, field string, value an
 // 6. FilterCustomersByName (ILIKE search)
 func (s *CustomerRepo) FilterCustomersByName(ctx context.Context, branchID int64, name string) ([]*models.Customer, error) {
 	query := `
-		SELECT id, name, mobile, address, tax_id, branch_id, due_amount, status,
+		SELECT id, name, country, country_code, mobile, address, tax_id, branch_id, due_amount, status,
 		       length, shoulder, bust, waist, hip, arm_hole,
 		       sleeve_length, sleeve_width, round_width,
 		       created_at, updated_at
@@ -214,7 +228,7 @@ func (s *CustomerRepo) FilterCustomersByName(ctx context.Context, branchID int64
 	for rows.Next() {
 		var c models.Customer
 		if err := rows.Scan(
-			&c.ID, &c.Name, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
+			&c.ID, &c.Name, &c.Country, &c.CountryCode, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
 			&c.Length, &c.Shoulder, &c.Bust, &c.Waist, &c.Hip, &c.ArmHole,
 			&c.SleeveLength, &c.SleeveWidth, &c.RoundWidth,
 			&c.CreatedAt, &c.UpdatedAt,
@@ -273,7 +287,7 @@ func (s *CustomerRepo) GetCustomers(ctx context.Context, page, limit int, branch
 
     // 3. Prepare Data Query (Add Sorting & Pagination)
     baseQuery := `
-        SELECT id, name, mobile, address, tax_id, branch_id, due_amount, status,
+        SELECT id, name, country, country_code, mobile, address, tax_id, branch_id, due_amount, status,
                length, shoulder, bust, waist, hip, arm_hole,
                sleeve_length, sleeve_width, round_width,
                created_at, updated_at
@@ -310,7 +324,7 @@ func (s *CustomerRepo) GetCustomers(ctx context.Context, page, limit int, branch
     for rows.Next() {
         var c models.Customer
         if err := rows.Scan(
-            &c.ID, &c.Name, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
+            &c.ID, &c.Name, &c.Country, &c.CountryCode, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
             &c.Length, &c.Shoulder, &c.Bust, &c.Waist, &c.Hip, &c.ArmHole,
             &c.SleeveLength, &c.SleeveWidth, &c.RoundWidth,
             &c.CreatedAt, &c.UpdatedAt,
@@ -356,7 +370,7 @@ func (s *CustomerRepo) GetCustomersNameAndID(ctx context.Context, branchID int64
 // 9. GetCustomersWithDue
 func (s *CustomerRepo) GetCustomersWithDue(ctx context.Context, branchID int64) ([]*models.Customer, error) {
 	query := `
-		SELECT id, name, mobile, address, tax_id, branch_id, due_amount, status,
+		SELECT id, name, country, country_code, mobile, address, tax_id, branch_id, due_amount, status,
 		       length, shoulder, bust, waist, hip, arm_hole,
 		       sleeve_length, sleeve_width, round_width,
 		       created_at, updated_at
@@ -374,7 +388,7 @@ func (s *CustomerRepo) GetCustomersWithDue(ctx context.Context, branchID int64) 
 	for rows.Next() {
 		var c models.Customer
 		if err := rows.Scan(
-			&c.ID, &c.Name, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
+			&c.ID, &c.Name, &c.Country, &c.CountryCode, &c.Mobile, &c.Address, &c.TaxID, &c.BranchID, &c.DueAmount, &c.Status,
 			&c.Length, &c.Shoulder, &c.Bust, &c.Waist, &c.Hip, &c.ArmHole,
 			&c.SleeveLength, &c.SleeveWidth, &c.RoundWidth,
 			&c.CreatedAt, &c.UpdatedAt,

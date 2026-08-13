@@ -26,6 +26,8 @@ const (
 	ACCOUNT_BANK = "bank"
 	ACCOUNT_CASH = "cash"
 )
+type ContextKey string
+const UserContextKey ContextKey = "user"
 const (
 	ENTITY_ACCOUNT     = "accounts"
 	ENTITY_SUPPLIER    = "suppliers"
@@ -163,14 +165,16 @@ type PurchaseReportTotals struct {
 	TotalAmount float64 `json:"total_amount"`
 }
 type Customer struct {
-	ID        int64   `json:"id"`
-	Name      string  `json:"name"`
-	Mobile    string  `json:"mobile"`
-	Address   string  `json:"address"`
-	TaxID     *string `json:"tax_id,omitempty"`
-	DueAmount float64 `json:"due_amount"`
-	Status    bool    `json:"status"`
-	BranchID  int64   `json:"branch_id"`
+	ID          int64   `json:"id"`
+	Name        string  `json:"name"`
+	Country     string  `json:"country"`
+	CountryCode string  `json:"country_code"`
+	Mobile      string  `json:"mobile"`
+	Address     string  `json:"address"`
+	TaxID       *string `json:"tax_id,omitempty"`
+	DueAmount   float64 `json:"due_amount"`
+	Status      bool    `json:"status"`
+	BranchID    int64   `json:"branch_id"`
 	//Measurement
 	Length       string    `json:"length,omitempty"`
 	Shoulder     string    `json:"shoulder,omitempty"`

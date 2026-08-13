@@ -903,6 +903,8 @@ func (r *ProductRepo) GetSaleDetailsByID(
 			o.customer_id,
 			c.name AS customer_name,
 			c.mobile AS customer_mobile,
+			COALESCE(c.country, 'Qatar') AS customer_country,
+			COALESCE(c.country_code, '974') AS customer_country_code,
 			o.total_products,
 			o.total_amount,
 			o.received_amount,
@@ -925,6 +927,8 @@ func (r *ProductRepo) GetSaleDetailsByID(
 		&sale.CustomerID,
 		&sale.Customer.Name,
 		&sale.Customer.Mobile,
+		&sale.Customer.Country,
+		&sale.Customer.CountryCode,
 		&sale.TotalItems,
 		&sale.TotalAmount,    // float64
 		&sale.ReceivedAmount, // float64
@@ -1102,7 +1106,7 @@ func (r *ProductRepo) GetSales(
 
 	dataQuery := fmt.Sprintf(`
         SELECT
-            o.id, o.branch_id, o.memo_no, o.sale_date, o.salesperson_id, e.name AS salesperson_name, e.mobile as salesperson_mobile, o.customer_id, c.name AS customer_name, c.mobile AS customer_mobile, o.total_products, o.total_amount, o.received_amount, o.status, o.notes, o.created_at, o.updated_at
+            o.id, o.branch_id, o.memo_no, o.sale_date, o.salesperson_id, e.name AS salesperson_name, e.mobile as salesperson_mobile, o.customer_id, c.name AS customer_name, c.mobile AS customer_mobile, COALESCE(c.country, 'Qatar') AS customer_country, COALESCE(c.country_code, '974') AS customer_country_code, o.total_products, o.total_amount, o.received_amount, o.status, o.notes, o.created_at, o.updated_at
         %s
         %s
         ORDER BY o.sale_date DESC, o.id DESC
@@ -1130,6 +1134,7 @@ func (r *ProductRepo) GetSales(
 			&o.ID, &o.BranchID, &o.MemoNo, &o.SaleDate,
 			&o.SalespersonID, &o.Salesperson.Name, &o.Salesperson.Mobile,
 			&o.CustomerID, &o.Customer.Name, &o.Customer.Mobile,
+			&o.Customer.Country, &o.Customer.CountryCode,
 			&o.TotalItems,
 			&o.TotalAmount, &o.ReceivedAmount,
 			&o.Status, &o.Notes, &o.CreatedAt, &o.UpdatedAt,
@@ -1141,4 +1146,72 @@ func (r *ProductRepo) GetSales(
 	}
 
 	return sales, totalCount, nil
+}
+
+// CancelSale updates the status of a sale to cancelled
+func (r *ProductRepo) CancelSale(ctx context.Context, saleID int64) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	_, err = tx.Exec(ctx, `
+		UPDATE sales SET
+			status = $1, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $2
+	`, models.ORDER_CANCELLED, saleID)
+	if err != nil {
+		return fmt.Errorf("update sale header failed: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+// UndoCancelSale updates the status of a sale back to pending
+func (r *ProductRepo) UndoCancelSale(ctx context.Context, saleID int64) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	_, err = tx.Exec(ctx, `
+		UPDATE sales SET
+			status = 'pending', updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+	`, saleID)
+	if err != nil {
+		return fmt.Errorf("undo cancel sale failed: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+// GetSaleDetailsByMemoNo fetches a sale using its memo_no or INV-memo_no
+func (r *ProductRepo) GetSaleDetailsByMemoNo(ctx context.Context, memoNo string) (*models.SaleDB, error) {
+	var id int64
+	err := r.db.QueryRow(ctx, `SELECT id FROM sales WHERE memo_no = $1 OR memo_no = $2 LIMIT 1`, memoNo, "INV-"+memoNo).Scan(&id)
+	if err != nil {
+		return nil, fmt.Errorf("sale not found by memo_no: %w", err)
+	}
+	return r.GetSaleDetailsByID(ctx, id)
 }

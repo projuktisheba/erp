@@ -243,12 +243,13 @@ function renderOrders() {
         };
       else if (o.status === "cancelled")
         st = {
-          css: "bg-red-50 text-red-700 border-red-200",
-          dot: "bg-red-500",
+          css: "bg-red-100 text-red-700 border-red-300 font-bold shadow-sm",
+          dot: "bg-red-600",
         };
 
       const canDeliver = o.status === "pending" || o.status === "partial";
-      const canCancel = false && canDeliver && hasAccess("chairman");
+      const canCancel = hasAccess("chairman") && o.status !== "cancelled";
+      const canUndoCancel = hasAccess("chairman") && o.status === "cancelled";
       const canEdit = o.status === "pending";
 
       return `
@@ -306,58 +307,97 @@ function renderOrders() {
           </span>
         </td>
 
-        <td class="whitespace-nowrap text-center"> 
-            <button onclick="viewOrder(${o.id})" 
-              class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 focus:outline-none active:scale-95" 
-              title="View Details">
-               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-               </button>
+        <td class="px-6 py-4 whitespace-nowrap text-center">
+          <div class="relative flex justify-center items-center">
+            <button onclick="toggleActionMenu(event, 'order-menu-${o.id}')"
+              class="action-menu-btn inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100/90 text-slate-700 hover:bg-indigo-600 hover:text-white transition-all duration-200 border border-slate-300/80 shadow-xs hover:shadow-md hover:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 group active:scale-95"
+              title="Actions">
+              <i class="ph ph-dots-three-vertical text-xl font-bold text-slate-700 group-hover:text-white transition-colors"></i>
+            </button>
+
+            <div id="order-menu-${o.id}" class="action-menu-dropdown hidden absolute right-0 top-full mt-1.5 z-[999] w-56 p-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl shadow-slate-900/15 text-left transition-all duration-200" style="background-color: #ffffff !important; opacity: 1 !important;">
+              <div class="space-y-0.5">
+                <button onclick="viewOrder(${o.id}); closeAllActionMenus();"
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-indigo-50/70 hover:text-indigo-600 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center text-indigo-600 transition-colors shrink-0">
+                    <i class="ph ph-eye text-base"></i>
+                  </span>
+                  <span class="truncate">View Details</span>
+                </button>
+
+                ${
+                  canEdit
+                    ? `
+                <button onclick="editOrder(${o.id}); closeAllActionMenus();"
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-amber-50/70 hover:text-amber-600 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center text-amber-600 transition-colors shrink-0">
+                    <i class="ph ph-pencil-line text-base"></i>
+                  </span>
+                  <span class="truncate">Edit Order</span>
+                </button>`
+                    : ""
+                }
+
+                ${
+                  canDeliver
+                    ? `
+                <button onclick="deliverOrder(${o.id}); closeAllActionMenus();"
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-600 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shrink-0">
+                    <i class="ph ph-check-circle text-base"></i>
+                  </span>
+                  <span class="truncate">Mark Delivered</span>
+                </button>`
+                    : ""
+                }
+              </div>
+
+              <div class="my-1 border-t border-slate-100 pt-1 space-y-0.5">
+                <button onclick="printOrderById(${o.id}); closeAllActionMenus();"
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-colors shrink-0">
+                    <i class="ph ph-printer text-base"></i>
+                  </span>
+                  <span class="truncate">Print Invoice</span>
+                </button>
+
+                <button onclick="sendWhatsAppInvoice('order', ${o.id}); closeAllActionMenus();"
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-700 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-emerald-100/80 group-hover:bg-emerald-200/80 flex items-center justify-center text-emerald-700 transition-colors shrink-0">
+                    <i class="ph ph-whatsapp-logo text-base"></i>
+                  </span>
+                  <span class="truncate">WhatsApp Invoice</span>
+                </button>
+              </div>
+
+              ${
+                canCancel
+                  ? `
+              <div class="my-1 border-t border-slate-100 pt-1">
+                <button onclick='closeAllActionMenus(); showModalConfirm("warning", "Cancel Order #${o.memo_no || o.id}?", "Are you sure you want to cancel Order Memo #${o.memo_no || o.id}? Status will be set to Cancelled.", "Yes, Cancel Order", ()=> cancelOrder(${o.id}, "${o.memo_no || o.id}"), "No, Keep Order");'
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-red-50 group-hover:bg-red-100 flex items-center justify-center text-red-600 transition-colors shrink-0">
+                    <i class="ph ph-x-circle text-base"></i>
+                  </span>
+                  <span class="truncate">Cancel Order</span>
+                </button>
+              </div>`
+                  : canUndoCancel
+                  ? `
+              <div class="my-1 border-t border-slate-100 pt-1">
+                <button onclick='closeAllActionMenus(); showModalConfirm("warning", "Undo Cancellation #${o.memo_no || o.id}?", "Are you sure you want to restore Order Memo #${o.memo_no || o.id} back to Pending status?", "Yes, Restore Order", ()=> undoCancelOrder(${o.id}, "${o.memo_no || o.id}"), "No, Keep Cancelled");'
+                  class="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold text-amber-700 hover:bg-amber-50 hover:text-amber-800 transition-all group">
+                  <span class="w-7 h-7 rounded-lg bg-amber-100/80 group-hover:bg-amber-200/80 flex items-center justify-center text-amber-700 transition-colors shrink-0">
+                    <i class="ph ph-arrow-counter-clockwise text-base"></i>
+                  </span>
+                  <span class="truncate">Undo Cancellation</span>
+                </button>
+              </div>`
+                  : ""
+              }
+            </div>
+          </div>
         </td>
-        <td class="whitespace-nowrap text-center">
-            ${
-              canEdit
-                ? `
-            <button onclick="editOrder(${o.id})" 
-              class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800 focus:outline-none active:scale-95" 
-              title="Edit Order">
-               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-            </button>`
-                : ""
-            }
-        </td>
-        <td class="whitespace-nowrap text-center">
-            ${
-              canDeliver
-                ? `
-            <button onclick="deliverOrder(${o.id})" 
-              class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus:outline-none active:scale-95" 
-              title="Mark Delivered">
-               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-            </button>`
-                : ""
-            }
-        <td class="whitespace-nowrap text-center">
-          ${
-            canCancel
-              ? `
-          <button 
-            onclick='showModalConfirm(
-                "error", 
-                "Are You Sure To Cancel Order?", 
-                "<div class=\\"text-left bg-zinc-50 border border-zinc-200 rounded-lg p-3\\"><div class=\\"flex items-center gap-2 mb-2\\"><svg class=\\"w-4 h-4 text-zinc-900\\" fill=\\"none\\" viewBox=\\"0 0 24 24\\" stroke=\\"currentColor\\"><path stroke-linecap=\\"round\\" stroke-linejoin=\\"round\\" stroke-width=\\"2\\" d=\\"M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z\\" /></svg><span class=\\"text-sm font-bold text-zinc-900\\">Irreversible Action</span></div><ul class=\\"text-sm text-zinc-600 list-disc list-inside space-y-1\\"><li>Customer due reduces by <span class=\\"font-bold text-zinc-900 bg-zinc-200 px-1.5 rounded\\">${due}</span></li><li>Manual stock addition required</li></ul></div>", 
-                "Yes, Cancel", 
-                ()=> deletePurchaseRecord(${o.id}), 
-                "No, Keep it"
-            )'
-            class="group flex items-center justify-center w-8 h-8 rounded-md border border-slate-200 bg-slate-50 text-slate-800 shadow-sm transition-all duration-200 hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none active:scale-95" 
-            title="Cancel Order">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>`
-              : ""
-          }
-      </td>
       </tr>`;
     })
     .join("");
@@ -369,8 +409,6 @@ function renderOrders() {
 async function viewOrder(id) {
   const modal = document.getElementById("viewOrderModal");
   if (!modal) return;
-
-  modal.classList.remove("hidden");
 
   // Helper to safely set text
   const setText = (id, text) => {
@@ -390,10 +428,15 @@ async function viewOrder(id) {
     transBody.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-slate-500 animate-pulse">Loading history...</td></tr>`;
 
   try {
+    window.showActionSpinner && window.showActionSpinner("Loading order details...");
     const response = await fetch(
       `${window.globalState.apiBase}/products/orders/${id}`,
+      {
+        headers: window.getAuthHeaders ? window.getAuthHeaders() : {},
+      }
     );
     const data = await response.json();
+    window.hideActionSpinner && window.hideActionSpinner();
 
     if (data.error) throw new Error("Server returned error");
     const order = data.order;
@@ -405,6 +448,8 @@ async function viewOrder(id) {
     }
     //assign value to selected order
     orderHistoryState.selectedOrder = order;
+
+    window.openModalAnimated && window.openModalAnimated("viewOrderModal");
 
     // --- 1. POPULATE HEADER & INFO ---
     setText("viewMemoNo", `#${order.memo_no}`); // Added # hash for style
@@ -597,6 +642,7 @@ async function viewOrder(id) {
 
     window.currentViewingOrderId = id;
   } catch (error) {
+    window.hideActionSpinner && window.hideActionSpinner();
     console.error("View Order Error:", error);
     // User friendly error in the modal
     if (itemsBody)
@@ -610,7 +656,8 @@ window.editOrder = function (id) {
   loadPage("order_sale", "New Order Entry");
 };
 
-window.cancelOrder = async function (id) {
+window.cancelOrder = async function (id, memoNo) {
+  const displayMemo = memoNo ? `#${memoNo}` : `ID #${id}`;
   try {
     const url = `${window.globalState.apiBase}/products/orders/cancel/${id}`;
     const response = await fetch(url, {
@@ -626,8 +673,8 @@ window.cancelOrder = async function (id) {
 
     showModalConfirm(
       "success",
-      "Order cancelled Successfully",
-      "",
+      "Order Cancelled",
+      `Order Memo ${displayMemo} has been cancelled successfully.`,
       "Ok",
       () => {
         fetchOrders();
@@ -639,6 +686,33 @@ window.cancelOrder = async function (id) {
   }
 };
 
+window.undoCancelOrder = async function (id, memoNo) {
+  const displayMemo = memoNo ? `#${memoNo}` : `ID #${id}`;
+  try {
+    window.showActionSpinner && window.showActionSpinner(`Restoring Order ${displayMemo}...`);
+    const url = `${window.globalState.apiBase}/products/orders/undo-cancel/${id}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: window.getAuthHeaders ? window.getAuthHeaders() : {},
+    });
+    const data = await response.json();
+    window.hideActionSpinner && window.hideActionSpinner();
+
+    if (!response.ok || data.error) {
+      showModalConfirm("error", "Unable to undo cancellation", data.message || "Failed to restore order", "Ok", () => {});
+      return;
+    }
+
+    showModalConfirm("success", "Order Restored", `Order Memo ${displayMemo} has been restored to Pending status.`, "Ok", () => {
+      fetchOrders();
+    });
+  } catch (error) {
+    window.hideActionSpinner && window.hideActionSpinner();
+    console.error("Undo Cancel Order Error:", error);
+    showModalConfirm("error", "Unable to undo cancellation", error.message || error, "Ok", () => {});
+  }
+};
+
 window.printSelectedOrder = async function () {
   printOrderInvoice(
     orderHistoryState.selectedOrder.id,
@@ -646,8 +720,32 @@ window.printSelectedOrder = async function () {
   );
 };
 
+window.printOrderById = async function (id) {
+  try {
+    window.showActionSpinner && window.showActionSpinner("Preparing invoice for print...");
+    const res = await fetch(`${window.globalState.apiBase}/products/orders/${id}`, {
+      headers: window.getAuthHeaders ? window.getAuthHeaders() : {},
+    });
+    const data = await res.json();
+    window.hideActionSpinner && window.hideActionSpinner();
+    if (data && data.order) {
+      printOrderInvoice(data.order.id, data.order);
+    } else {
+      if (window.showNotification) window.showNotification("error", "Order details not found.");
+    }
+  } catch (e) {
+    window.hideActionSpinner && window.hideActionSpinner();
+    console.error("printOrderById error:", e);
+    if (window.showNotification) window.showNotification("error", "Failed to load order for printing.");
+  }
+};
+
 window.closeViewModal = function () {
-  document.getElementById("viewOrderModal").classList.add("hidden");
+  if (window.closeModalAnimated) {
+    window.closeModalAnimated("viewOrderModal");
+  } else {
+    document.getElementById("viewOrderModal").classList.add("hidden");
+  }
 };
 
 // --- DYNAMIC DELIVERY MODAL LOGIC ---

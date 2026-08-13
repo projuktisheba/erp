@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Official Invoice</title>
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f1f5f9;
+            margin: 0;
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #000000;
+        }
+
+        .no-print-bar {
+            width: 100%;
+            max-width: 740px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .print-btn {
+            background-color: #0f172a;
+            color: #ffffff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+        }
+        .print-btn:hover { background-color: #1e293b; transform: translateY(-1px); }
+
+        /* INVOICE CONTAINER - EXACT MATCH WITH printOrderInvoice */
+        .invoice-container {
+            width: 740px;
+            max-width: 100%;
+            background: white;
+            padding: 35px 30px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 13px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* WATERMARK */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 75px;
+            font-weight: 900;
+            color: rgba(148, 163, 184, 0.08);
+            z-index: 0;
+            white-space: nowrap;
+            pointer-events: none;
+            text-transform: uppercase;
+            user-select: none;
+        }
+
+        /* Header */
+        .invoice-header {
+            position: relative; z-index: 1;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            border-bottom: 2px solid #88929e;
+            padding-bottom: 15px; margin-bottom: 20px;
+        }
+        .contact-info p { margin: 2px 0; line-height: 1.4; font-size: 11px; color: #64748b; }
+
+        .logo-name-section { text-align: center; }
+        .logo-name-section h1 { font-size: 26px; color: #800000; margin: 0 0 4px 0; font-weight: 700; }
+        .logo-name-section h2 { font-size: 12px; margin: 0; font-weight: 700; color: #1e293b; }
+        .logo-name-section p { margin: 2px 0 0 0; font-size: 11px; font-weight: 500; color: #475569; }
+        .logo-name-section .arabic-logo {
+            border: 1px solid #94a3b8; color: #475569;
+            padding: 2px 12px; display: inline-block; margin-top: 5px; border-radius: 4px; font-weight: 600;
+        }
+
+        /* Details Row */
+        .invoice-details { margin-bottom: 20px; position: relative; z-index: 1; }
+        .invoice-row { display: flex; justify-content: space-between; align-items: center; }
+
+        .invoice-row .no {
+            font-size: 16px; font-weight: bold; color: #000000;
+            padding: 5px 14px; border: 1px solid #94a3b8;
+            background-color: #f8fafc; border-radius: 4px;
+        }
+        .invoice-row .type {
+            background: white; color: #475569; border: 1px solid #88929e;
+            padding: 5px 15px; font-size: 12px; font-weight: 600; border-radius: 4px;
+        }
+
+        .status-badge-cancelled {
+            background-color: #fee2e2; color: #dc2626; border: 1px solid #fca5a5;
+            padding: 4px 12px; border-radius: 4px; font-weight: 700; font-size: 12px;
+        }
+
+        /* Info Grid */
+        .info-grid {
+            position: relative; z-index: 1;
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 8px 30px; font-size: 13px; margin-bottom: 20px;
+        }
+        .info-item { display: flex; align-items: center; gap: 10px; }
+        .info-item label { white-space: nowrap; font-weight: 700; color: #475569; min-width: 60px; }
+        .info-item .arabic-label { font-weight: 600; color: #64748b; font-size: 12px; }
+        .info-item .thin-line {
+            flex-grow: 1; border: none; border-bottom: 1px dashed #88929e;
+            padding: 2px 5px; background: transparent; font-family: inherit;
+            font-size: 13px; color: #1e293b; font-weight: 600;
+        }
+        .info-item.full-width { grid-column: span 2; }
+
+        /* Table */
+        .item-table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+        .item-table thead th {
+            background-color: #f1f5f9; color: #000000;
+            padding: 8px 5px; text-align: center; font-weight: 700;
+            border: 1px solid #88929e;
+        }
+        .item-table thead th .ar { font-size: 10px; color: #64748b; font-weight: 600; }
+        .item-table td { border: 1px solid #88929e; height: 28px; padding: 0 6px; vertical-align: middle; color: #000000; }
+
+        /* Totals */
+        .total-row .total-label-cell, .total-row .total-amount-cell {
+            background-color: white; text-align: right; font-weight: 600; padding-right: 12px; border-color: #88929e; color: #475569;
+        }
+        .total-row.final-total .total-label-cell { background-color: #f8fafc; color: #0f172a; font-weight: 700; }
+        .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #0f172a; font-size: 14px; font-weight: 700; }
+
+        /* Footer Signatures */
+        .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 40px; }
+        .invoice-footer .signature { width: 40%; text-align: center; }
+        .invoice-footer .signature-line { border-bottom: 1px solid #94a3b8; height: 1px; margin-top: 30px; }
+        .invoice-footer p { font-weight: 600; color: #64748b; font-size: 12px; margin: 0; }
+
+        /* PRINT STYLES */
+        @media print {
+            .no-print-bar { display: none !important; }
+            body { background-color: white !important; padding: 0 !important; }
+            .invoice-container { width: 100% !important; box-shadow: none !important; border: none !important; padding: 0 !important; border-radius: 0 !important; }
+            .item-table thead th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
+            .total-row.final-total td { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; }
+            .watermark { color: rgba(0, 0, 0, 0.05) !important; -webkit-print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print-bar">
+        <h2 style="margin:0; font-size: 16px; font-weight: 700; color: #000000;">Official Invoice</h2>
+        <button onclick="window.print()" class="print-btn">
+            <i class="ph ph-printer" style="font-size: 18px;"></i> Print / Download PDF
+        </button>
+    </div>
+
+    <div id="invoiceContent" class="invoice-container">
+        <div style="text-align: center; padding: 40px 0; color: #64748b; font-weight: 600;">
+            Loading invoice details...
+        </div>
+    </div>
+
+    <script>
+        function getApiBases() {
+            const host = window.location.hostname;
+            const protocol = window.location.protocol;
+            const isLocal = host === "localhost" || host === "127.0.0.1";
+            if (isLocal) {
+                return [
+                    `${protocol}//${host}:8080/api/v1`,
+                    `http://localhost:8080/api/v1`,
+                    `http://127.0.0.1:8080/api/v1`,
+                    `/api/v1`
+                ];
+            }
+            return [
+                "https://erpqatar.pserp.xyz/api/v1",
+                `${protocol}//${host}/api/v1`
+            ];
+        }
+
+        const formatCustomerMobile = (cust, fallbackMobile, fallbackCode) => {
+            const rawMobile = (cust && cust.mobile) || fallbackMobile || "";
+            const rawCode = (cust && cust.country_code) || fallbackCode || "974";
+            let cleanMobile = rawMobile.replace(/[^0-9]/g, "");
+            let cleanCode = rawCode.replace(/[^0-9]/g, "") || "974";
+            if (!cleanMobile) return "";
+            if (cleanMobile.startsWith(cleanCode)) {
+                cleanMobile = cleanMobile.slice(cleanCode.length);
+            }
+            cleanMobile = cleanMobile.replace(/^0+/, "");
+            return `+${cleanCode} ${cleanMobile}`;
+        };
+
+        const formatMoney = (m) => parseFloat(m || 0).toFixed(2);
+        const formatDate = (d) => {
+            if (!d) return "-";
+            const date = new Date(d);
+            return isNaN(date.getTime()) ? d : date.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
+        };
+
+        async function loadInvoice() {
+            const params = new URLSearchParams(window.location.search);
+            const type = params.get('type') || 'order';
+            const memoNo = params.get('memo_no') || params.get('id');
+
+            const container = document.getElementById('invoiceContent');
+            if (!memoNo) {
+                container.innerHTML = `<div style="text-align:center; padding: 40px 0; color:#dc2626; font-weight:bold;">Invalid Invoice Request</div>`;
+                return;
+            }
+
+            try {
+                let res = null;
+                let result = null;
+                let fetchError = null;
+
+                const bases = getApiBases();
+                for (const base of bases) {
+                    try {
+                        const response = await fetch(`${base}/public/invoice?type=${type}&memo_no=${encodeURIComponent(memoNo)}`);
+                        if (response.ok) {
+                            res = response;
+                            result = await response.json();
+                            if (result && !result.error) break;
+                        }
+                    } catch (e) {
+                        fetchError = e;
+                    }
+                }
+
+                if (!result || result.error) {
+                    const errMsg = (result && result.message) || (fetchError && fetchError.message) || 'Invoice details not found';
+                    container.innerHTML = `<div style="text-align:center; padding: 40px 0; color:#dc2626; font-weight:bold;">${errMsg}</div>`;
+                    return;
+                }
+
+                const item = result.data || result.order || result.sale || result;
+                const branch = result.branch || {};
+                const customer = item.customer || item.Customer || {};
+                const items = item.items || [];
+
+                const branchName = branch.name || "YOM AL ABAYAT";
+                const branchContact = branch.mobile || "50294046";
+                const branchContactAlt = "50298321";
+
+                // Generate Items Rows
+                const itemsRows = items.map((it, idx) => {
+                    const unitPrice = it.quantity > 0 ? it.subtotal / it.quantity : 0;
+                    return `
+                        <tr>
+                            <td style="text-align:center;">${idx + 1}</td>
+                            <td style="padding-left:8px; font-weight: 600; color: #1e293b;">${it.product_name || 'Item'}</td>
+                            <td style="text-align:center;">${it.quantity}</td>
+                            <td style="text-align:center;">${formatMoney(unitPrice)}</td>
+                            <td style="text-align:center; font-weight:600;">${formatMoney(it.subtotal)}</td>
+                        </tr>
+                    `;
+                }).join("");
+
+                // Fill Empty Rows up to 10
+                const totalRowsNeeded = 10;
+                let emptyRows = "";
+                if (items.length < totalRowsNeeded) {
+                    for (let i = items.length; i < totalRowsNeeded; i++) {
+                        emptyRows += `<tr><td style="text-align:center;">${i + 1}</td><td></td><td></td><td></td><td></td></tr>`;
+                    }
+                }
+
+                const totalAmount = parseFloat(item.total_amount || 0);
+                const receivedAmount = parseFloat(item.received_amount || 0);
+                const dueAmount = Math.max(0, totalAmount - receivedAmount);
+                const orderDateStr = formatDate(item.order_date || item.sale_date);
+                const deliveryDateStr = formatDate(item.delivery_date || item.order_date || item.sale_date);
+                const isCancelled = item.status === 'cancelled';
+
+                container.innerHTML = `
+                    <div class="watermark">${branchName}</div>
+
+                    <header class="invoice-header">
+                        <div class="contact-info left">
+                            <p>Mob: ${branchContact} | Mob: ${branchContactAlt}</p>
+                            <p>Al Shafee Street</p>
+                            <p>Opp. Commercial Bank</p>
+                            <p>New Rayyan</p>
+                            <p>Doha - Qatar</p>
+                        </div>
+
+                        <div class="logo-name-section">
+                            <h1>${branchName}</h1>
+                            <h2>Abayat - Shelat - Hijabat - Niqabat &amp; Jalabia</h2>
+                            <p>عبايات - شيلات - حجابات - نقابات و جلابيات</p>
+                            <span class="arabic-logo">(يوم العبايات)</span>
+                        </div>
+
+                        <div class="contact-info right" style="text-align: right;">
+                            <p>جوال: ٥٠٢٩٤٠٤٦@</p>
+                            <p>جوال: ٥٠٢٩٨٣٢١@</p>
+                            <p>شارع الشافي</p>
+                            <p>مقابل البنك التجاري</p>
+                            <p>الريان الجديد</p>
+                            <p>الدوحة - قطر</p>
+                        </div>
+                    </header>
+
+                    <div class="invoice-details">
+                        <div class="invoice-row">
+                            <div class="no">No. ${item.memo_no || item.id}</div>
+                            ${isCancelled ? `<div class="status-badge-cancelled">CANCELLED INVOICE</div>` : `<div class="type">CASH / CREDIT INVOICE</div>`}
+                        </div>
+                    </div>
+
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Delivery Date</label>
+                            <input type="text" class="thin-line" value="${deliveryDateStr}" readonly>
+                            <label class="arabic-label">التاريخ التسليم</label>
+                        </div>
+                        <div class="info-item">
+                            <label>Date</label>
+                            <input type="text" class="thin-line" value="${orderDateStr}" readonly>
+                            <label class="arabic-label">التاريخ</label>
+                        </div>
+                        <div class="info-item full-width">
+                            <label>Mr./Mrs.</label>
+                            <input type="text" class="thin-line" value="${customer.name || item.customer_name || ''}" readonly>
+                            <label class="arabic-label">السيد / السادة</label>
+                        </div>
+                        <div class="info-item full-width">
+                            <label>Tel. Mobile</label>
+                            <input type="text" class="thin-line" value="${formatCustomerMobile(customer, item.customer_mobile, item.country_code || item.customer_country_code)}" readonly>
+                            <label class="arabic-label">تليفون / جوال</label>
+                        </div>
+                    </div>
+
+                    <table class="item-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 8%;"><span class="en">Sr.No.</span><br><span class="ar">الرقم</span></th>
+                                <th style="width: 47%;"><span class="en">DESCRIPTION</span><br><span class="ar">التفاصيل</span></th>
+                                <th style="width: 10%;"><span class="en">QTY.</span><br><span class="ar">الكمية</span></th>
+                                <th style="width: 15%;"><span class="en">UNIT PRICE</span><br><span class="ar">سعر الوحدة</span></th>
+                                <th style="width: 20%;"><span class="en">AMOUNT</span><br><span class="ar">المبلغ</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemsRows}
+                            ${emptyRows}
+
+                            <tr class="total-row">
+                                <td colspan="3" class="total-label-cell">TOTAL / المجموع</td>
+                                <td colspan="2" class="total-amount-cell">${formatMoney(totalAmount)}</td>
+                            </tr>
+                            <tr class="total-row">
+                                <td colspan="3" class="total-label-cell">ADVANCE / مقدماً</td>
+                                <td colspan="2" class="total-amount-cell">${formatMoney(receivedAmount)}</td>
+                            </tr>
+                            <tr class="total-row final-total">
+                                <td colspan="3" class="total-label-cell">BALANCE / الباقي</td>
+                                <td colspan="2" class="total-amount-cell" style="${dueAmount > 0 ? 'color: #dc2626;' : ''}">${formatMoney(dueAmount)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <footer class="invoice-footer">
+                        <div class="signature">
+                            <p>Receiver's Sign / توقيع المستلم</p>
+                            <div class="signature-line"></div>
+                        </div>
+                        <div class="signature">
+                            <p>Salesman's Sign / توقيع البائع</p>
+                            <div class="signature-line"></div>
+                        </div>
+                    </footer>
+                `;
+            } catch (e) {
+                console.error("loadInvoice error:", e);
+                container.innerHTML = `<div style="text-align:center; padding: 40px 0; color:#dc2626; font-weight:bold;">Failed to load invoice.</div>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadInvoice);
+    </script>
+</body>
+</html>

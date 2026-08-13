@@ -41,6 +41,20 @@ window.printOrderInvoice = async function (id, order) {
     const receivedAmount = parseFloat(order.received_amount || 0);
     const dueAmount = totalAmount - receivedAmount;
 
+    const formatCustomerMobile = (cust) => {
+      if (!cust) return "";
+      const rawMobile = cust.mobile || cust.customer_mobile || "";
+      const rawCode = cust.country_code || cust.customer_country_code || "974";
+      let cleanMobile = rawMobile.replace(/[^0-9]/g, "");
+      let cleanCode = rawCode.replace(/[^0-9]/g, "") || "974";
+      if (!cleanMobile) return "";
+      if (cleanMobile.startsWith(cleanCode)) {
+        cleanMobile = cleanMobile.slice(cleanCode.length);
+      }
+      cleanMobile = cleanMobile.replace(/^0+/, "");
+      return `+${cleanCode} ${cleanMobile}`;
+    };
+
     const printContent = `
             <!DOCTYPE html>
             <html lang="en">
@@ -227,7 +241,7 @@ window.printOrderInvoice = async function (id, order) {
                         </div>
                         <div class="info-item full-width">
                             <label>Tel. Mobile</label>
-                            <input type="text" class="thin-line" value="${order.customer?.mobile || ""}">
+                            <input type="text" class="thin-line" value="${formatCustomerMobile(order.customer)}">
                             <label class="arabic-label">تليفون / جوال</label>
                         </div>
                     </div>
@@ -860,3 +874,202 @@ window.formatDate = (date) => {
 
   return `${day} ${month} ${year}`;
 };
+
+window.sendWhatsAppInvoice = async function (type, itemOrId) {
+  try {
+    window.showActionSpinner && window.showActionSpinner("Preparing WhatsApp invoice...");
+    let item = itemOrId;
+    if (typeof itemOrId === "number" || typeof itemOrId === "string") {
+      const apiBase = window.globalState ? window.globalState.apiBase : "http://localhost:8080/api/v1";
+      const endpoint = type === "sale" 
+        ? `${apiBase}/products/sales/details/${itemOrId}` 
+        : `${apiBase}/products/orders/${itemOrId}`;
+      const res = await fetch(endpoint, {
+        headers: window.getAuthHeaders ? window.getAuthHeaders() : {},
+      });
+      const data = await res.json();
+      if (data.error || (!data.order && !data.sale && !data.data)) {
+        if (window.showNotification) window.showNotification("error", "Could not fetch invoice details.");
+        window.hideActionSpinner && window.hideActionSpinner();
+        return;
+      }
+      item = data.order || data.sale || data.data;
+    }
+    window.hideActionSpinner && window.hideActionSpinner();
+
+    const customer = item.customer || item.Customer || {};
+    const rawMobile = customer.mobile || item.customer_mobile || item.mobile || "";
+    const rawCountryCode = customer.country_code || item.country_code || item.customer_country_code || "974";
+
+    if (!rawMobile) {
+      if (window.showNotification) window.showNotification("error", "Customer mobile number not found.");
+      return;
+    }
+
+    // Clean mobile and country code (strip non-digits)
+    let cleanMobile = rawMobile.replace(/[^0-9]/g, "");
+    let cleanCountryCode = rawCountryCode.replace(/[^0-9]/g, "") || "974";
+
+    // If mobile starts with country code already, don't duplicate it
+    if (cleanMobile.startsWith(cleanCountryCode)) {
+      // already includes country code
+    } else {
+      // Remove leading zero if present (e.g. 055016898 -> 55016898)
+      cleanMobile = cleanMobile.replace(/^0+/, "");
+      cleanMobile = cleanCountryCode + cleanMobile;
+    }
+
+    const origin = window.location.origin;
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const invoicePath = isLocalhost ? "/frontend/public_invoice.html" : "/public_invoice.html";
+    const memoNo = item.memo_no || item.id;
+    const cleanMemoNo = String(memoNo).replace(/^INV-/, "");
+    const invoiceUrl = `${origin}${invoicePath}?type=${type}&memo_no=${encodeURIComponent(cleanMemoNo)}`;
+    const total = Number(item.total_amount || 0).toFixed(2);
+    const customerName = customer.name || item.customer_name || "Valued Customer";
+
+    const msg = `Dear *${customerName}*,
+
+Thank you for your business! Here is your official invoice details:
+
+• *Invoice No:* #${memoNo}
+• *Total Amount:* QAR ${total}
+
+👇 *Click link to view & download official invoice:*
+${invoiceUrl}`;
+
+    const waUrl = `https://wa.me/${cleanMobile}?text=${encodeURIComponent(msg)}`;
+
+    window.open(waUrl, "_blank");
+  } catch (e) {
+    window.hideActionSpinner && window.hideActionSpinner();
+    console.error("sendWhatsAppInvoice error:", e);
+    if (window.showNotification) window.showNotification("error", "Failed to send WhatsApp invoice.");
+  }
+};
+
+/* --- SPINNER PRELOADER OVERLAY HELPER --- */
+window.showActionSpinner = function (msg = "Loading details...") {
+  let spinner = document.getElementById("globalActionSpinner");
+  if (!spinner) {
+    spinner = document.createElement("div");
+    spinner.id = "globalActionSpinner";
+    spinner.className =
+      "fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-xs flex flex-col items-center justify-center transition-opacity duration-200 opacity-0 pointer-events-none";
+    document.body.appendChild(spinner);
+  }
+
+  spinner.innerHTML = `
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col items-center justify-center gap-4 transform scale-95 transition-all duration-200" id="spinnerCard" style="padding: 28px 48px !important; min-width: 260px !important;">
+      <div class="flex items-center justify-center text-brand-600">
+        <i class="ph ph-spinner-gap text-4xl animate-spin"></i>
+      </div>
+      <span id="spinnerText" class="text-xs font-bold text-slate-700 tracking-wide text-center whitespace-nowrap">${msg}</span>
+    </div>
+  `;
+
+  spinner.classList.remove("hidden", "pointer-events-none", "opacity-0");
+  spinner.classList.add("opacity-100");
+  const card = spinner.querySelector("#spinnerCard");
+  if (card) {
+    card.classList.remove("scale-95");
+    card.classList.add("scale-100");
+  }
+};
+
+window.hideActionSpinner = function () {
+  const spinner = document.getElementById("globalActionSpinner");
+  if (!spinner) return;
+  spinner.classList.remove("opacity-100");
+  spinner.classList.add("opacity-0", "pointer-events-none");
+  setTimeout(() => {
+    spinner.classList.add("hidden");
+  }, 200);
+};
+
+/* --- ANIMATED MODAL HELPERS --- */
+window.openModalAnimated = function (modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  modal.classList.remove("hidden");
+
+  const backdrop = modal.querySelector(".backdrop-blur-sm, .bg-slate-900\\/60, .fixed.inset-0");
+  const card = modal.querySelector(".bg-white");
+
+  if (backdrop) {
+    backdrop.classList.add("transition-opacity", "duration-300");
+    backdrop.style.opacity = "0";
+    setTimeout(() => { backdrop.style.opacity = "1"; }, 10);
+  }
+  if (card) {
+    card.classList.add("transition-all", "duration-300", "transform");
+    card.style.opacity = "0";
+    card.style.transform = "scale(0.95)";
+    setTimeout(() => {
+      card.style.opacity = "1";
+      card.style.transform = "scale(1)";
+    }, 10);
+  }
+};
+
+window.closeModalAnimated = function (modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+
+  const backdrop = modal.querySelector(".backdrop-blur-sm, .bg-slate-900\\/60, .fixed.inset-0");
+  const card = modal.querySelector(".bg-white");
+
+  if (backdrop) {
+    backdrop.style.opacity = "0";
+  }
+  if (card) {
+    card.style.opacity = "0";
+    card.style.transform = "scale(0.95)";
+  }
+
+  setTimeout(() => {
+    modal.classList.add("hidden");
+    if (backdrop) backdrop.style.opacity = "";
+    if (card) {
+      card.style.opacity = "";
+      card.style.transform = "";
+    }
+  }, 280);
+};
+
+/* --- TABLE ACTION MENU HELPER --- */
+window.toggleActionMenu = function (e, menuId) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById(menuId);
+  if (!menu) return;
+  const isHidden = menu.classList.contains("hidden");
+
+  window.closeAllActionMenus();
+
+  if (isHidden) {
+    menu.classList.remove("hidden");
+    const tr = menu.closest("tr");
+    if (tr) {
+      tr.style.zIndex = "99";
+      tr.style.position = "relative";
+    }
+  }
+};
+
+window.closeAllActionMenus = function () {
+  const menus = document.querySelectorAll(".action-menu-dropdown");
+  menus.forEach((m) => {
+    m.classList.add("hidden");
+    const tr = m.closest("tr");
+    if (tr) {
+      tr.style.zIndex = "";
+      tr.style.position = "";
+    }
+  });
+};
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".action-menu-btn") && !e.target.closest(".action-menu-dropdown")) {
+    window.closeAllActionMenus();
+  }
+});

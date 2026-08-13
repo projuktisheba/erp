@@ -819,16 +819,16 @@ window.submitOrderToDB = async function () {
     const data = await res.json();
 
     if (res.ok) {
+      const orderId = isEditing ? orderState.orderId : data.order_id;
       showModalConfirm(
         "success",
         `Order ${action}`,
-        `Order ${action} successfully!`,
+        `Order ${action} successfully! Choose an action below:`,
         "Print Invoice",
         async () => {
           const response = await fetch(
-            `${window.globalState.apiBase}/products/orders/${
-              isEditing ? orderState.orderId : data.order_id
-            }`,
+            `${window.globalState.apiBase}/products/orders/${orderId}`,
+            { headers: window.getAuthHeaders() }
           );
 
           const orderData = await response.json();
@@ -838,7 +838,10 @@ window.submitOrderToDB = async function () {
           const order = orderData.order;
           await printOrderInvoice(order.id, order);
         },
-        "Cancel",
+        "Send WhatsApp",
+        async () => {
+          await window.sendWhatsAppInvoice("order", orderId);
+        }
       );
 
       if (!isEditing) {
@@ -935,16 +938,16 @@ window.submitSaleToDB = async function () {
     const data = await res.json();
 
     if (res.ok) {
+      const saleId = isEditing ? orderState.saleId : data.sale_id;
       showModalConfirm(
         "success",
         `Sale ${action}`,
-        `Sale ${action} successfully!`,
+        `Sale ${action} successfully! Choose an action below:`,
         "Print Invoice",
         async () => {
           const response = await fetch(
-            `${window.globalState.apiBase}/products/sales/details/${
-              isEditing ? orderState.saleId : data.sale_id
-            }`,
+            `${window.globalState.apiBase}/products/sales/details/${saleId}`,
+            { headers: window.getAuthHeaders() }
           );
 
           const saleData = await response.json();
@@ -954,7 +957,10 @@ window.submitSaleToDB = async function () {
           const sale = saleData.sale;
           await printSaleInvoice(sale.id, sale);
         },
-        "Cancel",
+        "Send WhatsApp",
+        async () => {
+          await window.sendWhatsAppInvoice("sale", saleId);
+        }
       );
 
       if (!isEditing) {

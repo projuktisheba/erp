@@ -26,7 +26,7 @@ func NewHandlerRepo(db *dbrepo.DBRepository, JWT models.JWTConfig, infoLog *log.
 		Employee:    *NewEmployeeHandler(db.EmployeeRepo, infoLog, errorLog),
 		Auth:        *NewAuthHandler(db, JWT, infoLog, errorLog),
 		Customer:    *NewCustomerHandler(db.CustomerRepo, infoLog, errorLog),
-		Order:       *NewOrderHandler(db.OrderRepo, infoLog, errorLog),
+		Order:       *NewOrderHandler(db.OrderRepo, db.ProductRepo, db.BranchRepo, infoLog, errorLog),
 		Transaction: *NewTransactionHandler(db.TransactionRepo, infoLog, errorLog),
 		// Branch:     NewBranchHandler(db.BranchRepo, infoLog, errorLog),
 		Account:     NewAccountHandler(db.AccountRepo, infoLog, errorLog),

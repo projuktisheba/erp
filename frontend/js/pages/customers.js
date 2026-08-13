@@ -189,11 +189,103 @@ function renderTable() {
   });
 }
 
-/* --- 3. MODAL ACTIONS --- */
+/* --- 3. COUNTRY SELECTOR LOGIC --- */
+window.toggleCountryDropdown = function (e) {
+  if (e) e.stopPropagation();
+  const dropdown = document.getElementById("countryDropdown");
+  if (!dropdown) return;
+  const isHidden = dropdown.classList.contains("hidden");
+  if (isHidden) {
+    dropdown.classList.remove("hidden");
+    const searchInput = document.getElementById("countrySearchInput");
+    if (searchInput) {
+      searchInput.value = "";
+      searchInput.focus();
+    }
+    window.renderCountryList("");
+  } else {
+    dropdown.classList.add("hidden");
+  }
+};
+
+window.filterCountryList = function (query) {
+  window.renderCountryList(query);
+};
+
+window.renderCountryList = function (query = "") {
+  const container = document.getElementById("countryListContainer");
+  if (!container || !window.getGroupedCountries) return;
+
+  const grouped = window.getGroupedCountries(query);
+  const letters = Object.keys(grouped).sort();
+
+  if (letters.length === 0) {
+    container.innerHTML = `<div class="px-4 py-6 text-center text-slate-400 text-xs">No countries found</div>`;
+    return;
+  }
+
+  let html = "";
+  letters.forEach((letter) => {
+    html += `
+      <div class="px-3 py-1 font-bold text-slate-400 bg-slate-50 border-y border-slate-100 uppercase tracking-wider text-[10px] sticky top-0 z-10">
+        ${letter}
+      </div>
+    `;
+
+    grouped[letter].forEach((c) => {
+      // Escape name for single quote safety
+      const safeName = c.name.replace(/'/g, "\\'");
+      const flagImg = window.getFlagImgHtml ? window.getFlagImgHtml(c.iso, c.name) : c.flag;
+      html += `
+        <div onclick="selectCountry('${safeName}', '${c.code}', '${c.flag}', '${c.iso}')"
+             class="px-3 py-1.5 hover:bg-slate-100 flex items-center justify-between cursor-pointer transition-colors text-slate-700">
+          <div class="flex items-center gap-2 min-w-0">
+            ${flagImg}
+            <span class="font-medium text-xs text-slate-800 truncate">${c.name}</span>
+          </div>
+          <span class="font-bold text-slate-600 text-xs shrink-0 ml-2">+${c.code}</span>
+        </div>
+      `;
+    });
+  });
+
+  container.innerHTML = html;
+};
+
+window.selectCountry = function (name, code, flag, iso = "") {
+  document.getElementById("inputCountry").value = name;
+  document.getElementById("inputCountryCode").value = code;
+
+  const flagSpan = document.getElementById("selectedCountryFlag");
+  const dialSpan = document.getElementById("selectedCountryDialCode");
+
+  if (flagSpan) {
+    const flagImg = window.getFlagImgHtml ? window.getFlagImgHtml(iso, name) : flag;
+    flagSpan.innerHTML = flagImg || flag;
+  }
+  if (dialSpan) dialSpan.textContent = "+" + code;
+
+  const dropdown = document.getElementById("countryDropdown");
+  if (dropdown) dropdown.classList.add("hidden");
+};
+
+// Close country dropdown on click outside
+document.addEventListener("click", (e) => {
+  const dropdown = document.getElementById("countryDropdown");
+  const btn = document.getElementById("countrySelectBtn");
+  if (dropdown && !dropdown.classList.contains("hidden") && !dropdown.contains(e.target) && !btn.contains(e.target)) {
+    dropdown.classList.add("hidden");
+  }
+});
+
+/* --- 4. MODAL ACTIONS --- */
 window.openCustomerModal = function () {
   // Reset Form
   document.getElementById("customerId").value = "";
   document.getElementById("modalTitle").textContent = "New Customer";
+
+  // Set default country to Qatar
+  window.selectCountry("Qatar", "974", "🇶🇦", "QA");
 
   // Clear Inputs
   const ids = [
@@ -211,7 +303,7 @@ window.closeCustomerModal = function () {
   document.getElementById("customerModal").classList.add("hidden");
 };
 
-/* --- 4. CREATE / UPDATE LOGIC --- */
+/* --- 5. CREATE / UPDATE LOGIC --- */
 window.handleSaveCustomer = async function (e) {
   e.preventDefault();
 
@@ -225,6 +317,8 @@ window.handleSaveCustomer = async function (e) {
   const payload = {
     branch_id: window.globalState.user.branch_id,
     name: document.getElementById("inputName").value,
+    country: document.getElementById("inputCountry").value || "Qatar",
+    country_code: document.getElementById("inputCountryCode").value || "974",
     mobile: document.getElementById("inputMobile").value,
     address: document.getElementById("inputAddress").value,
     tax_id: document.getElementById("inputTaxId").value,
@@ -272,10 +366,8 @@ window.handleSaveCustomer = async function (e) {
   }
 };
 
-/* --- 5. EDIT PREP --- */
+/* --- 6. EDIT PREP --- */
 window.editCustomer = function (id) {
-  // We look in current list. If using server-side pagination, 
-  // the item to edit must be in the current page, which it is because we clicked it.
   const customer = customerState.list.find((c) => c.id === id);
   if (!customer) return;
 
@@ -283,10 +375,18 @@ window.editCustomer = function (id) {
   document.getElementById("customerId").value = customer.id;
   document.getElementById("modalTitle").textContent = "Edit Customer";
 
+  const countryName = customer.country || "Qatar";
+  const countryCode = customer.country_code || "974";
+  const foundCountry = (window.COUNTRY_LIST || []).find(c => c.code === countryCode || c.name === countryName);
+  const flag = foundCountry ? foundCountry.flag : "🇶🇦";
+  const iso = foundCountry ? foundCountry.iso : "QA";
+
+  window.selectCountry(countryName, countryCode, flag, iso);
+
   document.getElementById("inputName").value = customer.name;
   document.getElementById("inputMobile").value = customer.mobile;
   document.getElementById("inputAddress").value = customer.address;
-  document.getElementById("inputTaxId").value = customer.tax_id;
+  document.getElementById("inputTaxId").value = customer.tax_id || "";
   document.getElementById("inputStatus").checked = customer.status;
 
   // Populate Measurements

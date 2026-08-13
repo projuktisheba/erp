@@ -25,6 +25,7 @@ func (app *application) routes() http.Handler {
 
 	// --- Public Routes ---
 	mux.Post("/api/v1/signin", app.Handlers.Auth.Signin)
+	mux.Get("/api/v1/public/invoice", app.Handlers.Order.GetPublicInvoice)
 
 	// --- Static file serving for images ---
 	imageDir := filepath.Join(".", "data", "images")
@@ -47,7 +48,7 @@ func (app *application) routes() http.Handler {
 
 	// --- Protected Routes ---
 	protected := chi.NewRouter()
-	// protected.Use(app.AuthUser)
+	protected.Use(app.AuthUser)
 
 	// -------------------- HR(Employee) Routes --------------------
 	protected.Route("/api/v1/hr", func(r chi.Router) {
@@ -89,8 +90,8 @@ func (app *application) routes() http.Handler {
 		// 	r.Put("/employee/role", app.Handlers.Employee.UpdateEmployeeRole)
 
 		// 	// Update employee progress record
-		r.Post("/employee/worker/progress/create", app.Handlers.Employee.RecordWorkerDailyProgress)
-		r.Patch("/employee/worker/progress/update/{id}", app.Handlers.Employee.UpdateWorkerDailyProgress)
+		// 	r.Post("/employee/worker/progress/create", app.Handlers.Employee.RecordWorkerDailyProgress)
+		// 	r.Patch("/employee/worker/progress/update/{id}", app.Handlers.Employee.UpdateWorkerDailyProgress)
 	})
 
 	// -------------------- Customer Routes --------------------
@@ -125,6 +126,8 @@ func (app *application) routes() http.Handler {
 		r.Delete("/stocks/delete/{id}", app.Handlers.Product.DeleteStockProducts)
 		r.Post("/sales/new", app.Handlers.Product.AddSale)
 		r.Patch("/sales/update/{id}", app.Handlers.Product.UpdateSale)
+		r.Delete("/sales/cancel/{id}", app.Handlers.Product.CancelSale)
+		r.Post("/sales/undo-cancel/{id}", app.Handlers.Product.UndoCancelSale)
 		r.Get("/sales/details/{sale_id}", app.Handlers.Product.GetSaleDetailsByID)
 		r.Get("/sales/list", app.Handlers.Product.GetSalesHandler)
 
@@ -136,6 +139,7 @@ func (app *application) routes() http.Handler {
 		r.Get("/orders/{id}", app.Handlers.Order.GetOrderDetailsByID)
 		r.Patch("/orders/update/{id}", app.Handlers.Order.UpdateOrder)
 		r.Delete("/orders/cancel/{id}", app.Handlers.Order.CancelOrder)
+		r.Post("/orders/undo-cancel/{id}", app.Handlers.Order.UndoCancelOrder)
 		// r.Patch("/checkout", app.Handlers.Order.CheckoutOrder)
 		r.Post("/orders/delivery", app.Handlers.Order.OrderDelivery)
 		// r.Delete("orders/cancel/{id}", app.Handlers.Order.CancelOrder)
