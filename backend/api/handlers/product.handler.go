@@ -248,6 +248,15 @@ func (o *ProductHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, errors.New("Invalid sale id"))
 		return
 	}
+
+	user, ok := GetUserFromContext(r)
+	if !ok || user == nil || strings.ToLower(user.Role) != "chairman" {
+		utils.WriteJSON(w, http.StatusForbidden, models.Response{
+			Error:   true,
+			Message: "Only Chairman can edit a sale",
+		})
+		return
+	}
 	var saleDetails models.SaleDB
 	if err := utils.ReadJSON(w, r, &saleDetails); err != nil {
 		o.errorLog.Println("UpdateSale_ReadJSON:", err)

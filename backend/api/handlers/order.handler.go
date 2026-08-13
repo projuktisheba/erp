@@ -84,6 +84,15 @@ func (o *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, errors.New("Invalid order id"))
 		return
 	}
+
+	user, ok := GetUserFromContext(r)
+	if !ok || user == nil || strings.ToLower(user.Role) != "chairman" {
+		utils.WriteJSON(w, http.StatusForbidden, models.Response{
+			Error:   true,
+			Message: "Only Chairman can edit an order",
+		})
+		return
+	}
 	var orderDetails models.OrderDB
 	if err := utils.ReadJSON(w, r, &orderDetails); err != nil {
 		o.errorLog.Println("UpdateOrder_ReadJSON:", err)

@@ -250,7 +250,7 @@ function renderOrders() {
       const canDeliver = o.status === "pending" || o.status === "partial";
       const canCancel = hasAccess("chairman") && o.status !== "cancelled";
       const canUndoCancel = hasAccess("chairman") && o.status === "cancelled";
-      const canEdit = o.status === "pending";
+      const canEdit = hasAccess("chairman") && o.status === "pending";
 
       return `
       <tr class="group border-b border-slate-100 last:border-0 hover:bg-slate-50/80 transition-all duration-200">
@@ -651,7 +651,10 @@ async function viewOrder(id) {
 }
 
 window.editOrder = function (id) {
-  // Trigger your Edit Logic here
+  if (!hasAccess("chairman")) {
+    showModalConfirm("error", "Access Denied", "Only Chairman can edit orders.", "Ok", () => {});
+    return;
+  }
   localStorage.setItem("orderID", id);
   loadPage("order_sale", "New Order Entry");
 };

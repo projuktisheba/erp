@@ -127,7 +127,8 @@ window.showModalConfirm = function (
   message,
   confirmText,
   onConfirm,
-  cancelText = "Cancel"
+  cancelText = "Cancel",
+  onCancel = null
 ) {
   // 1. Define Styles based on Type
   const config = {
@@ -232,7 +233,12 @@ window.showModalConfirm = function (
 
   // 6. Bind Events
   // Cancel Button
-  document.getElementById(`${modalId}-cancel`).onclick = closeModal;
+  document.getElementById(`${modalId}-cancel`).onclick = () => {
+    if (typeof onCancel === "function") {
+      onCancel();
+    }
+    closeModal();
+  };
 
   // Confirm Button
   document.getElementById(`${modalId}-confirm`).onclick = () => {

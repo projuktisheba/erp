@@ -252,7 +252,7 @@ function renderSales() {
         };
 
       const canDeliver = o.status === "pending" || o.status === "partial";
-      const canEdit = o.status !== "cancelled";
+      const canEdit = hasAccess("chairman") && o.status !== "cancelled";
       const canCancel = hasAccess("chairman") && o.status !== "cancelled";
       const canUndoCancel = hasAccess("chairman") && o.status === "cancelled";
 
@@ -454,7 +454,10 @@ window.undoCancelSale = async function (id, memoNo) {
 // These need to be on the window object so the HTML 'onclick' attributes can find them
 
 window.editSale = function (id) {
-    // Trigger your Edit Logic here
+  if (!hasAccess("chairman")) {
+    showModalConfirm("error", "Access Denied", "Only Chairman can edit sales.", "Ok", () => {});
+    return;
+  }
   localStorage.setItem("saleID", id);
   loadPage("order_sale", "Edit Sale Entry");
 };
