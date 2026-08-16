@@ -518,6 +518,44 @@ Make sure disabled buttons don't get the pointer cursor.
   cursor: default;
 }
 
+/* Sleek 3-Dot Action Menu Button */
+.action-menu-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  outline: none !important;
+  transition: all 0.15s ease-in-out !important;
+  cursor: pointer !important;
+}
+
+.action-menu-btn i {
+  color: #0f172a !important;
+  font-size: 15px !important;
+}
+
+.action-menu-btn:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+.action-menu-btn:hover i {
+  color: #0f172a !important;
+}
+
+.action-menu-btn:active {
+  transform: scale(0.95);
+  background-color: #cbd5e1 !important;
+}
+
 /*
 1. Make replaced elements `display: block` by default. (https://github.com/mozdevs/cssremedy/issues/14)
 2. Add `vertical-align: middle` to align replaced elements more sensibly by default. (https://github.com/jensimmons/cssremedy/issues/14#issuecomment-634934210)

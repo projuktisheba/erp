@@ -61,6 +61,8 @@ window.printOrderInvoice = async function (id, order) {
       return `+${cleanCode} ${cleanMobile}`;
     };
 
+    const isCancelled = (order.status || "").toLowerCase() === "cancelled";
+
     const generateSingleCard = () => `
       <div class="invoice-container">
           <div class="watermark">${branchName}</div>
@@ -90,29 +92,29 @@ window.printOrderInvoice = async function (id, order) {
           <div class="invoice-details">
               <div class="invoice-row">
                   <div class="no">No. ${order.memo_no || order.id}</div>
-                  <div class="type">CASH / CREDIT INVOICE</div>
+                  ${isCancelled ? `<div class="status-badge-cancelled">CANCELLED INVOICE</div>` : `<div class="type">CASH / CREDIT INVOICE</div>`}
               </div>
           </div>
 
           <div class="info-grid">
               <div class="info-item">
                   <label>Delivery Date</label>
-                  <input type="text" class="thin-line" value="${formatDate(order.delivery_date || order.order_date || order.created_at)}">
+                  <input type="text" class="thin-line" value="${formatDate(order.delivery_date || order.order_date || order.created_at)}" readonly>
                   <label class="arabic-label">التاريخ التسليم</label>
               </div>
               <div class="info-item">
                   <label>Date</label>
-                  <input type="text" class="thin-line" value="${formatDate(order.order_date || order.created_at)}">
+                  <input type="text" class="thin-line" value="${formatDate(order.order_date || order.created_at)}" readonly>
                   <label class="arabic-label">التاريخ</label>
               </div>
               <div class="info-item full-width">
                   <label>Mr./Mrs.</label>
-                  <input type="text" class="thin-line" value="${order.customer?.name || ""}">
+                  <input type="text" class="thin-line" value="${order.customer?.name || ""}" readonly>
                   <label class="arabic-label">السيد / السادة</label>
               </div>
               <div class="info-item full-width">
                   <label>Tel. Mobile</label>
-                  <input type="text" class="thin-line" value="${formatCustomerMobile(order.customer)}">
+                  <input type="text" class="thin-line" value="${formatCustomerMobile(order.customer)}" readonly>
                   <label class="arabic-label">تليفون / جوال</label>
               </div>
           </div>
@@ -141,7 +143,7 @@ window.printOrderInvoice = async function (id, order) {
                   </tr>
                   <tr class="total-row final-total">
                       <td colspan="3" class="total-label-cell">BALANCE / الباقي</td>
-                      <td colspan="2" class="total-amount-cell">${formatMoney(dueAmount)}</td>
+                      <td colspan="2" class="total-amount-cell" style="${dueAmount > 0 ? 'color: #dc2626;' : ''}">${formatMoney(dueAmount)}</td>
                   </tr>
               </tbody>
           </table>
@@ -199,7 +201,7 @@ window.printOrderInvoice = async function (id, order) {
                         height: 138mm;
                         background: white;
                         padding: 6px 12px;
-                        border: 1.5px solid #334155;
+                        border: none;
                         font-size: 12.5px;
                         position: relative;
                         overflow: hidden;
@@ -273,14 +275,14 @@ window.printOrderInvoice = async function (id, order) {
                     }
                     .total-row.final-total .total-label-cell { background-color: #f8fafc; color: #000000; font-weight: 700; font-size: 13.5px; }
                     .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #000000; font-size: 16px; font-weight: 700; }
-                    .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 3px; }
+                    .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 4px; }
                     .invoice-footer .signature { width: 38%; text-align: center; }
-                    .invoice-footer .signature-line { border-bottom: 1px solid #475569; height: 1px; margin-top: 14px; }
+                    .invoice-footer .signature-line { border-bottom: 1px solid #475569; height: 1px; margin-top: 16px; }
                     .invoice-footer p { font-weight: 600; color: #1e293b; font-size: 11.5px; margin: 0; }
                     .disclaimer-banner {
-                        position: relative; z-index: 1; text-align: center; margin-top: 3px;
+                        position: relative; z-index: 1; text-align: center; margin-top: 10px;
                         font-size: 10.5px; font-weight: 500; color: #1e293b;
-                        border-top: 1px solid #94a3b8; padding-top: 2px;
+                        border-top: 1px solid #94a3b8; padding-top: 4px;
                     }
 
                     @media print {
@@ -393,6 +395,8 @@ window.printSaleInvoice = async function (id, sale) {
     const receivedAmount = parseFloat(sale.received_amount || 0);
     const dueAmount = totalAmount - receivedAmount;
 
+    const isCancelled = (sale.status || "").toLowerCase() === "cancelled";
+
     const generateSingleCard = () => `
       <div class="invoice-container">
           <div class="watermark">${branchName}</div>
@@ -422,29 +426,29 @@ window.printSaleInvoice = async function (id, sale) {
           <div class="invoice-details">
               <div class="invoice-row">
                   <div class="no">No. ${sale.memo_no || sale.id}</div>
-                  <div class="type">CASH / CREDIT INVOICE</div>
+                  ${isCancelled ? `<div class="status-badge-cancelled">CANCELLED INVOICE</div>` : `<div class="type">CASH / CREDIT INVOICE</div>`}
               </div>
           </div>
 
           <div class="info-grid">
               <div class="info-item">
                   <label>Delivery Date</label>
-                  <input type="text" class="thin-line" value="${formatDate(sale.delivery_date || sale.sale_date || sale.created_at)}">
+                  <input type="text" class="thin-line" value="${formatDate(sale.delivery_date || sale.sale_date || sale.created_at)}" readonly>
                   <label class="arabic-label">التاريخ التسليم</label>
               </div>
               <div class="info-item">
                   <label>Date</label>
-                  <input type="text" class="thin-line" value="${formatDate(sale.sale_date || sale.created_at)}">
+                  <input type="text" class="thin-line" value="${formatDate(sale.sale_date || sale.created_at)}" readonly>
                   <label class="arabic-label">التاريخ</label>
               </div>
               <div class="info-item full-width">
                   <label>Mr./Mrs.</label>
-                  <input type="text" class="thin-line" value="${sale.customer?.name || sale.customer_name || ""}">
+                  <input type="text" class="thin-line" value="${sale.customer?.name || sale.customer_name || ""}" readonly>
                   <label class="arabic-label">السيد / السادة</label>
               </div>
               <div class="info-item full-width">
                   <label>Tel. Mobile</label>
-                  <input type="text" class="thin-line" value="${sale.customer?.mobile || sale.customer_mobile || ""}">
+                  <input type="text" class="thin-line" value="${sale.customer?.mobile || sale.customer_mobile || ""}" readonly>
                   <label class="arabic-label">تليفون / جوال</label>
               </div>
           </div>
@@ -468,12 +472,12 @@ window.printSaleInvoice = async function (id, sale) {
                       <td colspan="2" class="total-amount-cell">${formatMoney(totalAmount)}</td>
                   </tr>
                   <tr class="total-row">
-                      <td colspan="3" class="total-label-cell">RECEIVED / مقدماً</td>
+                      <td colspan="3" class="total-label-cell">ADVANCE / مقدماً</td>
                       <td colspan="2" class="total-amount-cell">${formatMoney(receivedAmount)}</td>
                   </tr>
                   <tr class="total-row final-total">
                       <td colspan="3" class="total-label-cell">BALANCE / الباقي</td>
-                      <td colspan="2" class="total-amount-cell">${formatMoney(dueAmount)}</td>
+                      <td colspan="2" class="total-amount-cell" style="${dueAmount > 0 ? 'color: #dc2626;' : ''}">${formatMoney(dueAmount)}</td>
                   </tr>
               </tbody>
           </table>
@@ -531,7 +535,7 @@ window.printSaleInvoice = async function (id, sale) {
                         height: 138mm;
                         background: white;
                         padding: 6px 12px;
-                        border: 1.5px solid #334155;
+                        border: none;
                         font-size: 12.5px;
                         position: relative;
                         overflow: hidden;
@@ -605,14 +609,14 @@ window.printSaleInvoice = async function (id, sale) {
                     }
                     .total-row.final-total .total-label-cell { background-color: #f8fafc; color: #000000; font-weight: 700; font-size: 13.5px; }
                     .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #000000; font-size: 16px; font-weight: 700; }
-                    .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 3px; }
+                    .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 4px; }
                     .invoice-footer .signature { width: 38%; text-align: center; }
-                    .invoice-footer .signature-line { border-bottom: 1px solid #475569; height: 1px; margin-top: 14px; }
+                    .invoice-footer .signature-line { border-bottom: 1px solid #475569; height: 1px; margin-top: 16px; }
                     .invoice-footer p { font-weight: 600; color: #1e293b; font-size: 11.5px; margin: 0; }
                     .disclaimer-banner {
-                        position: relative; z-index: 1; text-align: center; margin-top: 3px;
+                        position: relative; z-index: 1; text-align: center; margin-top: 10px;
                         font-size: 10.5px; font-weight: 500; color: #1e293b;
-                        border-top: 1px solid #94a3b8; padding-top: 2px;
+                        border-top: 1px solid #94a3b8; padding-top: 4px;
                     }
 
                     @media print {
@@ -963,7 +967,7 @@ window.sendWhatsAppInvoice = async function (type, itemOrId) {
     const invoicePath = isLocalhost ? "/frontend/public_invoice.html" : "/public_invoice.html";
     const memoNo = item.memo_no || item.id;
     const cleanMemoNo = String(memoNo).replace(/^INV-/, "");
-    const invoiceUrl = `${origin}${invoicePath}?type=${type}&memo_no=${encodeURIComponent(cleanMemoNo)}`;
+    const invoiceUrl = `${origin}${invoicePath}?type=${type}&id=${item.id}`;
     const total = Number(item.total_amount || 0).toFixed(2);
     
     const msg = `*Dear valued customer*

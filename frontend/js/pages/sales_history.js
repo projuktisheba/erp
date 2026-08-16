@@ -316,9 +316,9 @@ function renderSales() {
         <td class="px-6 py-4 whitespace-nowrap text-center">
           <div class="relative flex justify-center items-center">
             <button onclick="toggleActionMenu(event, 'sale-menu-${o.id}')"
-              class="action-menu-btn inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100 text-slate-800 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all duration-150 border border-slate-300 shadow-xs focus:outline-none focus:ring-2 focus:ring-slate-400 active:scale-95"
+              class="action-menu-btn inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-50 text-slate-900 hover:bg-slate-200 hover:text-slate-900 transition-all duration-150 border border-slate-300 focus:outline-none active:scale-95"
               title="Actions">
-              <i class="ph ph-dots-three-vertical text-xl font-bold"></i>
+              <i class="fa-solid fa-ellipsis-vertical text-base"></i>
             </button>
 
             <div id="sale-menu-${o.id}" class="action-menu-dropdown hidden absolute right-0 top-full mt-1.5 z-[999] w-56 p-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl shadow-slate-900/15 text-left transition-all duration-200" style="background-color: #ffffff !important; opacity: 1 !important;">

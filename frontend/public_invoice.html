@@ -52,7 +52,7 @@
             background: white;
             padding: 10px 14px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            border: 1.5px solid #334155;
+            border: none;
             border-radius: 6px;
             font-size: 12.5px;
             position: relative;
@@ -146,14 +146,110 @@
         .total-row.final-total .total-amount-cell { background-color: #f8fafc; color: #000000; font-size: 16px; font-weight: 700; }
 
         /* Footer Signatures */
-        .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 3px; }
+        .invoice-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 4px; }
         .invoice-footer .signature { width: 38%; text-align: center; }
-        .invoice-footer .signature-line { border-bottom: 1px solid #475569; height: 1px; margin-top: 14px; }
+        .invoice-footer .signature-line { border-bottom: 1px solid #475569; height: 1px; margin-top: 16px; }
         .invoice-footer p { font-weight: 600; color: #1e293b; font-size: 11.5px; margin: 0; }
         .disclaimer-banner {
-            position: relative; z-index: 1; text-align: center; margin-top: 3px;
+            position: relative; z-index: 1; text-align: center; margin-top: 10px;
             font-size: 10.5px; font-weight: 500; color: #1e293b;
-            border-top: 1px solid #94a3b8; padding-top: 2px;
+            border-top: 1px solid #94a3b8; padding-top: 4px;
+        }
+
+        /* SCREEN MOBILE RESPONSIVE STYLES (Does NOT affect print PDF output) */
+        @media screen and (max-width: 680px) {
+            body {
+                padding: 4px !important;
+            }
+            .no-print-bar {
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 0 4px !important;
+            }
+            .invoice-container {
+                width: 100% !important;
+                padding: 8px 6px !important;
+                font-size: 10px !important;
+                border-radius: 4px !important;
+            }
+            .logo-name-section h1 {
+                font-size: 18px !important;
+            }
+            .logo-name-section h2 {
+                font-size: 10px !important;
+            }
+            .logo-name-section p {
+                font-size: 9px !important;
+            }
+            .logo-name-section .arabic-logo {
+                font-size: 9px !important;
+                padding: 1px 4px !important;
+            }
+            .contact-info p {
+                font-size: 8.5px !important;
+                line-height: 1.2 !important;
+            }
+            .contact-info.right p:last-child {
+                font-size: 8.5px !important;
+            }
+            .invoice-row .no {
+                font-size: 11px !important;
+                padding: 1px 6px !important;
+            }
+            .invoice-row .type, .status-badge-cancelled {
+                font-size: 9px !important;
+                padding: 1px 6px !important;
+            }
+            .info-grid {
+                gap: 2px 6px !important;
+                font-size: 9.5px !important;
+            }
+            .info-item label {
+                min-width: 44px !important;
+                font-size: 9px !important;
+            }
+            .info-item .arabic-label {
+                font-size: 8.5px !important;
+            }
+            .info-item .thin-line {
+                font-size: 10px !important;
+                height: 16px !important;
+                padding: 0 2px !important;
+            }
+            .item-table {
+                font-size: 9.5px !important;
+            }
+            .item-table thead th {
+                font-size: 8.5px !important;
+                padding: 2px 1px !important;
+            }
+            .item-table td {
+                font-size: 9px !important;
+                height: 18px !important;
+                padding: 1px 3px !important;
+            }
+            .total-row .total-label-cell, .total-row .total-amount-cell {
+                font-size: 9.5px !important;
+                padding-right: 4px !important;
+            }
+            .total-row.final-total .total-label-cell {
+                font-size: 10px !important;
+            }
+            .total-row.final-total .total-amount-cell {
+                font-size: 11px !important;
+            }
+            .invoice-footer p {
+                font-size: 8.5px !important;
+            }
+            .invoice-footer .signature-line {
+                margin-top: 8px !important;
+            }
+            .disclaimer-banner {
+                font-size: 8px !important;
+            }
+            .watermark {
+                font-size: 36px !important;
+            }
         }
 
         /* PRINT STYLES - SINGLE INVOICE TAKING TOP HALF OF A4 PAGE */
@@ -172,7 +268,7 @@
                 width: 100% !important;
                 height: 138mm !important;
                 box-shadow: none !important;
-                border: 1.5px solid #334155 !important;
+                border: none !important;
                 padding: 6px 12px !important;
                 border-radius: 0 !important;
                 page-break-inside: avoid !important;
@@ -240,10 +336,10 @@
         async function loadInvoice() {
             const params = new URLSearchParams(window.location.search);
             const type = params.get('type') || 'order';
-            const memoNo = params.get('memo_no') || params.get('id');
+            const id = params.get('id');
 
             const container = document.getElementById('invoiceContent');
-            if (!memoNo) {
+            if (!id) {
                 container.innerHTML = `<div style="text-align:center; padding: 30px 0; color:#dc2626; font-weight:bold;">Invalid Invoice Request</div>`;
                 return;
             }
@@ -256,7 +352,7 @@
                 const bases = getApiBases();
                 for (const base of bases) {
                     try {
-                        const response = await fetch(`${base}/public/invoice?type=${type}&memo_no=${encodeURIComponent(memoNo)}`);
+                        const response = await fetch(`${base}/public/invoice?type=${type}&id=${encodeURIComponent(id)}`);
                         if (response.ok) {
                             res = response;
                             result = await response.json();
@@ -420,6 +516,10 @@
                             <div class="signature-line"></div>
                         </div>
                     </footer>
+
+                    <div class="disclaimer-banner">
+                        We are not responsible. If you do not take the abaya within 3 months | لسنا مسؤولين. إذا لم تستلمي العباية خلال ٣ أشهر
+                    </div>
                 `;
             } catch (e) {
                 console.error("loadInvoice error:", e);
