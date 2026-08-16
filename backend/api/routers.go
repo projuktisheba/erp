@@ -90,8 +90,8 @@ func (app *application) routes() http.Handler {
 		// 	r.Put("/employee/role", app.Handlers.Employee.UpdateEmployeeRole)
 
 		// 	// Update employee progress record
-		// 	r.Post("/employee/worker/progress/create", app.Handlers.Employee.RecordWorkerDailyProgress)
-		// 	r.Patch("/employee/worker/progress/update/{id}", app.Handlers.Employee.UpdateWorkerDailyProgress)
+			r.Post("/employee/worker/progress/create", app.Handlers.Employee.RecordWorkerDailyProgress)
+			r.Patch("/employee/worker/progress/update/{id}", app.Handlers.Employee.UpdateWorkerDailyProgress)
 	})
 
 	// -------------------- Customer Routes --------------------
@@ -103,8 +103,8 @@ func (app *application) routes() http.Handler {
 		//update customer
 		r.Put("/customer/update/{id}", app.Handlers.Customer.UpdateCustomerInfo)
 
-		// r.Put("/customer/due/deduct", app.Handlers.Customer.DeductCustomerDueAmount)
-		// r.Put("/customer/status", app.Handlers.Customer.UpdateCustomerStatus)
+		r.Put("/customer/due/deduct", app.Handlers.Customer.DeductCustomerDueAmount)
+		r.Put("/customer/status", app.Handlers.Customer.UpdateCustomerStatus)
 
 		r.Get("/customers", app.Handlers.Customer.GetCustomers) //query {branchID, limit, page}
 
@@ -142,16 +142,8 @@ func (app *application) routes() http.Handler {
 		r.Post("/orders/undo-cancel/{id}", app.Handlers.Order.UndoCancelOrder)
 		// r.Patch("/checkout", app.Handlers.Order.CheckoutOrder)
 		r.Post("/orders/delivery", app.Handlers.Order.OrderDelivery)
-		// r.Delete("orders/cancel/{id}", app.Handlers.Order.CancelOrder)
 		r.Post("/orders/delivery/create", app.Handlers.Order.OrderDelivery)
 		r.Delete("/orders/delivery/delete/{id}", app.Handlers.Order.DeleteOrderDeliveryRecord)
-		// r.Get("/", app.Handlers.Order.GetOrderDetailsByID)
-		// r.Get("/items", app.Handlers.Order.GetOrderItemsByMemoNo)
-		// r.Get("/list", app.Handlers.Order.ListOrders)
-		// r.Get("/list/paginated", app.Handlers.Order.ListOrdersPaginatedHandler)
-		// r.Get("/list/status", app.Handlers.Order.ListOrdersByStatusHandler)
-		// r.Get("/summary", app.Handlers.Order.GetOrderSummaryHandler)
-
 	})
 
 	// -------------------- Inventory Routes --------------------

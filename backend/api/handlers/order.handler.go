@@ -333,13 +333,14 @@ func (o *OrderHandler) GetOrderDetailsByID(w http.ResponseWriter, r *http.Reques
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-// GetPublicInvoice handles GET /api/v1/public/invoice?type=order|sale&memo_no=234234
+// GetPublicInvoice handles GET /api/v1/public/invoice?type=order|sale&id=123
 func (o *OrderHandler) GetPublicInvoice(w http.ResponseWriter, r *http.Request) {
 	invoiceType := strings.ToLower(r.URL.Query().Get("type"))
-	memoNo := r.URL.Query().Get("memo_no")
+	idStr := r.URL.Query().Get("id")
 
-	if memoNo == "" {
-		utils.BadRequest(w, errors.New("Invoice memo_no is required"))
+	recordID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || recordID <= 0 {
+		utils.BadRequest(w, errors.New("Invoice id is required"))
 		return
 	}
 
@@ -347,7 +348,7 @@ func (o *OrderHandler) GetPublicInvoice(w http.ResponseWriter, r *http.Request) 
 	var branchID int64
 
 	if invoiceType == "sale" {
-		sale, err := o.ProductDB.GetSaleDetailsByMemoNo(r.Context(), memoNo)
+		sale, err := o.ProductDB.GetSaleDetailsByID(r.Context(), recordID)
 		if err != nil {
 			o.errorLog.Println("GetPublicInvoice_Sale:", err)
 			utils.NotFound(w, "Sale invoice not found")
@@ -356,7 +357,7 @@ func (o *OrderHandler) GetPublicInvoice(w http.ResponseWriter, r *http.Request) 
 		data = sale
 		branchID = sale.BranchID
 	} else {
-		order, err := o.DB.GetOrderDetailsByMemoNo(r.Context(), memoNo)
+		order, err := o.DB.GetOrderDetailsByID(r.Context(), recordID)
 		if err != nil {
 			o.errorLog.Println("GetPublicInvoice_Order:", err)
 			utils.NotFound(w, "Order invoice not found")

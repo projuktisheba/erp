@@ -1208,8 +1208,18 @@ func (r *ProductRepo) UndoCancelSale(ctx context.Context, saleID int64) error {
 
 // GetSaleDetailsByMemoNo fetches a sale using its memo_no or INV-memo_no
 func (r *ProductRepo) GetSaleDetailsByMemoNo(ctx context.Context, memoNo string) (*models.SaleDB, error) {
+	return r.GetSaleDetailsByMemoNoAndBranch(ctx, memoNo, 0)
+}
+
+// GetSaleDetailsByMemoNoAndBranch fetches a sale using memo_no and branch_id
+func (r *ProductRepo) GetSaleDetailsByMemoNoAndBranch(ctx context.Context, memoNo string, branchID int64) (*models.SaleDB, error) {
 	var id int64
-	err := r.db.QueryRow(ctx, `SELECT id FROM sales WHERE memo_no = $1 OR memo_no = $2 LIMIT 1`, memoNo, "INV-"+memoNo).Scan(&id)
+	var err error
+	if branchID > 0 {
+		err = r.db.QueryRow(ctx, `SELECT id FROM sales WHERE (memo_no = $1 OR memo_no = $2) AND branch_id = $3 LIMIT 1`, memoNo, "INV-"+memoNo, branchID).Scan(&id)
+	} else {
+		err = r.db.QueryRow(ctx, `SELECT id FROM sales WHERE memo_no = $1 OR memo_no = $2 LIMIT 1`, memoNo, "INV-"+memoNo).Scan(&id)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("sale not found by memo_no: %w", err)
 	}

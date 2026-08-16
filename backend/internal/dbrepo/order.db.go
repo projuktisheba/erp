@@ -1307,8 +1307,18 @@ func (r *OrderRepo) GetOrderDetailsByID(
 
 // GetOrderDetailsByMemoNo fetches an order using its memo_no or INV-memo_no
 func (r *OrderRepo) GetOrderDetailsByMemoNo(ctx context.Context, memoNo string) (*models.OrderDB, error) {
+	return r.GetOrderDetailsByMemoNoAndBranch(ctx, memoNo, 0)
+}
+
+// GetOrderDetailsByMemoNoAndBranch fetches an order using memo_no and branch_id
+func (r *OrderRepo) GetOrderDetailsByMemoNoAndBranch(ctx context.Context, memoNo string, branchID int64) (*models.OrderDB, error) {
 	var id int64
-	err := r.db.QueryRow(ctx, `SELECT id FROM orders WHERE memo_no = $1 OR memo_no = $2 LIMIT 1`, memoNo, "INV-"+memoNo).Scan(&id)
+	var err error
+	if branchID > 0 {
+		err = r.db.QueryRow(ctx, `SELECT id FROM orders WHERE (memo_no = $1 OR memo_no = $2) AND branch_id = $3 LIMIT 1`, memoNo, "INV-"+memoNo, branchID).Scan(&id)
+	} else {
+		err = r.db.QueryRow(ctx, `SELECT id FROM orders WHERE memo_no = $1 OR memo_no = $2 LIMIT 1`, memoNo, "INV-"+memoNo).Scan(&id)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("order not found by memo_no: %w", err)
 	}
