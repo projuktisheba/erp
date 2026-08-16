@@ -43,7 +43,19 @@ window.initPurchaseHistoryPage = async function () {
     });
   }
 
-  // 4. Default Date Preset (Triggers Initial Fetch)
+  // 4. Initialize Flatpickr Datepickers
+  if (window.initReportDatePickers) {
+    window.initReportDatePickers(() => {
+      document.querySelectorAll(".preset-btn").forEach((btn) => {
+        btn.classList.remove("bg-white", "text-brand-700", "shadow", "ring-1", "ring-slate-200", "font-bold", "active-preset");
+        btn.classList.add("text-slate-600", "font-medium", "hover:bg-white/50", "hover:text-slate-800");
+      });
+      reportState.currentPage = 1;
+      fetchReport();
+    });
+  }
+
+  // 5. Default Date Preset (Triggers Initial Fetch)
   applyPreset("this_month");
 };
 
@@ -103,8 +115,23 @@ window.applyPreset = function (type) {
   }
 
   // Set Input Values (YYYY-MM-DD)
-  document.getElementById("startDate").value = formatDateVal(start);
-  document.getElementById("endDate").value = formatDateVal(end);
+  const startStr = formatDateVal(start);
+  const endStr = formatDateVal(end);
+
+  const startEl = document.getElementById("startDate");
+  const endEl = document.getElementById("endDate");
+
+  if (startEl && startEl._flatpickr) {
+    startEl._flatpickr.setDate(startStr, false);
+  } else if (startEl) {
+    startEl.value = startStr;
+  }
+
+  if (endEl && endEl._flatpickr) {
+    endEl._flatpickr.setDate(endStr, false);
+  } else if (endEl) {
+    endEl.value = endStr;
+  }
 
   // Reset pagination on date change and Fetch
   reportState.currentPage = 1;

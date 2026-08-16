@@ -1126,3 +1126,45 @@ document.addEventListener("click", (e) => {
     window.closeAllActionMenus();
   }
 });
+
+/* --- Global Flatpickr Datepicker Initialization Helper --- */
+window.initReportDatePickers = function (onDateChange) {
+  if (typeof flatpickr === "undefined") return;
+
+  const config = {
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d M, Y",
+    allowInput: false,
+    onChange: function () {
+      if (typeof onDateChange === "function") {
+        onDateChange();
+      }
+    },
+    onYearChange: function (selectedDates, dateStr, instance) {
+      const day = instance.selectedDates[0] ? instance.selectedDates[0].getDate() : 1;
+      const maxDays = new Date(instance.currentYear, instance.currentMonth + 1, 0).getDate();
+      const validDay = Math.min(day, maxDays);
+      const newDate = new Date(instance.currentYear, instance.currentMonth, validDay);
+      instance.setDate(newDate, true);
+    },
+    onMonthChange: function (selectedDates, dateStr, instance) {
+      const day = instance.selectedDates[0] ? instance.selectedDates[0].getDate() : 1;
+      const maxDays = new Date(instance.currentYear, instance.currentMonth + 1, 0).getDate();
+      const validDay = Math.min(day, maxDays);
+      const newDate = new Date(instance.currentYear, instance.currentMonth, validDay);
+      instance.setDate(newDate, true);
+    },
+  };
+
+  const startEl = document.getElementById("startDate");
+  const endEl = document.getElementById("endDate");
+
+  if (startEl && !startEl._flatpickr) {
+    flatpickr(startEl, config);
+  }
+
+  if (endEl && !endEl._flatpickr) {
+    flatpickr(endEl, config);
+  }
+};
